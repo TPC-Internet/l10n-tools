@@ -4,7 +4,7 @@
   "description": "",
   "main": "dist/index",
   "scripts": {
-    "prepublish": "babel --source-maps true src --out-dir dist/",
+    "prepare": "babel --source-maps true src --out-dir dist/",
     "watch": "babel -w --source-maps true src --out-dir dist/",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
@@ -18,14 +18,17 @@
     "dist"
   ],
   "dependencies": {
-    "child-process-es6-promise": "^1.1.0",
     "command-exists": "^1.2.2",
     "glob": "^7.1.2",
     "jsonfile": "^4.0.0",
-    "minimist": "^1.2.0"
+    "minimist": "^1.2.0",
+    "shelljs": "^0.8.1"
   },
   "devDependencies": {
     "babel-cli": "^6.26.0",
     "babel-preset-env": "^1.6.1"
+  },
+  "peerDependencies": {
+    "easygettext": "^2.2.0"
   }
 }
