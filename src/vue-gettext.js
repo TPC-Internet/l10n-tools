@@ -6,7 +6,7 @@ import {syncPoToGoogleDocs} from './google-docs-syncer'
 import {execWithLog, requireCmd, getConfig} from './utils'
 
 async function extractPot (domainName, potPath, srcDirs) {
-    await requireCmd.npm('gettext-extract', 'easygettext', false)
+    await requireCmd.npm('gettext-extract', 'easygettext')
     await requireCmd.brew('xgettext', 'gettext', true)
     await execWithLog(
         `npx gettext-extract --attribute v-translate --quiet \
@@ -28,7 +28,7 @@ async function extractPot (domainName, potPath, srcDirs) {
 }
 
 async function compilePoToJson (domainName, poDir, targetPath) {
-    await requireCmd.npm('gettext-compile', 'easygettext', false)
+    await requireCmd.npm('gettext-compile', 'easygettext')
     await execWithLog(
         `gettext-compile --output "${targetPath}" ${poDir}/*.po`,
         `[l10n:${domainName}] [compilePoToJson]`

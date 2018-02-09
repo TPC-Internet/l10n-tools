@@ -47,7 +47,7 @@ export const requireCmd = {
     pipFromGitHub: requirePipFromGitHubCmd
 }
 
-async function requireNpmCmd (cmd, pkg, needGlobal) {
+async function requireNpmCmd (cmd, pkg, needGlobal = false) {
     try {
         await commandExists(cmd)
     } catch (err) {
@@ -59,7 +59,7 @@ async function requireNpmCmd (cmd, pkg, needGlobal) {
     }
 }
 
-async function requireBrewCmd (cmd, pkg, needForceLink) {
+async function requireBrewCmd (cmd, pkg, needForceLink = false) {
     try {
         await commandExists(cmd)
     } catch (err) {
