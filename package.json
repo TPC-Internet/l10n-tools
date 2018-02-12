@@ -19,9 +19,11 @@
   ],
   "dependencies": {
     "command-exists": "^1.2.2",
+    "commander": "^2.14.1",
     "glob": "^7.1.2",
+    "glob-promise": "^3.3.0",
+    "i18next-conv": "^6.0.0",
     "jsonfile": "^4.0.0",
-    "minimist": "^1.2.0",
     "shelljs": "^0.8.1"
   },
   "devDependencies": {
