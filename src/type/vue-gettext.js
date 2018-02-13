@@ -7,6 +7,7 @@ import path from 'path'
 import {cleanupPot, updatePo} from '../common'
 import {syncPoToGoogleDocs} from '../google-docs-syncer'
 import {execWithLog, requireCmd, getConfig} from '../utils'
+import jsonfile from 'jsonfile'
 
 async function extractPot (domainName, potPath, srcDirs) {
     await requireCmd.npm('gettext-extract', 'easygettext')
@@ -44,7 +45,7 @@ async function compilePoToJson (domainName, poDir, targetPath) {
         })
         translations[locale] = JSON.parse(json)
     }
-    fs.writeFileSync(targetPath, JSON.stringify(translations, null, 4))
+    jsonfile.writeFileSync(targetPath, translations, {spaces: 4})
 }
 
 async function runCommand (cmd, domainName, domain, googleDocs) {

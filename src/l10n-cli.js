@@ -84,6 +84,9 @@ async function run () {
             case 'i18next':
                 await require('./type/i18next')(cmd._name, domainName, domain, googleDocs)
                 break
+            case 'cordova':
+                await require('./type/cordova')(cmd._name, domainName, domain, googleDocs)
+                break
             default: {
                 throw new Error(`unknown domain type '${domain.type}'`)
             }
