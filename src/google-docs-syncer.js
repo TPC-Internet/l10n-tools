@@ -1,3 +1,6 @@
+import gettextParser from 'gettext-parser'
+import glob from 'glob-promise'
+import path from 'path'
 import {execWithLog, requireCmd, getConfig} from './utils'
 import fs from 'fs'
 import readline from 'readline'
@@ -23,8 +26,7 @@ export async function syncPoToGoogleDocs (domainName, googleDocs, tag, poDir) {
 
 const SCOPES = [
     'https://www.googleapis.com/auth/spreadsheets',
-    'https://www.googleapis.com/auth/drive.file',
-    'https://www.googleapis.com/auth/drive'
+    'https://www.googleapis.com/auth/drive.readonly'
 ]
 const TOKEN_DIR = (process.env.HOME || process.env.HOMEPATH || process.env.USERPROFILE) + '/.credentials/'
 const TOKEN_PATH = TOKEN_DIR + 'google-docs-syncer.json'
@@ -34,20 +36,31 @@ export async function syncContextPoToGoogleDocs (domainName, googleDocs, tag, po
     const docName = getConfig(googleDocs, 'google-docs', 'doc-name')
     const sheetName = getConfig(googleDocs, 'google-docs', 'sheet-name')
 
-    const drive = google.drive('v3')
-    const sheets = google.sheets('v4')
+    const drive = promisifiedDrive(google.drive('v3'))
+    const sheets = promisifySheets(google.sheets('v4'))
 
-    const oauth2Client = await authorize(clientSecretPath)
+    const oauth2Client = await authorize(domainName, sheetName, clientSecretPath)
 
-    const spreadSheetId = await findSpreadSheetId(drive, oauth2Client, docName)
+    const docId = await findDocumentId(drive, oauth2Client, docName)
+    console.log(`[l10n:${domainName}] [syncPoToGoogleDocs:${sheetName}] docId`, docId)
 
-    // await readSheets(sheets, oauth2Client, sheetName)
+    const poPaths = await glob.promise(`${poDir}/*.po`)
+    const poData = {}
+    for (const poPath of poPaths) {
+        const locale = path.basename(poPath, '.po')
+        const input = fs.readFileSync(poPath)
+        poData[locale] = gettextParser.po.parse(input).translations
+    }
 
-
-    await listMajors(oauth2Client, sheetName)
+    const rows = await readSheet(domainName, tag, sheetName, sheets, oauth2Client, docId)
+    const columnMap = getColumnMap(rows[0])
+    const sheetData = createSheetData(domainName, tag, sheetName, rows, columnMap)
+    updateSheetData(domainName, tag, sheetName, poData, sheetData)
+    updatePoData(domainName, tag, sheetName, poData, sheetData)
+    await updateSheet(domainName, tag, sheetName, rows, sheetData)
 }
 
-async function authorize(clientSecretPath) {
+async function authorize(domainName, sheetName, clientSecretPath) {
     /**
      * @property {object} installed
      * @property {installed.string[]} redirect_uris
@@ -58,10 +71,15 @@ async function authorize(clientSecretPath) {
     const redirectUrl = credentials.installed.redirect_uris[0]
     const oauth2Client = new OAuth2Client(clientId, clientSecret, redirectUrl)
 
+    const token = await getToken(domainName, sheetName, oauth2Client)
+    oauth2Client.setCredentials(token)
+    return oauth2Client
+}
+
+async function getToken(domainName, sheetName, oauth2Client) {
     // Check if we have previously stored a token.
     try {
-        const token = jsonfile.readFileSync(TOKEN_PATH)
-        oauth2Client.setCredentials(token)
+        return jsonfile.readFileSync(TOKEN_PATH)
     } catch (err) {
         const authUrl = oauth2Client.generateAuthUrl({
             access_type: 'offline',
@@ -69,21 +87,24 @@ async function authorize(clientSecretPath) {
         })
         console.log('Authorize this app by visiting this url: ', authUrl)
         opn(authUrl)
-        const code = await getAuthCode()
-        const res = await oauth2Client.getToken(code)
-        const token = res.tokens
-        storeToken(token)
+        const code = await readAuthCode()
+        const token = await oauth2Client.getToken(code).then(r => r.tokens)
+        try {
+            fs.mkdirSync(TOKEN_DIR)
+        } catch (err) {
+            if (err.code !== 'EEXIST') {
+                throw err
+            }
+        }
+        fs.writeFileSync(TOKEN_PATH, JSON.stringify(token))
+        console.log(`[l10n:${domainName}] [syncPoToGoogleDocs:${sheetName}] token stored to ${TOKEN_PATH}`)
         oauth2Client.setCredentials(token)
     }
     return oauth2Client
 }
 
-function getAuthCode() {
-    const rl = readline.createInterface({
-        input: process.stdin,
-        output: process.stdout
-    })
-
+function readAuthCode() {
+    const rl = readline.createInterface({input: process.stdin, output: process.stdout})
     return new Promise(resolve => {
         rl.question('Enter the code from that page here: ', code => {
             rl.close()
@@ -92,48 +113,168 @@ function getAuthCode() {
     })
 }
 
-function storeToken(token) {
-    try {
-        fs.mkdirSync(TOKEN_DIR)
-    } catch (err) {
-        if (err.code !== 'EEXIST') {
-            throw err
+async function findDocumentId(drive, auth, docName) {
+    const {files} = await promisify(drive.files.list)({
+        auth,
+        q: `name = 'vonvon-translate-temp' and trashed = false`,
+        spaces: 'drive'
+    }).then(r => r.data)
+    const docIds = files
+        .filter(f => f.mimeType === 'application/vnd.google-apps.spreadsheet')
+        .map(f => f.id)
+
+    if (docIds.length === 0) {
+        throw new Error(`no document named ${docName}, check this out`)
+    }
+
+    if (docIds.length > 1) {
+        throw new Error(`one or more document named ${docName}, check this out`)
+    }
+
+    return docIds[0]
+}
+
+async function readSheet(domainName, tag, sheetName, sheets, auth, docId) {
+    console.log(`[l10n:${domainName}] [syncPoToGoogleDocs:${sheetName}] loading sheet`)
+    const {values: rows} = await sheets.spreadsheets.values.getAsync({
+        auth,
+        spreadsheetId: docId,
+        range: sheetName
+    }).then(r => r.data)
+    console.log(`[l10n:${domainName}] [syncPoToGoogleDocs:${sheetName}] ... ${rows.length} rows`)
+    if (rows.length === 0) {
+        throw new Error(`no header row in sheet ${sheetName}`)
+    }
+    return rows
+}
+
+function getColumnMap(headerRow) {
+    const columnMap = {
+        targets: {}
+    }
+    for (const [index, columnName] of headerRow.entries()) {
+        if (columnName === 'key') {
+            columnMap.key = index
+        } else if (columnName === 'source') {
+            columnMap.source = index
+        } else if (columnName === 'tag') {
+            columnMap.tag = index
+        } else if (columnName.startsWith('target-')) {
+            columnMap.targets[columnName.substr(7)] = index
         }
     }
-    fs.writeFileSync(TOKEN_PATH, JSON.stringify(token))
-    console.log('Token stored to ' + TOKEN_PATH)
+
+    if (!('source' in columnMap)) {
+        throw new Error(`no 'source' row in header of the sheet`)
+    }
+
+    if (Object.keys(columnMap.targets).length === 0) {
+        throw new Error(`no 'target-' row in header of the sheet`)
+    }
+
+    return columnMap
 }
 
-async function findSpreadSheetId(drive, oauth2Client, docName) {
-    const response = await promisify(drive.files.list)({
-        q: `mimeType = 'application/vnd.google-apps.spreadsheet' and name = '${docName}'`,
-        fields: 'files(id, name)',
-        spaces: 'drive'
-    }).then(res => res.data)
-    console.log(response)
-}
+function createSheetData(domainName, tag, sheetName, rows, columnMap) {
+    const sheetData = {}
+    for (const dataRow of rows.slice(1)) {
+        const entry = readDataRow(dataRow, columnMap)
+        entry.tags.delete('')
+        entry.tags.delete('OK')
+        entry.tags.delete('UNUSED')
+        entry.tags.delete(tag)
 
-async function listMajors(authClient, sheetName) {
-    /** @property {object} spreadsheets */
-    const sheets = google.sheets('v4')
-    try {
-        const response = await promisify(sheets.spreadsheets.values.get)({
-            auth: authClient,
-            // spreadsheetId: '10dvnhN63phFvWkfnCfUYjdeHbeCvJOPupxQsqAWz94s',
-            spreadsheetId: 'vonvon-translate-temp',
-            range: `${sheetName}!A2:E`,
-        }).then(res => res.data)
-        const rows = response.values
-        if (rows.length === 0) {
-            console.log('No data found.');
+        if (entry.key) {
+            sheetData[entry.key] = entry
+        } else if (entry.source) {
+            sheetData[entry.source] = entry
         } else {
-            console.log('Name, Major:');
-            for (const row of rows) {
-                // Print columns A and E, which correspond to indices 0 and 4.
-                console.log('%s, %s', row[0], row[4]);
+            console.warn(`[l10n:${domainName}] [syncPoToGoogleDocs:${sheetName}] ignoring row ${entry.row}: no key nor source`)
+        }
+    }
+    // console.log(JSON.stringify(sheetData, null, 2))
+    return sheetData
+}
+
+function readDataRow(dataRow, columnMap) {
+    const targets = {}
+    for (const [locale, localeColumn] of Object.entries(columnMap.targets)) {
+        targets[locale] = dataRow[localeColumn] || ''
+    }
+
+    return {
+        key: ('key' in columnMap) ? (dataRow[columnMap.key] || '') : '',
+        source: dataRow[columnMap.source],
+        targets: targets,
+        tags: new Set((dataRow[columnMap.tag] || '').split(','))
+    }
+}
+
+function updateSheetData(domainName, tag, sheetName, poData, sheetData) {
+    for (const [locale, po] of Object.entries(poData)) {
+        for (const data of Object.values(po)) {
+            const poEntry = Object.values(data)[0]
+            const entryId = poEntry.msgctxt || poEntry.msgid
+            if (!entryId) {
+                // Ignoring po metadata entry
+                continue
+            }
+
+            // console.log('matched entry (locale)', locale)
+            // console.log('po entry', poEntry)
+            // console.log('sheet entry', sheetEntry)
+
+            if (!(entryId in sheetData)) {
+                sheetData[entryId] = {
+                    key: poEntry.msgctxt,
+                    source: poEntry.msgid,
+                    targets: {},
+                    tags: new Set()
+                }
+            }
+
+            const sheetEntry = sheetData[entryId]
+            if (poEntry.msgctxt !== sheetEntry.key || poEntry.msgid !== sheetEntry.source) {
+                throw new Error(`entry conflict occurred ${poEntry} vs ${sheetEntry}`)
+            }
+
+            sheetEntry.key = poEntry.msgctxt
+            sheetEntry.source = poEntry.msgid
+
+            if (!sheetEntry.targets[locale]) {
+                sheetEntry.targets[locale] = poEntry.msgstr[0]
             }
         }
-    } catch (err) {
-        console.log('The API returned an error: ' + err)
     }
+    // console.log('updated sheet data', sheetData)
+}
+
+function updatePoData(domainName, tag, sheetName, poData, sheetData) {
+    for (const [entryId, sheetEntry] of Object.entries(sheetData)) {
+        for (const [locale, target] of Object.entries(sheetEntry.targets)) {
+            if (locale in poData && (sheetEntry.key in poData) && (sheetEntry.source in poData[sheetEntry.key])) {
+                const poEntry = poData[sheetEntry.key][sheetEntry.source]
+                sheetEntry.tags.add(tag)
+                if (target && target !== '$$needs translation$$') {
+                    poEntry.msgstr = [target]
+                }
+            }
+        }
+    }
+    // console.log('updated po data', JSON.stringify(poData, null, 2))
+}
+
+async function updateSheet(domainName, tag, sheetName, rows, sheetData) {
+    throw new Error('TODO')
+}
+
+function promisifiedDrive(drive) {
+    drive.files.listAsync = promisify(drive.files.list)
+    return drive
+}
+
+function promisifySheets(sheets) {
+    /** @property {object} spreadsheets */
+    sheets.spreadsheets.values.getAsync = promisify(sheets.spreadsheets.values.get)
+    return sheets
 }
