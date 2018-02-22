@@ -1,6 +1,7 @@
 import gettextParser from 'gettext-parser'
 import glob from 'glob-promise'
 import path from 'path'
+import {cleanupPo} from './common'
 import {getConfig} from './utils'
 import fs from 'fs'
 import readline from 'readline'
@@ -40,7 +41,7 @@ export async function syncPoToGoogleDocs (domainName, googleDocs, tag, poDir) {
 
     const docActions = await updateSheet(domainName, tag, sheetName, rows, columnMap, sheetData)
     await applyDocumentActions(domainName, sheetName, sheets, oauth2Client, docId, docActions)
-    writePoFiles(poDir, poData)
+    writePoFiles(domainName, poDir, poData)
 }
 
 async function authorize(domainName, sheetName, clientSecretPath) {
@@ -130,12 +131,13 @@ async function readPoFiles(poDir) {
     return poData
 }
 
-function writePoFiles(poDir, poData) {
+function writePoFiles(domainName, poDir, poData) {
     // console.log('po data to write', JSON.stringify(poData, null, 2))
     for (const [locale, po] of Object.entries(poData)) {
         const output = gettextParser.po.compile(po)
         const poPath = path.join(poDir, locale + '.po')
         fs.writeFileSync(poPath, output)
+        cleanupPo(domainName, poPath)
     }
 }
 

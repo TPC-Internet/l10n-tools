@@ -45,6 +45,7 @@ export function cleanupPo (domainName, poPath) {
                 /^#, fuzzy$/d; \
                 s/^(#.*), fuzzy(.*)/\\1\\2/; \
                 /^#:/d; \
+                s/^"Content-Type: .*\\\\n"$/"Content-Type: text\\/plain; charset=UTF-8\\\\n"/; \
                 s/^"Language: \\\\n"$/"Language: ${language}\\\\n"/ \
             ' \
             "${poPath}"`,
