@@ -15,7 +15,7 @@ async function extractPot (domainName, keywords, potPath, srcDirs) {
     await execWithLog(
         `xgettext --language=JavaScript \
             ${keywords.map(keyword => `--keyword="${keyword}"`).join(' ')} \
-            --from-code=utf-8 --no-wrap \
+            --from-code=UTF-8 --no-wrap \
             --package-name="${domainName}" \
             --output="${potPath}" \
             $(find ${srcDirs.join(' ')} -name "*.js")`,

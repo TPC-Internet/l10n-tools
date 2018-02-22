@@ -23,7 +23,7 @@ async function extractPot (domainName, potPath, srcDirs) {
 
     await execWithLog(
         `xgettext --language=JavaScript --keyword=npgettext:1c,2,3 \
-            --from-code=utf-8 --join-existing --no-wrap \
+            --from-code=UTF-8 --join-existing --no-wrap \
             --package-name="${domainName}" \
             --output="${potPath}" \
             $(find ${srcDirs.join(' ')} -name "*.js" -o -name "*.vue")`,
