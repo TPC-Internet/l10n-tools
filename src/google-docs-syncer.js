@@ -100,7 +100,7 @@ function readAuthCode() {
 async function findDocumentId(drive, auth, docName) {
     const {files} = await promisify(drive.files.list)({
         auth,
-        q: `name = 'vonvon-translate-temp' and trashed = false`,
+        q: `name = '${docName}' and trashed = false`,
         spaces: 'drive'
     }).then(r => r.data)
     const docIds = files
