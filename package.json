@@ -28,10 +28,12 @@
     "i18next-conv": "^6.0.0",
     "jsonfile": "^4.0.0",
     "opn": "^5.2.0",
-    "shelljs": "^0.8.1"
+    "shelljs": "^0.8.1",
+    "source-map-support": "^0.5.3"
   },
   "devDependencies": {
     "babel-cli": "^6.26.0",
+    "babel-plugin-source-map-support-for-6": "0.0.5",
     "babel-plugin-transform-object-rest-spread": "^6.26.0",
     "babel-preset-env": "^1.6.1"
   }
