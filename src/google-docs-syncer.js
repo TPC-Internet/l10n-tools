@@ -398,8 +398,8 @@ function toColumnName(column) {
     column += 1
     let name = ''
     while (column > 0) {
-        console.log('reminder', column, String.fromCharCode('A'.charCodeAt(0) + ((column - 1) % 26)))
-        console.log('next column', Math.floor((column - 1) / 26))
+        // console.log('reminder', column, String.fromCharCode('A'.charCodeAt(0) + ((column - 1) % 26)))
+        // console.log('next column', Math.floor((column - 1) / 26))
         name = String.fromCharCode('A'.charCodeAt(0) + ((column - 1) % 26)) + name
         column = Math.floor((column - 1) / 26)
     }
