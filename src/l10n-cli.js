@@ -45,7 +45,7 @@ async function run () {
         .action(c => {cmd = c})
 
     program.command('sync')
-        .description('로컬 소스와 Google Docs 간 싱크, 주의: 처음 동기화시 시트의 모든 열을 지워놓는것이 좋음')
+        .description('로컬 소스와 Google Docs 간 싱크')
         .action(c => {cmd = c})
 
     program.command('_extractPot')
