@@ -1,4 +1,8 @@
+import fs from 'fs'
+import gettextParser from 'gettext-parser'
+import glob from 'glob-promise'
 import path from 'path'
+import shell from 'shelljs'
 import {execWithLog, requireCmd} from './utils'
 
 export async function updatePo (domainName, potPath, poDir, locales) {
@@ -12,6 +16,23 @@ export async function updatePo (domainName, potPath, poDir, locales) {
             `[l10n:${domainName}] [updatePo:${locale}]`
         )
         await cleanupPo(domainName, poPath)
+    }
+}
+
+export async function compilePoToMo (domainName, poDir, targetDir) {
+    shell.mkdir('-p', targetDir)
+    const poPaths = await glob.promise(`${poDir}/*.po`)
+    for (const poPath of poPaths) {
+        const locale = path.basename(poPath, '.po')
+        const moDir = path.join(targetDir, locale, 'LC_MESSAGES')
+        const moPath = path.join(moDir, domainName + '.mo')
+
+        const input = fs.readFileSync(poPath)
+        const po = gettextParser.po.parse(input, 'UTF-8')
+        const output = gettextParser.mo.compile(po)
+
+        shell.mkdir('-p', moDir)
+        fs.writeFileSync(moPath, output)
     }
 }
 
