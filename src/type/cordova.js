@@ -3,7 +3,7 @@ import os from 'os'
 import shell from 'shelljs'
 import {updatePo} from '../common'
 import {getConfig} from '../utils'
-import {syncContextPoToGoogleDocs, syncPoToGoogleDocs} from '../google-docs-syncer'
+import {syncPoToGoogleDocs} from '../google-docs-syncer'
 import fs from 'fs'
 import gettextParser from 'gettext-parser'
 import jsonfile from 'jsonfile'
@@ -70,7 +70,10 @@ async function compilePoToCordovaJson (domainName, baseLocale, poDir, targetDir)
             if (!(ns in json)) {
                 json[ns] = {}
             }
-            json[ns][key] = value
+
+            if (value) {
+                json[ns][key] = value
+            }
         }
         const jsonPath = path.join(targetDir, locale + '.json')
         jsonfile.writeFileSync(jsonPath, json, {spaces: 4})
@@ -109,7 +112,7 @@ async function runCommand (cmd, domainName, domain, googleDocs) {
 
             const poDir = path.join(i18nDir, domainName)
 
-            compilePoToCordovaJson(domainName, baseLocale, poDir, targetDir)
+            await compilePoToCordovaJson(domainName, baseLocale, poDir, targetDir)
             break
         }
 
@@ -119,7 +122,7 @@ async function runCommand (cmd, domainName, domain, googleDocs) {
 
             const poDir = path.join(i18nDir, domainName)
 
-            await syncContextPoToGoogleDocs(domainName, googleDocs, tag, poDir)
+            await syncPoToGoogleDocs(domainName, googleDocs, tag, poDir)
             break
         }
 
