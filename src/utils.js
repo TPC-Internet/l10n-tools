@@ -50,13 +50,13 @@ async function requireNpmCmd (cmd, pkg, needGlobal = false) {
         await commandExists(cmd)
     } catch (err) {
         if (needGlobal) {
-            throw new Error(`install '${cmd}' by 'npm install -g ${pkg}'`)
+            throw new Error(`install '${cmd}' by 'npm install -g ${pkg}' or else you like`)
         }
 
         try {
             await commandExists(await getNpmBinPath(cmd))
         } catch (err) {
-            throw new Error(`install '${cmd}' by 'npm install --save-dev ${pkg}'`)
+            throw new Error(`install '${cmd}' by 'npm install --dev ${pkg}' or else you like`)
         }
     }
 }
@@ -66,9 +66,9 @@ async function requireBrewCmd (cmd, pkg, needForceLink = false) {
         await commandExists(cmd)
     } catch (err) {
         if (needForceLink) {
-            throw new Error(`install '${cmd}' by 'brew install ${pkg} && brew link --force ${pkg}'`)
+            throw new Error(`install '${cmd}' by 'brew install ${pkg} && brew link --force ${pkg}' or else you like`)
         } else {
-            throw new Error(`install '${cmd}' by 'brew install ${pkg}'`)
+            throw new Error(`install '${cmd}' by 'brew install ${pkg}' or else you like`)
         }
     }
 }
