@@ -87,6 +87,9 @@ async function run () {
             case 'vt':
                 await require('./type/vt')(cmd._name, domainName, domain, googleDocs)
                 break
+            case 'python':
+                await require('./type/python')(cmd._name, domainName, domain, googleDocs)
+                break
             case 'cordova':
                 await require('./type/cordova')(cmd._name, domainName, domain, googleDocs)
                 break
