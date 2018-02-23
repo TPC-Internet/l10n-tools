@@ -3,18 +3,33 @@ import gettextParser from 'gettext-parser'
 import glob from 'glob-promise'
 import path from 'path'
 import shell from 'shelljs'
-import {execWithLog, requireCmd} from './utils'
+import {execWithLog} from './utils'
 
 export async function updatePo (domainName, potPath, poDir, locales) {
-    await requireCmd.pip('pot2po', 'translate-toolkit')
-
+    const potInput = fs.readFileSync(potPath)
     for (const locale of locales) {
         const poFile = locale + '.po'
         const poPath = path.join(poDir, poFile)
-        await execWithLog(
-            `pot2po --nofuzzymatching -t "${poPath}" "${potPath}" "${poPath}"`,
-            `[l10n:${domainName}] [updatePo:${locale}]`
-        )
+
+        const pot = gettextParser.po.parse(potInput, 'UTF-8')
+        if (fs.existsSync(poPath)) {
+            const poInput = fs.readFileSync(poPath)
+            const po = gettextParser.po.parse(poInput, 'UTF-8')
+            for (const [msgctxt, potEntries] of Object.entries(pot.translations)) {
+                for (const [msgid, potEntry] of Object.entries(potEntries)) {
+                    if (msgctxt === '' && msgid === '') {
+                        continue
+                    }
+
+                    if (msgctxt in po.translations && msgid in po.translations[msgctxt]) {
+                        const poEntry = po.translations[msgctxt][msgid]
+                        potEntry.msgstr = poEntry.msgstr
+                    }
+                }
+            }
+        }
+        const output = gettextParser.po.compile(pot)
+        fs.writeFileSync(poPath, output)
         await cleanupPo(domainName, poPath)
     }
 }

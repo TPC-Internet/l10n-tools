@@ -42,9 +42,7 @@ export function getConfig (config, prefix, name) {
 
 export const requireCmd = {
     npm: requireNpmCmd,
-    brew: requireBrewCmd,
-    pip: requirePipCmd,
-    pipFromGitHub: requirePipFromGitHubCmd
+    brew: requireBrewCmd
 }
 
 async function requireNpmCmd (cmd, pkg, needGlobal = false) {
@@ -72,22 +70,6 @@ async function requireBrewCmd (cmd, pkg, needForceLink = false) {
         } else {
             throw new Error(`install '${cmd}' by 'brew install ${pkg}'`)
         }
-    }
-}
-
-async function requirePipCmd (cmd, pkg) {
-    try {
-        await commandExists(cmd)
-    } catch (err) {
-        throw new Error(`install '${cmd}' by 'pip install ${pkg}'`)
-    }
-}
-
-async function requirePipFromGitHubCmd (cmd, pkg, gitHubRepo) {
-    try {
-        await commandExists(cmd)
-    } catch (err) {
-        throw new Error(`install '${cmd}' by 'pip install git+https://github.com/${gitHubRepo}.git'`)
     }
 }
 
