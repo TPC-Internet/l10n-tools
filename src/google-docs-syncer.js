@@ -23,7 +23,7 @@ export async function syncPoToGoogleDocs (domainName, googleDocs, tag, poDir) {
     const docName = getConfig(googleDocs, 'google-docs', 'doc-name')
     const sheetName = getConfig(googleDocs, 'google-docs', 'sheet-name')
 
-    const drive = promisifiedDrive(google.drive('v3'))
+    const drive = promisifyDrive(google.drive('v3'))
     const sheets = promisifySheets(google.sheets('v4'))
 
     const oauth2Client = await authorize(domainName, sheetName, clientSecretPath)
@@ -438,7 +438,7 @@ function decodeSheetText(sheetText) {
     return sheetText
 }
 
-function promisifiedDrive(drive) {
+function promisifyDrive(drive) {
     drive.files.listAsync = promisify(drive.files.list)
     return drive
 }
