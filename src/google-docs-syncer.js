@@ -274,7 +274,7 @@ function updatePoData(domainName, tag, sheetName, poData, sheetData) {
                     const poEntry = po[sheetEntry.key][sheetEntry.source]
                     // console.log('updating po, po entry', poEntry)
                     sheetEntry.tags.add(tag)
-                    if (target && target !== '$$needs translation$$') {
+                    if (target && target !== '$$needs translation$$' && target !== '$$no translation$$') {
                         poEntry.msgstr = [target]
                     }
                 }
