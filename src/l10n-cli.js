@@ -188,6 +188,8 @@ function getDomainModule (type) {
             return require('./domain/vt')
         case 'python':
             return require('./domain/python')
+        case 'angular-gettext':
+            return require('./domain/angular-gettext')
         case 'cordova':
             return require('./domain/cordova')
         default:
