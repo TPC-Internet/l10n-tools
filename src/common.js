@@ -48,6 +48,7 @@ export async function updatePo (domainName, potPath, poDir, locales) {
         const poPath = path.join(poDir, poFile)
 
         const pot = gettextParser.po.parse(potInput, 'UTF-8')
+        pot.headers['language'] = locale
         if (fs.existsSync(poPath)) {
             const poInput = fs.readFileSync(poPath)
             const po = gettextParser.po.parse(poInput, 'UTF-8')
