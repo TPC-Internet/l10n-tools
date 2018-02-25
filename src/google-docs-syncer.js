@@ -2,7 +2,7 @@ import gettextParser from 'gettext-parser'
 import glob from 'glob-promise'
 import path from 'path'
 import {cleanupPo} from './common'
-import {getConfig} from './utils'
+import {getGoogleDocsConfig} from './utils'
 import fs from 'fs'
 import readline from 'readline'
 import {google} from 'googleapis'
@@ -19,9 +19,9 @@ const TOKEN_DIR = (process.env.HOME || process.env.HOMEPATH || process.env.USERP
 const TOKEN_PATH = TOKEN_DIR + 'google-docs-syncer.json'
 
 export async function syncPoToGoogleDocs (rc, domainName, tag, poDir) {
-    const clientSecretPath = getConfig(rc, 'google-docs', 'client-secret-path')
-    const docName = getConfig(rc, 'google-docs', 'doc-name')
-    const sheetName = getConfig(rc, 'google-docs', 'sheet-name')
+    const clientSecretPath = getGoogleDocsConfig(rc, domainName, 'client-secret-path')
+    const docName = getGoogleDocsConfig(rc, domainName, 'doc-name')
+    const sheetName = getGoogleDocsConfig(rc, domainName, 'sheet-name')
 
     const drive = promisifyDrive(google.drive('v3'))
     const sheets = promisifySheets(google.sheets('v4'))

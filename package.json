@@ -28,6 +28,7 @@
     "googleapis": "^26.0.1",
     "i18next-conv": "^6.0.0",
     "jsonfile": "^4.0.0",
+    "object-path": "^0.11.4",
     "opn": "^5.2.0",
     "shelljs": "^0.8.1",
     "source-map-support": "^0.5.3"

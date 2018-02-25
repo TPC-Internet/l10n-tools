@@ -1,5 +1,6 @@
 import {spawn} from 'child_process'
 import commandExists from 'command-exists'
+import objectPath from 'object-path'
 
 export function execWithLog (cmd, logPrefix = '') {
     return new Promise((resolve, reject) => {
@@ -31,38 +32,23 @@ export function execWithLog (cmd, logPrefix = '') {
     })
 }
 
-export function getConfig (rc, prefix, name, defaultValue) {
-    let value = null
-    try {
-        value = rc[prefix][name]
-    } catch (err) {
-        throw new Error(`config '${prefix}.${name}' is required`)
-    }
-
-    if (!value) {
-        if (defaultValue === undefined) {
-            throw new Error(`config '${prefix}.${name}' is required`)
-        } else {
-            return defaultValue
-        }
+export function getDomainConfig (rc, domainName, path, defaultValue) {
+    const value = objectPath.get(rc, ['domains', domainName, path], defaultValue)
+    if (value === undefined) {
+        throw new Error(`config 'domains.${domainName}.${path}' is required`)
     }
     return value
 }
 
-export function getDomainConfig (rc, domainName, name, defaultValue) {
-    let value = null
-    try {
-        value = rc.domains[domainName][name]
-    } catch (err) {
-        throw new Error(`config 'domains.${domainName}.${name}' is required`)
+export function getGoogleDocsConfig (rc, domainName, path, defaultValue) {
+    const domainValue = objectPath.get(rc, ['domains', domainName, 'google-docs', path])
+    if (domainValue !== undefined) {
+        return domainValue
     }
 
-    if (!value) {
-        if (defaultValue === undefined) {
-            throw new Error(`config 'domains.${domainName}.${name}' is required`)
-        } else {
-            return defaultValue
-        }
+    const value = objectPath.get(rc, ['google-docs', path], defaultValue)
+    if (value === undefined) {
+        throw new Error(`config 'google-docs.${path}' is required`)
     }
     return value
 }
