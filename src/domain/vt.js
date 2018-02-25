@@ -13,12 +13,12 @@ module.exports = {
         shell.mkdir('-p', path.dirname(potPath))
 
         const htmlPaths = []
-        const jsPaths = []
+        const pyPaths = []
         for (const srcPath of srcPaths) {
             if (path.extname(srcPath) === '.html') {
                 htmlPaths.push(srcPath)
             } else {
-                jsPaths.push(srcPath)
+                pyPaths.push(srcPath)
             }
         }
 
@@ -62,7 +62,7 @@ module.exports = {
         })
         fs.writeFileSync(potPath, output)
 
-        await xgettext(domainName, 'Python', keywords, potPath, srcPaths, true)
+        await xgettext(domainName, 'Python', keywords, potPath, pyPaths, true)
         await cleanupPot(domainName, potPath)
     },
 

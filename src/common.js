@@ -30,7 +30,7 @@ export async function xgettext (domainName, language, keywords, potPath, srcPath
     shell.mkdir('-p', path.dirname(potPath))
     console.info(`[l10n:${domainName}] [xgettext] from ${language} source`)
     await execWithLog(
-        `xgettext --language=${language} \
+        `xgettext --language="${language}" \
             ${keywords.map(keyword => `--keyword="${keyword}"`).join(' ')} \
             --from-code=UTF-8 --no-wrap \
             ${merge ? '--join-existing' : ''} \
