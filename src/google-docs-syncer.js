@@ -18,10 +18,10 @@ const SCOPES = [
 const TOKEN_DIR = (process.env.HOME || process.env.HOMEPATH || process.env.USERPROFILE) + '/.credentials/'
 const TOKEN_PATH = TOKEN_DIR + 'google-docs-syncer.json'
 
-export async function syncPoToGoogleDocs (domainName, googleDocs, tag, poDir) {
-    const clientSecretPath = getConfig(googleDocs, 'google-docs', 'client-secret-path')
-    const docName = getConfig(googleDocs, 'google-docs', 'doc-name')
-    const sheetName = getConfig(googleDocs, 'google-docs', 'sheet-name')
+export async function syncPoToGoogleDocs (rc, domainName, tag, poDir) {
+    const clientSecretPath = getConfig(rc, 'google-docs', 'client-secret-path')
+    const docName = getConfig(rc, 'google-docs', 'doc-name')
+    const sheetName = getConfig(rc, 'google-docs', 'sheet-name')
 
     const drive = promisifyDrive(google.drive('v3'))
     const sheets = promisifySheets(google.sheets('v4'))

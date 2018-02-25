@@ -3,7 +3,43 @@ import gettextParser from 'gettext-parser'
 import glob from 'glob-promise'
 import path from 'path'
 import shell from 'shelljs'
-import {execWithLog} from './utils'
+import {execWithLog, getDomainConfig, requireCmd} from './utils'
+
+export async function getDomainSrcPaths (rc, domainName, exts) {
+    const srcDirs = getDomainConfig(rc, domainName, 'src-dirs', [])
+    const srcPatterns = getDomainConfig(rc, domainName, 'src-patterns', [])
+    if (srcDirs.length === 0 && srcPatterns.length === 0) {
+        throw new Error(`config 'domains.${domainName}.src-dirs' or 'domains.${domainName}.src-patterns' is required`)
+    }
+
+    for (const srcDir of srcDirs) {
+        for (const ext of exts) {
+            srcPatterns.push(path.join(srcDir, '**', '*' + ext))
+        }
+    }
+
+    const srcPaths = []
+    for (const srcPattern of srcPatterns) {
+        srcPaths.push(...await glob.promise(srcPattern))
+    }
+    return srcPaths
+}
+
+export async function xgettext (domainName, language, keywords, potPath, srcPaths, merge) {
+    await requireCmd.brew('xgettext', 'gettext', true)
+    shell.mkdir('-p', path.dirname(potPath))
+    console.info(`[l10n:${domainName}] [xgettext] from ${language} source`)
+    await execWithLog(
+        `xgettext --language=${language} \
+            ${keywords.map(keyword => `--keyword="${keyword}"`).join(' ')} \
+            --from-code=UTF-8 --no-wrap \
+            ${merge ? '--join-existing' : ''} \
+            --package-name="${domainName}" \
+            --output="${potPath}" \
+            ${srcPaths.join(' ')}`,
+        `[l10n:${domainName}] [xgettext]`
+    )
+}
 
 export async function updatePo (domainName, potPath, poDir, locales) {
     const potInput = fs.readFileSync(potPath)

@@ -1,6 +1,5 @@
-import {spawn, exec} from 'child_process'
+import {spawn} from 'child_process'
 import commandExists from 'command-exists'
-import path from 'path'
 
 export function execWithLog (cmd, logPrefix = '') {
     return new Promise((resolve, reject) => {
@@ -32,33 +31,44 @@ export function execWithLog (cmd, logPrefix = '') {
     })
 }
 
-export function getConfig (config, prefix, name) {
-    const value = config[name]
-    if (!value) {
+export function getConfig (rc, prefix, name, defaultValue) {
+    let value = null
+    try {
+        value = rc[prefix][name]
+    } catch (err) {
         throw new Error(`config '${prefix}.${name}' is required`)
+    }
+
+    if (!value) {
+        if (defaultValue === undefined) {
+            throw new Error(`config '${prefix}.${name}' is required`)
+        } else {
+            return defaultValue
+        }
+    }
+    return value
+}
+
+export function getDomainConfig (rc, domainName, name, defaultValue) {
+    let value = null
+    try {
+        value = rc.domains[domainName][name]
+    } catch (err) {
+        throw new Error(`config 'domains.${domainName}.${name}' is required`)
+    }
+
+    if (!value) {
+        if (defaultValue === undefined) {
+            throw new Error(`config 'domains.${domainName}.${name}' is required`)
+        } else {
+            return defaultValue
+        }
     }
     return value
 }
 
 export const requireCmd = {
-    npm: requireNpmCmd,
     brew: requireBrewCmd
-}
-
-async function requireNpmCmd (cmd, pkg, needGlobal = false) {
-    try {
-        await commandExists(cmd)
-    } catch (err) {
-        if (needGlobal) {
-            throw new Error(`install '${cmd}' by 'npm install -g ${pkg}' or else you like`)
-        }
-
-        try {
-            await commandExists(await getNpmBinPath(cmd))
-        } catch (err) {
-            throw new Error(`install '${cmd}' by 'npm install --dev ${pkg}' or else you like`)
-        }
-    }
 }
 
 async function requireBrewCmd (cmd, pkg, needForceLink = false) {
@@ -71,20 +81,4 @@ async function requireBrewCmd (cmd, pkg, needForceLink = false) {
             throw new Error(`install '${cmd}' by 'brew install ${pkg}' or else you like`)
         }
     }
-}
-
-let _npmBin = null
-async function getNpmBinPath (cmd) {
-    if (_npmBin == null) {
-        _npmBin = await new Promise((resolve, reject) => {
-            exec('npm bin', (error, stdout) => {
-                if (error) {
-                    reject(error)
-                } else {
-                    resolve(stdout.trim())
-                }
-            })
-        })
-    }
-    return path.join(_npmBin, cmd)
 }

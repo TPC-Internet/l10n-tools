@@ -2,6 +2,12 @@
 
 import program from 'commander'
 import jsonfile from 'jsonfile'
+import {getDomainConfig} from './utils'
+import {updatePo} from './common'
+import shell from 'shelljs'
+import {syncPoToGoogleDocs} from './google-docs-syncer'
+import os from 'os'
+import path from 'path'
 
 async function run () {
     let cmd = null
@@ -70,33 +76,122 @@ async function run () {
         program.help()
     }
 
+    const cmdName = cmd._name
     const rc = jsonfile.readFileSync(program.rcfile || '.l10nrc')
 
     const domainNames = program.domains || Object.keys(rc.domains)
     for (const domainName of domainNames) {
-        const domain = rc.domains[domainName]
-        const googleDocs = rc['google-docs']
+        const type = getDomainConfig(rc, domainName, 'type')
+        const domainModule = getDomainModule(type)
 
-        switch (domain.type) {
-            case 'vue-gettext':
-                await require('./type/vue-gettext')(cmd._name, domainName, domain, googleDocs)
+        console.info(`[l10n:${domainName}] [${cmdName}] start`)
+        switch (cmdName) {
+            case '_extractPot': {
+                const i18nDir = getDomainConfig(rc, domainName, 'i18n-dir')
+
+                const potPath = path.join(i18nDir, domainName, 'template.pot')
+
+                await domainModule.extractPot(rc, domainName, potPath)
                 break
-            case 'i18next':
-                await require('./type/i18next')(cmd._name, domainName, domain, googleDocs)
-                break
-            case 'vt':
-                await require('./type/vt')(cmd._name, domainName, domain, googleDocs)
-                break
-            case 'python':
-                await require('./type/python')(cmd._name, domainName, domain, googleDocs)
-                break
-            case 'cordova':
-                await require('./type/cordova')(cmd._name, domainName, domain, googleDocs)
-                break
-            default: {
-                throw new Error(`unknown domain type '${domain.type}'`)
             }
+
+            case '_updatePo': {
+                const i18nDir = getDomainConfig(rc, domainName, 'i18n-dir')
+                const locales = getDomainConfig(rc, domainName, 'locales')
+
+                const potPath = path.join(i18nDir, domainName, 'template.pot')
+                const poDir = path.join(i18nDir, domainName)
+
+                await updatePo(domainName, potPath, poDir, locales)
+                break
+            }
+
+            case '_apply': {
+                const i18nDir = getDomainConfig(rc, domainName, 'i18n-dir')
+
+                const poDir = path.join(i18nDir, domainName)
+
+                await domainModule.apply(rc, domainName, poDir)
+                break
+            }
+
+            case '_sync': {
+                const tag = getDomainConfig(rc, domainName, 'tag')
+                const i18nDir = getDomainConfig(rc, domainName, 'i18n-dir')
+
+                const poDir = path.join(i18nDir, domainName)
+
+                await syncPoToGoogleDocs(rc, domainName, tag, poDir)
+                break
+            }
+
+            case 'update': {
+                const i18nDir = getDomainConfig(rc, domainName, 'i18n-dir')
+                const locales = getDomainConfig(rc, domainName, 'locales')
+
+                const potPath = path.join(i18nDir, domainName, 'template.pot')
+                const poDir = path.join(i18nDir, domainName)
+
+                await domainModule.extractPot(rc, domainName, potPath)
+                await updatePo(domainName, potPath, poDir, locales)
+                await domainModule.apply(rc, domainName, poDir)
+                break
+            }
+
+            case 'upload': {
+                const locales = getDomainConfig(rc, domainName, 'locales')
+                const tag = getDomainConfig(rc, domainName, 'tag')
+
+                const tempDir = path.join(os.tmpdir(), domainName)
+                const potPath = path.join(tempDir, 'template.pot')
+                const poDir = tempDir
+
+                console.info(`[l10n:${domainName}] [${cmdName}] temp dir: '${tempDir}'`)
+                shell.rm('-rf', tempDir)
+                await domainModule.extractPot(rc, domainName, potPath)
+                await updatePo(domainName, potPath, poDir, locales)
+                await syncPoToGoogleDocs(rc, domainName, tag, poDir)
+                shell.rm('-rf', tempDir)
+                break
+            }
+
+            case 'sync': {
+                const i18nDir = getDomainConfig(rc, domainName, 'i18n-dir')
+                const locales = getDomainConfig(rc, domainName, 'locales')
+                const tag = getDomainConfig(rc, domainName, 'tag')
+
+                const potPath = path.join(i18nDir, domainName, 'template.pot')
+                const poDir = path.join(i18nDir, domainName)
+
+                await domainModule.extractPot(rc, domainName, potPath)
+                await updatePo(domainName, potPath, poDir, locales)
+                await syncPoToGoogleDocs(rc, domainName, tag, poDir)
+                await updatePo(domainName, potPath, poDir, locales)
+                await domainModule.apply(rc, domainName, poDir)
+                break
+            }
+
+            default:
+                throw new Error(`unknown sub-command: ${cmdName}`)
         }
+        console.info(`[l10n:${domainName}] [${cmdName}] done`)
+    }
+}
+
+function getDomainModule (type) {
+    switch (type) {
+        case 'vue-gettext':
+            return require('./domain/vue-gettext')
+        case 'i18next':
+            return require('./domain/i18next')
+        case 'vt':
+            return require('./domain/vt')
+        case 'python':
+            return require('./domain/python')
+        case 'cordova':
+            return require('./domain/cordova')
+        default:
+            throw new Error(`unknown domain type: ${type}`)
     }
 }
 
