@@ -60,7 +60,7 @@ export async function updatePo (domainName, potPath, poDir, locales) {
 
                     if (msgctxt in po.translations && msgid in po.translations[msgctxt]) {
                         const poEntry = po.translations[msgctxt][msgid]
-                        potEntry.msgstr = poEntry.msgstr
+                        potEntry.msgstr = poEntry.msgstr.filter(value => value !== '$$no translation$$')
                     }
                 }
             }
