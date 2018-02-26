@@ -65,7 +65,7 @@ export async function updatePo (domainName, potPath, poDir, locales) {
                 }
             }
         }
-        const output = gettextParser.po.compile(pot)
+        const output = gettextParser.po.compile(pot, {foldLength: false})
         fs.writeFileSync(poPath, output)
         await cleanupPo(domainName, poPath)
     }

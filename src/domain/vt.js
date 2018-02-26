@@ -59,7 +59,7 @@ module.exports = {
                 'Content-Transfer-Encoding': '8bit'
             },
             translations: translations
-        })
+        }, {foldLength: false})
         fs.writeFileSync(potPath, output)
 
         await xgettext(domainName, 'Python', keywords, potPath, pyPaths, true)

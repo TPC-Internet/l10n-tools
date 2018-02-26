@@ -39,7 +39,7 @@ module.exports = {
                 'Content-Transfer-Encoding': '8bit'
             },
             translations: translations
-        })
+        }, {foldLength: false})
 
         shell.mkdir('-p', path.dirname(potPath))
         fs.writeFileSync(potPath, output)
