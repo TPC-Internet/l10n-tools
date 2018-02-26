@@ -1,6 +1,7 @@
 import {Extractor} from 'angular-gettext-tools'
 import fs from 'fs'
 import glob from 'glob-promise'
+import log from 'npmlog'
 import {gettextToI18next} from 'i18next-conv'
 import shell from 'shelljs'
 import path from 'path'
@@ -25,9 +26,9 @@ module.exports = {
             attributes: ['v-translate', 'translate'],
             extensions: {vue: 'html'}
         })
-        console.info(`[l10n:${domainName}] [extractPot] from vue templates`)
+        log.info('extractPot', 'from vue templates')
         for (const vuePath of vuePaths) {
-            console.info(`[l10n:${domainName}] [extractPot] processing '${vuePath}'`)
+            log.info('extractPot', `processing '${vuePath}'`)
             const input = fs.readFileSync(vuePath, {encoding: 'UTF-8'})
             gettextExtractor.parse(vuePath, input)
         }

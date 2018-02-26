@@ -1,5 +1,6 @@
 import {spawn} from 'child_process'
 import commandExists from 'command-exists'
+import log from 'npmlog'
 import objectPath from 'object-path'
 
 export function execWithLog (cmd, logPrefix = '') {
@@ -9,7 +10,7 @@ export function execWithLog (cmd, logPrefix = '') {
         p.stdout.on('data', data => {
             for (const line of data.toString().split('\n')) {
                 if (line) {
-                    console.log(`${logPrefix} ${line}`)
+                    log.info(logPrefix, line)
                 }
             }
         })
@@ -17,7 +18,7 @@ export function execWithLog (cmd, logPrefix = '') {
         p.stderr.on('data', data => {
             for (const line of data.toString().split('\n')) {
                 if (line) {
-                    console.warn(`${logPrefix} ${line}`)
+                    log.warn(logPrefix, line)
                 }
             }
         })

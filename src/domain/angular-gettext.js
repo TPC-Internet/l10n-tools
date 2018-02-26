@@ -1,6 +1,7 @@
 import fs from 'fs'
 import glob from 'glob-promise'
 import shell from 'shelljs'
+import log from 'npmlog'
 import path from 'path'
 import {cleanupPot, getDomainSrcPaths} from '../common'
 import {getDomainConfig} from '../utils'
@@ -12,7 +13,7 @@ module.exports = {
 
         shell.mkdir('-p', path.dirname(potPath))
 
-        console.info(`[l10n:${domainName}] [extractPot] from angular gettext`)
+        log.info('extractPot', 'from angular gettext')
         const gettextExtractor = new Extractor()
         for (const srcPath of srcPaths) {
             const input = fs.readFileSync(srcPath, {encoding: 'UTF-8'});
@@ -30,7 +31,7 @@ module.exports = {
         }
 
         if (targetDir != null) {
-            console.info(`[l10n:${domainName}] [apply] generating json files to ${targetDir}`)
+            log.info('apply', `generating json files to ${targetDir}`)
             const gettextCompiler = new Compiler({format: 'json'})
             const poPaths = await glob.promise(`${poDir}/*.po`)
             for (const poPath of poPaths) {
@@ -43,7 +44,7 @@ module.exports = {
         }
 
         if (jsTargetDir != null) {
-            console.info(`[l10n:${domainName}] [apply] generating js files to ${jsTargetDir}`)
+            log.info('apply', `generating js files to ${jsTargetDir}`)
             const gettextCompiler = new Compiler({format: 'javascript'})
             const poPaths = await glob.promise(`${poDir}/*.po`)
             for (const poPath of poPaths) {

@@ -1,5 +1,6 @@
 import fs from 'fs'
 import gettextParser from 'gettext-parser'
+import log from 'npmlog'
 import shell from 'shelljs'
 import path from 'path'
 import {cleanupPot, compilePoToMo, getDomainSrcPaths, xgettext} from '../common'
@@ -24,7 +25,7 @@ module.exports = {
 
         const translations = {'': {}}
         for (const htmlPath of htmlPaths) {
-            console.info(`[l10n:${domainName}] [extractPotFromVt] processing ${htmlPath}`)
+            log.info('extractPot', `processing ${htmlPath}`)
             const html = fs.readFileSync(htmlPath, 'UTF-8')
             const regex = /{%trans ([^%]+)%}|(\n)/g
             let lineNo = 1

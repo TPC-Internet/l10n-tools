@@ -2,6 +2,7 @@
 
 import program from 'commander'
 import jsonfile from 'jsonfile'
+import log from 'npmlog'
 import {getDomainConfig} from './utils'
 import {countPoEntry, mergeFallbackLocale, updatePo} from './common'
 import shell from 'shelljs'
@@ -152,7 +153,8 @@ async function run () {
         const type = getDomainConfig(rc, domainName, 'type')
         const domainModule = getDomainModule(type)
 
-        console.info(`[l10n:${domainName}] [${cmdName}] start`)
+        log.heading = `[l10n:${domainName}] [${cmdName}]`
+        log.info('', 'start')
         switch (cmdName) {
             case '_extractPot': {
                 const i18nDir = getDomainConfig(rc, domainName, 'i18n-dir')
@@ -237,7 +239,7 @@ async function run () {
                 const potPath = path.join(tempDir, 'template.pot')
                 const poDir = tempDir
 
-                console.info(`[l10n:${domainName}] [${cmdName}] temp dir: '${tempDir}'`)
+                log.info('', `temp dir: '${tempDir}'`)
                 shell.rm('-rf', tempDir)
                 await domainModule.extractPot(rc, domainName, potPath)
                 await updatePo(domainName, potPath, fromPoDir, poDir, locales)
@@ -276,7 +278,7 @@ async function run () {
             default:
                 throw new Error(`unknown sub-command: ${cmdName}`)
         }
-        console.info(`[l10n:${domainName}] [${cmdName}] done`)
+        log.info('', 'done')
     }
 }
 
@@ -301,7 +303,7 @@ function getDomainModule (type) {
 
 run().catch(err => {
     if (err) {
-        console.error(err)
+        log.error('', err)
     }
     process.exit(1)
 })

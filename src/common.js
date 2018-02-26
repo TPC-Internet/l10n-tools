@@ -1,6 +1,7 @@
 import fs from 'fs'
 import gettextParser from 'gettext-parser'
 import glob from 'glob-promise'
+import log from 'npmlog'
 import path from 'path'
 import shell from 'shelljs'
 import {getFlag, setFlag} from './po'
@@ -29,7 +30,7 @@ export async function getDomainSrcPaths (rc, domainName, exts) {
 export async function xgettext (domainName, language, keywords, potPath, srcPaths, merge) {
     await requireCmd.brew('xgettext', 'gettext', true)
     shell.mkdir('-p', path.dirname(potPath))
-    console.info(`[l10n:${domainName}] [xgettext] from ${language} source`)
+    log.info('xgettext', `from ${language} source`)
     await execWithLog(
         `xgettext --language="${language}" \
             ${keywords.map(keyword => `--keyword="${keyword}"`).join(' ')} \
@@ -37,9 +38,7 @@ export async function xgettext (domainName, language, keywords, potPath, srcPath
             ${merge ? '--join-existing' : ''} \
             --package-name="${domainName}" \
             --output="${potPath}" \
-            ${srcPaths.join(' ')}`,
-        `[l10n:${domainName}] [xgettext]`
-    )
+            ${srcPaths.join(' ')}`, 'xgettext')
 }
 
 export async function updatePo (domainName, potPath, fromPoDir, poDir, locales) {
@@ -144,9 +143,7 @@ export function cleanupPot (domainName, potPath) {
                 /^#, fuzzy$/d; \
                 s/^(#.*), fuzzy(.*)/\\1\\2/ \
             ' \
-            "${potPath}"`,
-        `[l10n:${domainName}] [cleanupPot]`
-    )
+            "${potPath}"`, 'cleanupPot')
 }
 
 export function cleanupPo (domainName, poPath) {
@@ -166,9 +163,7 @@ export function cleanupPo (domainName, poPath) {
                 s/^"Content-Type: .*\\\\n"$/"Content-Type: text\\/plain; charset=UTF-8\\\\n"/; \
                 s/^"Language: \\\\n"$/"Language: ${language}\\\\n"/ \
             ' \
-            "${poPath}"`,
-        `[l10n:${domainName}] [cleanupPo]`
-    )
+            "${poPath}"`, 'cleanupPo')
 }
 
 export function countPoEntry (poPath, specs) {

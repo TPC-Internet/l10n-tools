@@ -1,6 +1,7 @@
 import gettextParser from 'gettext-parser'
 import glob from 'glob-promise'
 import http from 'http'
+import log from 'npmlog'
 import path from 'path'
 import querystring from 'querystring'
 import url from 'url'
@@ -25,9 +26,11 @@ export async function syncPoToGoogleDocs (rc, domainName, tag, poDir) {
 
     const oauth2Client = await authorize(domainName, sheetName, clientSecretPath)
 
-    console.log(`[l10n:${domainName}] [syncPoToGoogleDocs:${sheetName}] finding doc by named ${docName}...`)
+    const oldHeading = log.heading
+    log.heading = `[l10n:${domainName}] [syncPoToGoogleDocs:${sheetName}]`
+    log.info('', `finding doc by named ${docName}...`)
     const docId = await findDocumentId(drive, oauth2Client, docName)
-    console.log(`[l10n:${domainName}] [syncPoToGoogleDocs:${sheetName}] docId`, docId)
+    log.info('', `docId: ${docId}`)
 
     const poData = await readPoFiles(poDir)
     const rows = await readSheet(domainName, tag, sheetName, sheets, oauth2Client, docId)
@@ -39,6 +42,7 @@ export async function syncPoToGoogleDocs (rc, domainName, tag, poDir) {
     const docActions = await updateSheet(domainName, tag, sheetName, rows, columnMap, sheetData)
     await applyDocumentActions(domainName, sheetName, sheets, oauth2Client, docId, docActions)
     await writePoFiles(domainName, poDir, poData)
+    log.heading = oldHeading
 }
 
 async function authorize(domainName, sheetName, clientSecretPath) {
@@ -65,11 +69,11 @@ async function getToken(domainName, sheetName, oauth2Client) {
         return jsonfile.readFileSync(tokenPath)
     } catch (err) {
         const code = await readAuthCode(oauth2Client)
-        console.log(`[l10n:${domainName}] [syncPoToGoogleDocs:${sheetName}] code is ${code}`)
+        log.info('getToken', `code is ${code}`)
         const r = await oauth2Client.getToken(code)
         shell.mkdir('-p', path.dirname(tokenPath))
         fs.writeFileSync(tokenPath, JSON.stringify(r.tokens))
-        console.log(`[l10n:${domainName}] [syncPoToGoogleDocs:${sheetName}] token stored to ${tokenPath}`)
+        log.info('getToken', `token stored to ${tokenPath}`)
         return r.tokens
     }
 }
@@ -148,13 +152,13 @@ async function writePoFiles(domainName, poDir, poData) {
 }
 
 async function readSheet(domainName, tag, sheetName, sheets, auth, docId) {
-    console.log(`[l10n:${domainName}] [syncPoToGoogleDocs:${sheetName}] loading sheet`)
+    log.info('readSheet', 'loading sheet')
     const {values: rows} = await sheets.spreadsheets.values.getAsync({
         auth,
         spreadsheetId: docId,
         range: sheetName
     }).then(r => r.data)
-    console.log(`[l10n:${domainName}] [syncPoToGoogleDocs:${sheetName}] ... ${rows.length} rows`)
+    log.info('readSheet', `... ${rows.length} rows`)
     if (rows.length === 0) {
         throw new Error(`no header row in sheet ${sheetName}`)
     }
@@ -203,7 +207,7 @@ function createSheetData(domainName, tag, sheetName, rows, columnMap) {
         } else if (entry.source) {
             sheetData[entry.source] = entry
         } else {
-            console.warn(`[l10n:${domainName}] [syncPoToGoogleDocs:${sheetName}] ignoring row ${toRowName(index + 1)}: no key nor source`)
+            log.warn('createSheetData', `ignoring row ${toRowName(index + 1)}: no key nor source`)
         }
     }
     // console.log(JSON.stringify(sheetData, null, 2))
@@ -251,8 +255,8 @@ function updateSheetData(domainName, tag, sheetName, poData, sheetData) {
 
                 const sheetEntry = sheetData[entryId]
                 if (poEntry.msgctxt !== sheetEntry.key && poEntry.msgid !== sheetEntry.source) {
-                    console.warn('po entry', JSON.stringify(poEntry, null, 2))
-                    console.warn('sheet entry', JSON.stringify(sheetEntry, null, 2))
+                    log.warn('updateSheetData', `po entry: ${JSON.stringify(poEntry, null, 2)}`)
+                    log.warn('updateSheetData', `sheet entry: ${JSON.stringify(sheetEntry, null, 2)}`)
                     throw new Error(`entry conflict occurred ${poEntry.msgctxt || poEntry.msgid} vs ${sheetEntry.key || sheetEntry.source}`)
                 }
 
@@ -311,7 +315,7 @@ async function updateSheet(domainName, tag, sheetName, rows, columnMap, sheetDat
             const tag = Array.from(rowEntry.tags).sort().join(',')
             const newTag = Array.from(sheetEntry.tags).sort().join(',') || 'UNUSED'
             if (tag !== newTag) {
-                console.info(`[l10n:${domainName}] [syncPoToGoogleDocs:${sheetName}] setting tag of ${entryId}: ${newTag}`)
+                log.info('updateSheet', `setting tag of ${entryId}: ${newTag}`)
                 docActions.push({
                     type: 'update-cell',
                     row: index + 1,
@@ -323,7 +327,7 @@ async function updateSheet(domainName, tag, sheetName, rows, columnMap, sheetDat
             for (const [locale, value] of Object.entries(rowEntry.targets)) {
                 const newValue = sheetEntry.targets[locale]
                 if (value !== newValue) {
-                    console.info(`[l10n:${domainName}] [syncPoToGoogleDocs:${sheetName}] updating value of ${locale}: ${value} -> ${newValue}`)
+                    log.info('updateSheet', `updating value of ${locale}: ${value} -> ${newValue}`)
                     docActions.push({
                         type: 'update-cell',
                         row: index + 1,
@@ -339,7 +343,7 @@ async function updateSheet(domainName, tag, sheetName, rows, columnMap, sheetDat
 
     for (const [entryId, sheetEntry] of Object.entries(sheetData)) {
         if (sheetEntry.key && columnMap.key == null) {
-            console.warn(`[l10n:${domainName}] [syncPoToGoogleDocs:${sheetName}] ignoring ${sheetEntry.key}: no key column`)
+            log.warn('updateSheet', `ignoring ${sheetEntry.key}: no key column`)
             continue
         }
 
@@ -350,12 +354,12 @@ async function updateSheet(domainName, tag, sheetName, rows, columnMap, sheetDat
 
         for (const [locale, value] of Object.entries(sheetEntry.targets)) {
             if (!(locale in columnMap.targets)) {
-                console.warn(`[l10n:${domainName}] [syncPoToGoogleDocs:${sheetName}] ignoring ${locale}: no column`)
+                log.warn('updateSheet', `ignoring ${locale}: no column`)
                 continue
             }
             row[columnMap.targets[locale]] = encodeSheetText(value)
         }
-        console.warn(`[l10n:${domainName}] [syncPoToGoogleDocs:${sheetName}] appending row of ${entryId}`)
+        log.warn('updateSheet', `appending row of ${entryId}`)
         docActions.push({
             type: 'append-row',
             data: row
