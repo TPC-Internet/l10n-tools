@@ -3,7 +3,7 @@
 import program from 'commander'
 import jsonfile from 'jsonfile'
 import {getDomainConfig} from './utils'
-import {mergeFallbackLocale, updatePo} from './common'
+import {countPoEntry, mergeFallbackLocale, updatePo} from './common'
 import shell from 'shelljs'
 import {syncPoToGoogleDocs} from './google-docs-syncer'
 import os from 'os'
@@ -21,29 +21,55 @@ async function run () {
   설정 파일 항목:
 
     [도메인]
-      domains.[domain]           번역 파일을 생성하는 단위
-      domains.[domain].type      도메인의 번역을 다루는 종류, 지원: vue-gettext
-      domains.[domain].tag       구글 시트 동기화시 tag 항목으로 들어갈 값
-      domains.[domain].locales   번역할 로케일 목록
-      domains.[domain].i18n-dir  pot 파일과 po 파일을 저장할 위치
-        
+      domains.[domain]                  번역 파일을 생성하는 단위
+      domains.[domain].type             도메인의 번역을 다루는 종류,
+                                        지원: vue-gettext, i18next, vt, python, angular-gettext, cordova
+      domains.[domain].tag              구글 시트 동기화시 tag 항목으로 들어갈 값
+      domains.[domain].locales          번역할 로케일 목록
+      domains.[domain].fallback-locale  번역이 없을 경우 참조할 로케일 (옵션)
+      domains.[domain].i18n-dir         pot 파일과 po 파일을 저장할 위치
+      domains.[domain].src-dirs         번역을 추출할 소스 디렉토리 목록
+      domains.[domain].src-patterns     번역을 추출할 소스의 glob 패턴 목록
+      
     [vue-gettext 항목]
-      domains.[domain].src-dirs     번역을 추출할 .vue, .js 파일이 있는 소스 위치 목록
       domains.[domain].target-path  번역 결과를 저장할 위치
       
     [i18next 항목]
-      domains.[domain].src-dirs    번역을 추출할 .js 파일이 있는 소스 위치 목록
       domains.[domain].keywords    번역 함수 이름 목록
       domains.[domain].target-dir  번역 결과를 저장할 위치
       
+    [vt 항목]
+      domains.[domain].keywords    번역 함수 이름 목록
+      domains.[domain].target-dir  번역 결과를 저장할 위치
+      
+    [python 항목]
+      domains.[domain].keywords    번역 함수 이름 목록
+      domains.[domain].target-dir  번역 결과를 저장할 위치
+      
+    [angular-gettext 항목]
+      domains.[domain].target-dir     번역 결과를 json 형식으로 저장할 위치
+      domains.[domain].js-target-dir  번역 결과를 javascript 형식으로 저장할 위치
+      
+    [cordova 항목]
+      domains.[domain].base-locale  번역 id로 사용할 로케일
+      domains.[domain].target-dir   번역 결과를 저장할 위치
+      
     [구글 문서 동기화]
-      google-docs.doc-name            동기화에 사용할 구글 문서 이름
-      google-docs.sheet-name          동기화에 사용할 구글 문서 내 시트 이름
-      google-docs.client-secret-path  구글 문서 동기화 API 호출시 사용할 secret 파일 위치`)
+      google-docs.doc-name                     동기화에 사용할 구글 문서 이름
+      google-docs.sheet-name                   동기화에 사용할 구글 문서 내 시트 이름
+      domains.[domain].google-docs.sheet-name  도메인 별로 동기화에 사용할 구글 문서 내 시트 이름
+      google-docs.client-secret-path           구글 문서 동기화 API 호출시 사용할 secret 파일 위치`)
         })
 
     program.command('update')
         .description('로컬 번역 업데이트')
+        .action(c => {cmd = c})
+
+    program.command('count')
+        .description('번역 항목 갯수 세기')
+        .option('-c, --current', '현재의 po 파일이 아닌, 새로 추츨해서 세기')
+        .option('-l, --locale [locale]', '갯수를 셀 로케일 (필수)')
+        .option('-s, --spec [spec]', '어떤 것을 셀지 지정 (필수, 콤마로 나열 가능) 지원: total,translated,untranslated,<flag>')
         .action(c => {cmd = c})
 
     program.command('upload')
@@ -80,6 +106,48 @@ async function run () {
     const rc = jsonfile.readFileSync(program.rcfile || '.l10nrc')
 
     const domainNames = program.domains || Object.keys(rc.domains)
+    if (cmdName === 'count') {
+        if (!cmd.locale || !cmd.spec) {
+            cmd.help()
+        }
+
+        const locale = cmd.locale
+        const specs = cmd.spec.split(',')
+        const counts = new Array(specs.length).fill(0)
+        for (const domainName of domainNames) {
+            if (cmd.current) {
+                const type = getDomainConfig(rc, domainName, 'type')
+                const domainModule = getDomainModule(type)
+                const i18nDir = getDomainConfig(rc, domainName, 'i18n-dir')
+
+                const fromPoDir = path.join(i18nDir, domainName)
+                const tempDir = path.join(os.tmpdir(), domainName)
+                const potPath = path.join(tempDir, 'template.pot')
+                const poDir = tempDir
+                const poPath = path.join(poDir, locale + '.po')
+
+                shell.rm('-rf', tempDir)
+                await domainModule.extractPot(rc, domainName, potPath)
+                await updatePo(domainName, potPath, fromPoDir, poDir, [locale])
+                const countsToAdd = countPoEntry(poPath, specs)
+                for (let i = 0; i < specs.length; i++) {
+                    counts[i] += countsToAdd[i]
+                }
+                shell.rm('-rf', tempDir)
+            } else {
+                const i18nDir = getDomainConfig(rc, domainName, 'i18n-dir')
+                const poPath = path.join(i18nDir, domainName, locale + '.po')
+                const countsToAdd = countPoEntry(poPath, specs)
+                for (let i = 0; i < specs.length; i++) {
+                    counts[i] += countsToAdd[i]
+                }
+            }
+        }
+
+        process.stdout.write(counts.join(',') + '\n')
+        return
+    }
+
     for (const domainName of domainNames) {
         const type = getDomainConfig(rc, domainName, 'type')
         const domainModule = getDomainModule(type)
@@ -102,7 +170,7 @@ async function run () {
                 const potPath = path.join(i18nDir, domainName, 'template.pot')
                 const poDir = path.join(i18nDir, domainName)
 
-                await updatePo(domainName, potPath, poDir, locales)
+                await updatePo(domainName, potPath, poDir, poDir, locales)
                 break
             }
 
@@ -144,7 +212,7 @@ async function run () {
                 const poDir = path.join(i18nDir, domainName)
 
                 await domainModule.extractPot(rc, domainName, potPath)
-                await updatePo(domainName, potPath, poDir, locales)
+                await updatePo(domainName, potPath, poDir, poDir, locales)
 
                 if (fallbackLocale != null) {
                     const tempDir = path.join(os.tmpdir(), domainName)
@@ -160,9 +228,11 @@ async function run () {
             }
 
             case 'upload': {
+                const i18nDir = getDomainConfig(rc, domainName, 'i18n-dir')
                 const locales = getDomainConfig(rc, domainName, 'locales')
                 const tag = getDomainConfig(rc, domainName, 'tag')
 
+                const fromPoDir = path.join(i18nDir, domainName)
                 const tempDir = path.join(os.tmpdir(), domainName)
                 const potPath = path.join(tempDir, 'template.pot')
                 const poDir = tempDir
@@ -170,7 +240,7 @@ async function run () {
                 console.info(`[l10n:${domainName}] [${cmdName}] temp dir: '${tempDir}'`)
                 shell.rm('-rf', tempDir)
                 await domainModule.extractPot(rc, domainName, potPath)
-                await updatePo(domainName, potPath, poDir, locales)
+                await updatePo(domainName, potPath, fromPoDir, poDir, locales)
                 await syncPoToGoogleDocs(rc, domainName, tag, poDir)
                 shell.rm('-rf', tempDir)
                 break
@@ -186,9 +256,9 @@ async function run () {
                 const poDir = path.join(i18nDir, domainName)
 
                 await domainModule.extractPot(rc, domainName, potPath)
-                await updatePo(domainName, potPath, poDir, locales)
+                await updatePo(domainName, potPath, poDir, poDir, locales)
                 await syncPoToGoogleDocs(rc, domainName, tag, poDir)
-                await updatePo(domainName, potPath, poDir, locales)
+                await updatePo(domainName, potPath, poDir, poDir, locales)
 
                 if (fallbackLocale != null) {
                     const tempDir = path.join(os.tmpdir(), domainName)

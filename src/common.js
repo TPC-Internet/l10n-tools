@@ -42,27 +42,28 @@ export async function xgettext (domainName, language, keywords, potPath, srcPath
     )
 }
 
-export async function updatePo (domainName, potPath, poDir, locales) {
+export async function updatePo (domainName, potPath, fromPoDir, poDir, locales) {
+    shell.mkdir('-p', poDir)
     const potInput = fs.readFileSync(potPath)
     for (const locale of locales) {
         const poFile = locale + '.po'
-        const poPath = path.join(poDir, poFile)
+        const fromPoPath = path.join(fromPoDir, poFile)
 
         const pot = gettextParser.po.parse(potInput, 'UTF-8')
         pot.headers['language'] = locale
-        if (fs.existsSync(poPath)) {
-            const poInput = fs.readFileSync(poPath)
-            const po = gettextParser.po.parse(poInput, 'UTF-8')
+        if (fs.existsSync(fromPoPath)) {
+            const fromPoInput = fs.readFileSync(fromPoPath)
+            const fromPo = gettextParser.po.parse(fromPoInput, 'UTF-8')
             for (const [msgctxt, potEntries] of Object.entries(pot.translations)) {
                 for (const [msgid, potEntry] of Object.entries(potEntries)) {
                     if (msgctxt === '' && msgid === '') {
                         continue
                     }
 
-                    if (msgctxt in po.translations && msgid in po.translations[msgctxt]) {
-                        const poEntry = po.translations[msgctxt][msgid]
-                        potEntry.msgstr = poEntry.msgstr.filter(value => value !== '$$no translation$$')
-                        const flag = getFlag(poEntry)
+                    if (msgctxt in fromPo.translations && msgid in fromPo.translations[msgctxt]) {
+                        const fromPoEntry = fromPo.translations[msgctxt][msgid]
+                        potEntry.msgstr = fromPoEntry.msgstr.filter(value => value !== '$$no translation$$')
+                        const flag = getFlag(fromPoEntry)
                         if (flag) {
                             setFlag(potEntry, flag)
                         }
@@ -70,7 +71,9 @@ export async function updatePo (domainName, potPath, poDir, locales) {
                 }
             }
         }
+
         const output = gettextParser.po.compile(pot)
+        const poPath = path.join(poDir, poFile)
         fs.writeFileSync(poPath, output)
         await cleanupPo(domainName, poPath)
     }
@@ -166,4 +169,36 @@ export function cleanupPo (domainName, poPath) {
             "${poPath}"`,
         `[l10n:${domainName}] [cleanupPo]`
     )
+}
+
+export function countPoEntry (poPath, specs) {
+    const poInput = fs.readFileSync(poPath)
+    const po = gettextParser.po.parse(poInput, 'UTF-8')
+    return specs.map(spec => {
+        let count = 0
+        for (const [msgctxt, poEntries] of Object.entries(po.translations)) {
+            for (const [msgid, poEntry] of Object.entries(poEntries)) {
+                if (msgctxt === '' && msgid === '') {
+                    continue
+                }
+
+                if (spec === 'total') {
+                    count++
+                } else if (spec === 'untranslated') {
+                    if (!poEntry.msgstr[0]) {
+                        count++
+                    }
+                } else if (spec === 'translated') {
+                    if (poEntry.msgstr[0]) {
+                        count++
+                    }
+                } else {
+                    if (spec === getFlag(poEntry)) {
+                        count++
+                    }
+                }
+            }
+        }
+        return count
+    })
 }
