@@ -1,22 +1,18 @@
 import gettextParser from 'gettext-parser'
 import glob from 'glob-promise'
+import http from 'http'
 import path from 'path'
+import querystring from 'querystring'
+import url from 'url'
 import {cleanupPo} from './common'
 import {getGoogleDocsConfig} from './utils'
 import fs from 'fs'
-import readline from 'readline'
 import {google} from 'googleapis'
 import {OAuth2Client} from 'google-auth-library'
 import jsonfile from 'jsonfile'
 import {promisify} from 'util'
 import opn from 'opn'
-
-const SCOPES = [
-    'https://www.googleapis.com/auth/spreadsheets',
-    'https://www.googleapis.com/auth/drive.readonly'
-]
-const TOKEN_DIR = (process.env.HOME || process.env.HOMEPATH || process.env.USERPROFILE) + '/.credentials/'
-const TOKEN_PATH = TOKEN_DIR + 'google-docs-syncer.json'
+import shell from 'shelljs'
 
 export async function syncPoToGoogleDocs (rc, domainName, tag, poDir) {
     const clientSecretPath = getGoogleDocsConfig(rc, domainName, 'client-secret-path')
@@ -49,10 +45,10 @@ async function authorize(domainName, sheetName, clientSecretPath) {
      * @property {object} installed
      * @property {installed.string[]} redirect_uris
      */
-    const credentials = jsonfile.readFileSync(clientSecretPath)
-    const clientSecret = credentials.installed.client_secret
-    const clientId = credentials.installed.client_id
-    const redirectUrl = credentials.installed.redirect_uris[0]
+    const credentials = jsonfile.readFileSync(clientSecretPath).installed
+    const clientSecret = credentials.client_secret
+    const clientId = credentials.client_id
+    const redirectUrl = 'http://localhost:8106/oauth2callback'
     const oauth2Client = new OAuth2Client(clientId, clientSecret, redirectUrl)
 
     const token = await getToken(domainName, sheetName, oauth2Client)
@@ -61,61 +57,70 @@ async function authorize(domainName, sheetName, clientSecretPath) {
 }
 
 async function getToken(domainName, sheetName, oauth2Client) {
+    const tokenPath = path.join(process.env.HOME || process.env.HOMEPATH || process.env.USERPROFILE, '.credentials', 'google-docs-syncer.json')
+
     // Check if we have previously stored a token.
     try {
-        return jsonfile.readFileSync(TOKEN_PATH)
+        return jsonfile.readFileSync(tokenPath)
     } catch (err) {
-        const authUrl = oauth2Client.generateAuthUrl({
-            access_type: 'offline',
-            scope: SCOPES
-        })
-        console.log('Authorize this app by visiting this url: ', authUrl)
-        opn(authUrl)
-        const code = await readAuthCode()
-        const token = await oauth2Client.getToken(code).then(r => r.tokens)
-        try {
-            fs.mkdirSync(TOKEN_DIR)
-        } catch (err) {
-            if (err.code !== 'EEXIST') {
-                throw err
-            }
-        }
-        fs.writeFileSync(TOKEN_PATH, JSON.stringify(token))
-        console.log(`[l10n:${domainName}] [syncPoToGoogleDocs:${sheetName}] token stored to ${TOKEN_PATH}`)
-        oauth2Client.setCredentials(token)
+        const code = await readAuthCode(oauth2Client)
+        console.log(`[l10n:${domainName}] [syncPoToGoogleDocs:${sheetName}] code is ${code}`)
+        const r = await oauth2Client.getToken(code)
+        shell.mkdir('-p', path.dirname(tokenPath))
+        fs.writeFileSync(tokenPath, JSON.stringify(r.tokens))
+        console.log(`[l10n:${domainName}] [syncPoToGoogleDocs:${sheetName}] token stored to ${tokenPath}`)
+        return r.tokens
     }
-    return oauth2Client
 }
 
-function readAuthCode() {
-    const rl = readline.createInterface({input: process.stdin, output: process.stdout})
+function readAuthCode(oauth2Client) {
     return new Promise(resolve => {
-        rl.question('Enter the code from that page here: ', code => {
-            rl.close()
-            resolve(code)
+        const authUrl = oauth2Client.generateAuthUrl({
+            access_type: 'offline',
+            scope: [
+                'https://www.googleapis.com/auth/spreadsheets',
+                'https://www.googleapis.com/auth/drive.readonly'
+            ]
+        })
+
+        const server = http.createServer((req, res) => {
+            if (req.url.indexOf('/oauth2callback') >= 0) {
+                const qs = querystring.parse(url.parse(req.url).query)
+                res.end('Authentication successful! Please return to the console.')
+                server.close(() => {
+                    resolve(qs.code)
+                })
+            }
+        }).listen(8106, () => {
+            opn(authUrl, {wait: false})
         })
     })
 }
 
+const documentIdCache = {}
+
 async function findDocumentId(drive, auth, docName) {
-    const {files} = await promisify(drive.files.list)({
-        auth,
-        q: `name = '${docName}' and trashed = false`,
-        spaces: 'drive'
-    }).then(r => r.data)
-    const docIds = files
-        .filter(f => f.mimeType === 'application/vnd.google-apps.spreadsheet')
-        .map(f => f.id)
+    if (!(docName in documentIdCache)) {
+        const {files} = await promisify(drive.files.list)({
+            auth,
+            q: `name = '${docName}' and trashed = false`,
+            spaces: 'drive'
+        }).then(r => r.data)
+        const docIds = files
+            .filter(f => f.mimeType === 'application/vnd.google-apps.spreadsheet')
+            .map(f => f.id)
 
-    if (docIds.length === 0) {
-        throw new Error(`no document named ${docName}, check this out`)
+        if (docIds.length === 0) {
+            throw new Error(`no document named ${docName}, check this out`)
+        }
+
+        if (docIds.length > 1) {
+            throw new Error(`one or more document named ${docName}, check this out`)
+        }
+
+        documentIdCache[docName] = docIds[0]
     }
-
-    if (docIds.length > 1) {
-        throw new Error(`one or more document named ${docName}, check this out`)
-    }
-
-    return docIds[0]
+    return documentIdCache[docName]
 }
 
 async function readPoFiles(poDir) {
