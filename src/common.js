@@ -65,9 +65,46 @@ export async function updatePo (domainName, potPath, poDir, locales) {
                 }
             }
         }
-        const output = gettextParser.po.compile(pot, {foldLength: false})
+        const output = gettextParser.po.compile(pot)
         fs.writeFileSync(poPath, output)
         await cleanupPo(domainName, poPath)
+    }
+}
+
+export async function mergeFallbackLocale(domainName, poDir, fallbackLocale, mergedPoDir) {
+    shell.mkdir('-p', mergedPoDir)
+    const fallbackPoPath = path.join(poDir, fallbackLocale + '.po')
+    const fallbackInput = fs.readFileSync(fallbackPoPath)
+    const fallbackPo = gettextParser.po.parse(fallbackInput, 'UTF-8')
+
+    const poPaths = await glob.promise(`${poDir}/*.po`)
+    for (const poPath of poPaths) {
+        const poInput = fs.readFileSync(poPath)
+        const po = gettextParser.po.parse(poInput, 'UTF-8')
+        for (const [msgctxt, poEntries] of Object.entries(po.translations)) {
+            for (const [msgid, poEntry] of Object.entries(poEntries)) {
+                if (msgctxt === '' && msgid === '') {
+                    continue
+                }
+
+                if (!poEntry.msgstr[0]) {
+                    if (msgctxt in fallbackPo.translations && msgid in fallbackPo.translations[msgctxt]) {
+                        const fallbackPoEntry = fallbackPo.translations[msgctxt][msgid]
+                        if (fallbackPoEntry.msgstr[0]) {
+                            poEntry.msgstr = fallbackPoEntry.msgstr
+                        }
+                    }
+
+                    if (!poEntry.msgstr[0]) {
+                        poEntry.msgstr = [poEntry.msgid]
+                    }
+                }
+            }
+        }
+        const output = gettextParser.po.compile(po)
+        const mergedPoPath = path.join(mergedPoDir, path.basename(poPath))
+        fs.writeFileSync(mergedPoPath, output)
+        await cleanupPo(domainName, mergedPoPath)
     }
 }
 

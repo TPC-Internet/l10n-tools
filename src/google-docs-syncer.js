@@ -139,7 +139,7 @@ async function readPoFiles(poDir) {
 function writePoFiles(domainName, poDir, poData) {
     // console.log('po data to write', JSON.stringify(poData, null, 2))
     for (const [locale, po] of Object.entries(poData)) {
-        const output = gettextParser.po.compile(po, {foldLength: false})
+        const output = gettextParser.po.compile(po)
         const poPath = path.join(poDir, locale + '.po')
         fs.writeFileSync(poPath, output)
         cleanupPo(domainName, poPath)
