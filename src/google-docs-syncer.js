@@ -5,6 +5,7 @@ import path from 'path'
 import querystring from 'querystring'
 import url from 'url'
 import {cleanupPo} from './common'
+import {removeFlag, setFlag} from './po'
 import {getGoogleDocsConfig} from './utils'
 import fs from 'fs'
 import {google} from 'googleapis'
@@ -37,7 +38,7 @@ export async function syncPoToGoogleDocs (rc, domainName, tag, poDir) {
 
     const docActions = await updateSheet(domainName, tag, sheetName, rows, columnMap, sheetData)
     await applyDocumentActions(domainName, sheetName, sheets, oauth2Client, docId, docActions)
-    writePoFiles(domainName, poDir, poData)
+    await writePoFiles(domainName, poDir, poData)
 }
 
 async function authorize(domainName, sheetName, clientSecretPath) {
@@ -136,13 +137,13 @@ async function readPoFiles(poDir) {
     return poData
 }
 
-function writePoFiles(domainName, poDir, poData) {
+async function writePoFiles(domainName, poDir, poData) {
     // console.log('po data to write', JSON.stringify(poData, null, 2))
     for (const [locale, po] of Object.entries(poData)) {
         const output = gettextParser.po.compile(po)
         const poPath = path.join(poDir, locale + '.po')
         fs.writeFileSync(poPath, output)
-        cleanupPo(domainName, poPath)
+        await cleanupPo(domainName, poPath)
     }
 }
 
@@ -279,8 +280,15 @@ function updatePoData(domainName, tag, sheetName, poData, sheetData) {
                     const poEntry = po[sheetEntry.key][sheetEntry.source]
                     // console.log('updating po, po entry', poEntry)
                     sheetEntry.tags.add(tag)
-                    if (target && target !== '$$needs translation$$' && target !== '$$no translation$$') {
-                        poEntry.msgstr = [target]
+                    if (target === '$$no translation$$') {
+                        setFlag(poEntry, 'no-translation')
+                    } else if (target === '$$needs translation$$') {
+                        setFlag(poEntry, 'need-translation')
+                    } else {
+                        removeFlag(poEntry)
+                        if (target) {
+                            poEntry.msgstr = [target]
+                        }
                     }
                 }
             }

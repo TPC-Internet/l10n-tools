@@ -3,6 +3,7 @@ import gettextParser from 'gettext-parser'
 import glob from 'glob-promise'
 import path from 'path'
 import shell from 'shelljs'
+import {getFlag, setFlag} from './po'
 import {execWithLog, getDomainConfig, requireCmd} from './utils'
 
 export async function getDomainSrcPaths (rc, domainName, exts) {
@@ -61,6 +62,10 @@ export async function updatePo (domainName, potPath, poDir, locales) {
                     if (msgctxt in po.translations && msgid in po.translations[msgctxt]) {
                         const poEntry = po.translations[msgctxt][msgid]
                         potEntry.msgstr = poEntry.msgstr.filter(value => value !== '$$no translation$$')
+                        const flag = getFlag(poEntry)
+                        if (flag) {
+                            setFlag(potEntry, flag)
+                        }
                     }
                 }
             }
