@@ -1,3 +1,4 @@
+import {Extractor} from 'angular-gettext-tools'
 import fs from 'fs'
 import glob from 'glob-promise'
 import {gettextToI18next} from 'i18next-conv'
@@ -6,7 +7,6 @@ import path from 'path'
 import {cleanupPot, getDomainSrcPaths, xgettext} from '../common'
 import {getDomainConfig} from '../utils'
 import jsonfile from 'jsonfile'
-import eg from 'easygettext'
 
 module.exports = {
     async extractPot(rc, domainName, potPath) {
@@ -14,26 +14,25 @@ module.exports = {
 
         shell.mkdir('-p', path.dirname(potPath))
 
-        const extractor = new eg.extract.Extractor({
-            lineNumbers: true,
-            attributes: ['v-translate'],
-            filters: eg.constants.DEFAULT_FILTERS,
-            filterPrefix: eg.constants.DEFAULT_FILTER_PREFIX,
-            startDelimiter: eg.constants.DEFAULT_DELIMITERS.start,
-            endDelimiter: eg.constants.DEFAULT_DELIMITERS.end,
-        })
-
-        console.info(`[l10n:${domainName}] [extractPot] from vue templates`)
+        const vuePaths = []
         for (const srcPath of srcPaths) {
             if (path.extname(srcPath) === '.vue') {
-                console.info(`[l10n:${domainName}] [extractPot] processing '${srcPath}'`)
-                const input = fs.readFileSync(srcPath, {encoding: 'UTF-8'})
-                extractor.parse(srcPath, eg.extract.preprocessTemplate(input, 'vue'))
+                vuePaths.push(srcPath)
             }
         }
-        fs.writeFileSync(potPath, extractor.toString())
 
-        console.info(`[l10n:${domainName}] [extractPot] from javascript`)
+        const gettextExtractor = new Extractor({
+            attributes: ['v-translate', 'translate'],
+            extensions: {vue: 'html'}
+        })
+        console.info(`[l10n:${domainName}] [extractPot] from vue templates`)
+        for (const vuePath of vuePaths) {
+            console.info(`[l10n:${domainName}] [extractPot] processing '${vuePath}'`)
+            const input = fs.readFileSync(vuePath, {encoding: 'UTF-8'})
+            gettextExtractor.parse(vuePath, input)
+        }
+        fs.writeFileSync(potPath, gettextExtractor.toString())
+
         await xgettext(domainName, 'JavaScript', ['npgettext:1c,2,3'], potPath, srcPaths, true)
         await cleanupPot(domainName, potPath)
     },

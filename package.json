@@ -21,7 +21,6 @@
     "angular-gettext-tools": "^2.3.9",
     "command-exists": "^1.2.2",
     "commander": "^2.14.1",
-    "easygettext": "github:eungkyu/easygettext",
     "gettext-parser": "^1.4.0",
     "glob": "^7.1.2",
     "glob-promise": "^3.3.0",
