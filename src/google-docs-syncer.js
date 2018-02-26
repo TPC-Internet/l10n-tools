@@ -26,11 +26,9 @@ export async function syncPoToGoogleDocs (rc, domainName, tag, poDir) {
 
     const oauth2Client = await authorize(domainName, sheetName, clientSecretPath)
 
-    const oldHeading = log.heading
-    log.heading = `[l10n:${domainName}] [syncPoToGoogleDocs:${sheetName}]`
-    log.info('', `finding doc by named ${docName}...`)
+    log.info('syncPoToGoogleDocs', `finding doc by named ${docName}...`)
     const docId = await findDocumentId(drive, oauth2Client, docName)
-    log.info('', `docId: ${docId}`)
+    log.info('syncPoToGoogleDocs', `docId: ${docId}`)
 
     const poData = await readPoFiles(poDir)
     const rows = await readSheet(domainName, tag, sheetName, sheets, oauth2Client, docId)
@@ -42,7 +40,6 @@ export async function syncPoToGoogleDocs (rc, domainName, tag, poDir) {
     const docActions = await updateSheet(domainName, tag, sheetName, rows, columnMap, sheetData)
     await applyDocumentActions(domainName, sheetName, sheets, oauth2Client, docId, docActions)
     await writePoFiles(domainName, poDir, poData)
-    log.heading = oldHeading
 }
 
 async function authorize(domainName, sheetName, clientSecretPath) {

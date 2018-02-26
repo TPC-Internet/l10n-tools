@@ -66,19 +66,19 @@ async function run () {
         .description('로컬 번역 업데이트')
         .action(c => {cmd = c})
 
-    program.command('count')
-        .description('번역 항목 갯수 세기')
-        .option('-c, --current', '현재의 po 파일이 아닌, 새로 추츨해서 세기')
-        .option('-l, --locale [locale]', '갯수를 셀 로케일 (필수)')
-        .option('-s, --spec [spec]', '어떤 것을 셀지 지정 (필수, 콤마로 나열 가능) 지원: total,translated,untranslated,<flag>')
-        .action(c => {cmd = c})
-
     program.command('upload')
         .description('로컬 소스 변경사항을 Google Docs 에 업로드 (로컬 번역 파일은 건드리지 않음)')
         .action(c => {cmd = c})
 
     program.command('sync')
         .description('로컬 소스와 Google Docs 간 싱크')
+        .action(c => {cmd = c})
+
+    program.command('count')
+        .description('번역 항목 갯수 세기')
+        .option('-c, --current', '현재의 po 파일이 아닌, 새로 추츨해서 세기')
+        .option('-l, --locale [locale]', '갯수를 셀 로케일 (필수)')
+        .option('-s, --spec [spec]', '어떤 것을 셀지 지정 (필수, 콤마로 나열 가능) 지원: total,translated,untranslated,<flag>')
         .action(c => {cmd = c})
 
     program.command('_extractPot')
@@ -108,6 +108,7 @@ async function run () {
 
     const domainNames = program.domains || Object.keys(rc.domains)
     if (cmdName === 'count') {
+        log.heading = cmdName
         if (!cmd.locale || !cmd.spec) {
             cmd.help()
         }
@@ -153,8 +154,8 @@ async function run () {
         const type = getDomainConfig(rc, domainName, 'type')
         const domainModule = getDomainModule(type)
 
-        log.heading = `[l10n:${domainName}] [${cmdName}]`
-        log.info('', 'start')
+        log.heading = cmdName + '-' + domainName
+        log.info('l10n', 'start')
         switch (cmdName) {
             case '_extractPot': {
                 const i18nDir = getDomainConfig(rc, domainName, 'i18n-dir')
@@ -239,7 +240,7 @@ async function run () {
                 const potPath = path.join(tempDir, 'template.pot')
                 const poDir = tempDir
 
-                log.info('', `temp dir: '${tempDir}'`)
+                log.info('l10n', `temp dir: '${tempDir}'`)
                 shell.rm('-rf', tempDir)
                 await domainModule.extractPot(rc, domainName, potPath)
                 await updatePo(domainName, potPath, fromPoDir, poDir, locales)
@@ -278,7 +279,7 @@ async function run () {
             default:
                 throw new Error(`unknown sub-command: ${cmdName}`)
         }
-        log.info('', 'done')
+        log.info('l10n', 'done')
     }
 }
 
@@ -303,7 +304,7 @@ function getDomainModule (type) {
 
 run().catch(err => {
     if (err) {
-        log.error('', err)
+        log.error('l10n', err)
     }
     process.exit(1)
 })
