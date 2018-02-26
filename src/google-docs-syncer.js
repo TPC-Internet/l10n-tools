@@ -440,7 +440,7 @@ function decodeSheetText(sheetText) {
             return text
         }
     }
-    return sheetText
+    return sheetText.replace(/\r\n/, '\n')
 }
 
 function promisifyDrive(drive) {
