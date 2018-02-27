@@ -1,6 +1,7 @@
 import gettextParser from 'gettext-parser'
 import glob from 'glob-promise'
 import http from 'http'
+import httpShutdown from 'http-shutdown'
 import log from 'npmlog'
 import path from 'path'
 import querystring from 'querystring'
@@ -15,6 +16,8 @@ import jsonfile from 'jsonfile'
 import promisify from 'util-promisify'
 import opn from 'opn'
 import shell from 'shelljs'
+
+httpShutdown.extend()
 
 export async function syncPoToGoogleDocs (rc, domainName, tag, poDir) {
     const clientSecretPath = getGoogleDocsConfig(rc, domainName, 'client-secret-path')
@@ -89,10 +92,12 @@ function readAuthCode(oauth2Client) {
             if (req.url.indexOf('/oauth2callback') >= 0) {
                 const qs = querystring.parse(url.parse(req.url).query)
                 res.end('Authentication successful! Please return to the console.')
-                server.close()
+                server.shutdown()
                 resolve(qs.code)
             }
-        }).listen(8106, () => {
+        }).withShutdown()
+
+        server.listen(8106, () => {
             opn(authUrl, {wait: false})
         })
     })
