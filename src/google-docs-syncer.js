@@ -6,7 +6,7 @@ import path from 'path'
 import querystring from 'querystring'
 import url from 'url'
 import {cleanupPo} from './common'
-import {removeFlag, setFlag} from './po'
+import {forPoEntries, removePoEntryFlag, setPoEntryFlag} from './po'
 import {getGoogleDocsConfig} from './utils'
 import fs from 'fs'
 import {google} from 'googleapis'
@@ -228,44 +228,36 @@ function readDataRow(dataRow, columnMap) {
 function updateSheetData(domainName, tag, sheetName, poData, sheetData) {
     for (const [locale, po] of Object.entries(poData)) {
         // console.log('update sheet locale', locale)
-        for (const poContexts of Object.values(po.translations)) {
-            // console.log('update sheet contexts', Object.values(poContexts))
-            for (const poEntry of Object.values(poContexts)) {
-                const entryId = poEntry.msgctxt || poEntry.msgid
-                // console.log('update sheet entry id', entryId)
-                if (!entryId) {
-                    // Ignoring po metadata entry
-                    continue
-                }
+        forPoEntries(po, poEntry => {
+            const entryId = poEntry.msgctxt || poEntry.msgid
+            // console.log('update sheet entry id', entryId)
+            // console.log('matched entry (locale)', locale)
+            // console.log('po entry', poEntry)
 
-                // console.log('matched entry (locale)', locale)
-                // console.log('po entry', poEntry)
-
-                if (!(entryId in sheetData)) {
-                    sheetData[entryId] = {
-                        key: poEntry.msgctxt,
-                        source: poEntry.msgid,
-                        targets: {},
-                        tags: new Set()
-                    }
-                }
-
-                const sheetEntry = sheetData[entryId]
-                if (poEntry.msgctxt !== sheetEntry.key && poEntry.msgid !== sheetEntry.source) {
-                    log.warn('updateSheetData', `po entry: ${JSON.stringify(poEntry, null, 2)}`)
-                    log.warn('updateSheetData', `sheet entry: ${JSON.stringify(sheetEntry, null, 2)}`)
-                    throw new Error(`entry conflict occurred ${poEntry.msgctxt || poEntry.msgid} vs ${sheetEntry.key || sheetEntry.source}`)
-                }
-
-                sheetEntry.key = poEntry.msgctxt || ''
-                sheetEntry.source = poEntry.msgid
-                sheetEntry.tags.add(tag)
-
-                if (!sheetEntry.targets[locale]) {
-                    sheetEntry.targets[locale] = poEntry.msgstr[0]
+            if (!(entryId in sheetData)) {
+                sheetData[entryId] = {
+                    key: poEntry.msgctxt,
+                    source: poEntry.msgid,
+                    targets: {},
+                    tags: new Set()
                 }
             }
-        }
+
+            const sheetEntry = sheetData[entryId]
+            if (poEntry.msgctxt !== sheetEntry.key && poEntry.msgid !== sheetEntry.source) {
+                log.warn('updateSheetData', `po entry: ${JSON.stringify(poEntry, null, 2)}`)
+                log.warn('updateSheetData', `sheet entry: ${JSON.stringify(sheetEntry, null, 2)}`)
+                throw new Error(`entry conflict occurred ${poEntry.msgctxt || poEntry.msgid} vs ${sheetEntry.key || sheetEntry.source}`)
+            }
+
+            sheetEntry.key = poEntry.msgctxt || ''
+            sheetEntry.source = poEntry.msgid
+            sheetEntry.tags.add(tag)
+
+            if (!sheetEntry.targets[locale]) {
+                sheetEntry.targets[locale] = poEntry.msgstr[0]
+            }
+        })
     }
     // console.log('updated sheet data', sheetData)
 }
@@ -282,11 +274,11 @@ function updatePoData(domainName, tag, sheetName, poData, sheetData) {
                     // console.log('updating po, po entry', poEntry)
                     sheetEntry.tags.add(tag)
                     if (target === '$$no translation$$') {
-                        setFlag(poEntry, 'no-translation')
+                        setPoEntryFlag(poEntry, 'no-translation')
                     } else if (target === '$$needs translation$$') {
-                        setFlag(poEntry, 'need-translation')
+                        setPoEntryFlag(poEntry, 'need-translation')
                     } else {
-                        removeFlag(poEntry)
+                        removePoEntryFlag(poEntry)
                         if (target) {
                             poEntry.msgstr = [target]
                         }

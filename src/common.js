@@ -4,7 +4,7 @@ import glob from 'glob-promise'
 import log from 'npmlog'
 import path from 'path'
 import shell from 'shelljs'
-import {getFlag, setFlag} from './po'
+import {forPoEntries, getPoEntryFlag, setPoEntryFlag} from './po'
 import {execWithLog, getDomainConfig, requireCmd} from './utils'
 
 export async function getDomainSrcPaths (rc, domainName, exts) {
@@ -62,9 +62,9 @@ export async function updatePo (domainName, potPath, fromPoDir, poDir, locales) 
                     if (msgctxt in fromPo.translations && msgid in fromPo.translations[msgctxt]) {
                         const fromPoEntry = fromPo.translations[msgctxt][msgid]
                         potEntry.msgstr = fromPoEntry.msgstr.filter(value => value !== '$$no translation$$')
-                        const flag = getFlag(fromPoEntry)
+                        const flag = getPoEntryFlag(fromPoEntry)
                         if (flag) {
-                            setFlag(potEntry, flag)
+                            setPoEntryFlag(potEntry, flag)
                         }
                     }
                 }
@@ -88,26 +88,20 @@ export async function mergeFallbackLocale(domainName, poDir, fallbackLocale, mer
     for (const poPath of poPaths) {
         const poInput = fs.readFileSync(poPath)
         const po = gettextParser.po.parse(poInput, 'UTF-8')
-        for (const [msgctxt, poEntries] of Object.entries(po.translations)) {
-            for (const [msgid, poEntry] of Object.entries(poEntries)) {
-                if (msgctxt === '' && msgid === '') {
-                    continue
+        forPoEntries(po, poEntry => {
+            if (!poEntry.msgstr[0]) {
+                if (poEntry.msgctxt in fallbackPo.translations && poEntry.msgid in fallbackPo.translations[poEntry.msgctxt]) {
+                    const fallbackPoEntry = fallbackPo.translations[poEntry.msgctxt][poEntry.msgid]
+                    if (fallbackPoEntry.msgstr[0]) {
+                        poEntry.msgstr = fallbackPoEntry.msgstr
+                    }
                 }
 
                 if (!poEntry.msgstr[0]) {
-                    if (msgctxt in fallbackPo.translations && msgid in fallbackPo.translations[msgctxt]) {
-                        const fallbackPoEntry = fallbackPo.translations[msgctxt][msgid]
-                        if (fallbackPoEntry.msgstr[0]) {
-                            poEntry.msgstr = fallbackPoEntry.msgstr
-                        }
-                    }
-
-                    if (!poEntry.msgstr[0]) {
-                        poEntry.msgstr = [poEntry.msgid]
-                    }
+                    poEntry.msgstr = [poEntry.msgid]
                 }
             }
-        }
+        })
         const output = gettextParser.po.compile(po)
         const mergedPoPath = path.join(mergedPoDir, path.basename(poPath))
         fs.writeFileSync(mergedPoPath, output)
@@ -164,36 +158,4 @@ export function cleanupPo (domainName, poPath) {
                 s/^"Language: \\\\n"$/"Language: ${language}\\\\n"/ \
             ' \
             "${poPath}"`, 'cleanupPo')
-}
-
-export function countPoEntry (poPath, specs) {
-    const poInput = fs.readFileSync(poPath)
-    const po = gettextParser.po.parse(poInput, 'UTF-8')
-    return specs.map(spec => {
-        let count = 0
-        for (const [msgctxt, poEntries] of Object.entries(po.translations)) {
-            for (const [msgid, poEntry] of Object.entries(poEntries)) {
-                if (msgctxt === '' && msgid === '') {
-                    continue
-                }
-
-                if (spec === 'total') {
-                    count++
-                } else if (spec === 'untranslated') {
-                    if (!poEntry.msgstr[0]) {
-                        count++
-                    }
-                } else if (spec === 'translated') {
-                    if (poEntry.msgstr[0]) {
-                        count++
-                    }
-                } else {
-                    if (spec === getFlag(poEntry)) {
-                        count++
-                    }
-                }
-            }
-        }
-        return count
-    })
 }
