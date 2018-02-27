@@ -144,7 +144,6 @@ async function run () {
         const domainModule = getDomainModule(type)
 
         log.heading = `[${domainName}] ${cmdName}`
-        log.info('l10n', 'start')
         switch (cmdName) {
             case '_extractPot': {
                 const i18nDir = getDomainConfig(rc, domainName, 'i18n-dir')
@@ -293,7 +292,6 @@ async function run () {
             default:
                 throw new Error(`unknown sub-command: ${cmdName}`)
         }
-        log.info('l10n', 'done')
     }
 }
 
