@@ -7,7 +7,7 @@ import path from 'path'
 import querystring from 'querystring'
 import url from 'url'
 import {cleanupPo} from './common'
-import {forPoEntries, removePoEntryFlag, setPoEntryFlag} from './po'
+import {forPoEntries, getPoEntryFlag, removePoEntryFlag, setPoEntryFlag} from './po'
 import {getGoogleDocsConfig} from './utils'
 import fs from 'fs'
 import {google} from 'googleapis'
@@ -31,7 +31,7 @@ export async function syncPoToGoogleDocs (rc, domainName, tag, poDir) {
 
     log.info('syncPoToGoogleDocs', `finding doc by named ${docName}...`)
     const docId = await findDocumentId(drive, oauth2Client, docName)
-    log.info('syncPoToGoogleDocs', `docId: ${docId}`)
+    log.notice('syncPoToGoogleDocs', `docId: ${docId}`)
 
     const poData = await readPoFiles(poDir)
     const rows = await readSheet(domainName, tag, sheetName, sheets, oauth2Client, docId)
@@ -159,7 +159,7 @@ async function readSheet(domainName, tag, sheetName, sheets, auth, docId) {
         spreadsheetId: docId,
         range: sheetName
     }).then(r => r.data)
-    log.info('readSheet', `... ${rows.length} rows`)
+    log.notice('readSheet', `... ${rows.length} rows`)
     if (rows.length === 0) {
         throw new Error(`no header row in sheet ${sheetName}`)
     }
@@ -275,15 +275,28 @@ function updatePoData(domainName, tag, sheetName, poData, sheetData) {
                 // console.log('updating po, po', po)
                 if ((sheetEntry.key in po) && (sheetEntry.source in po[sheetEntry.key])) {
                     const poEntry = po[sheetEntry.key][sheetEntry.source]
+                    const entryId = poEntry.msgctxt || poEntry.msgid
+                    const flag = getPoEntryFlag(poEntry)
                     // console.log('updating po, po entry', poEntry)
                     sheetEntry.tags.add(tag)
                     if (target === '$$no translation$$') {
-                        setPoEntryFlag(poEntry, 'no-translation')
+                        if (flag !== 'no-translation') {
+                            log.notice('updatePoData', `mark 'no-translation' flag of ${locale} of ${entryId}`)
+                            setPoEntryFlag(poEntry, 'no-translation')
+                        }
                     } else if (target === '$$needs translation$$') {
-                        setPoEntryFlag(poEntry, 'need-translation')
+                        if (flag !== 'needs-translation') {
+                            log.notice('updatePoData', `mark 'needs-translation' flag of ${locale} of ${entryId}`)
+                            setPoEntryFlag(poEntry, 'needs-translation')
+                        }
                     } else {
-                        removePoEntryFlag(poEntry)
-                        if (target) {
+                        if (flag) {
+                            log.notice('updatePoData', `remove mark of ${locale} of ${entryId}`)
+                            removePoEntryFlag(poEntry)
+                        }
+
+                        if (target && target !== poEntry.msgstr[0]) {
+                            log.notice('updatePoData', `updating value of ${entryId}: ${poEntry.msgstr[0]} -> ${target}`)
                             poEntry.msgstr = [target]
                         }
                     }
@@ -308,7 +321,7 @@ async function updateSheet(domainName, tag, sheetName, rows, columnMap, sheetDat
             const tag = Array.from(rowEntry.tags).sort().join(',')
             const newTag = Array.from(sheetEntry.tags).sort().join(',') || 'UNUSED'
             if (tag !== newTag) {
-                log.info('updateSheet', `setting tag of ${entryId}: ${newTag}`)
+                log.notice('updateSheet', `setting tag of ${entryId}: ${newTag}`)
                 docActions.push({
                     type: 'update-cell',
                     row: index + 1,
@@ -320,7 +333,7 @@ async function updateSheet(domainName, tag, sheetName, rows, columnMap, sheetDat
             for (const [locale, value] of Object.entries(rowEntry.targets)) {
                 const newValue = sheetEntry.targets[locale]
                 if (value !== newValue) {
-                    log.info('updateSheet', `updating value of ${locale}: ${value} -> ${newValue}`)
+                    log.notice('updateSheet', `updating value of ${locale}: ${value} -> ${newValue}`)
                     docActions.push({
                         type: 'update-cell',
                         row: index + 1,
