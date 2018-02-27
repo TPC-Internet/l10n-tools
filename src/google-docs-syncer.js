@@ -89,9 +89,8 @@ function readAuthCode(oauth2Client) {
             if (req.url.indexOf('/oauth2callback') >= 0) {
                 const qs = querystring.parse(url.parse(req.url).query)
                 res.end('Authentication successful! Please return to the console.')
-                server.close(() => {
-                    resolve(qs.code)
-                })
+                server.close()
+                resolve(qs.code)
             }
         }).listen(8106, () => {
             opn(authUrl, {wait: false})
