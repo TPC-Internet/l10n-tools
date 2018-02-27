@@ -4,11 +4,10 @@ import program from 'commander'
 import jsonfile from 'jsonfile'
 import log from 'npmlog'
 import {countPoEntries, getPoEntryFlag, getPoEntries} from './po'
-import {getDomainConfig} from './utils'
+import {getDomainConfig, getTempDir} from './utils'
 import {mergeFallbackLocale, updatePo} from './common'
 import shell from 'shelljs'
 import {syncPoToGoogleDocs} from './google-docs-syncer'
-import os from 'os'
 import path from 'path'
 
 async function run () {
@@ -75,27 +74,30 @@ async function run () {
         .description('로컬 소스와 Google Docs 간 싱크')
         .action(c => {cmd = c})
 
-    program.command('count')
-        .description('번역 항목 갯수 세기')
-        .option('-c, --current', '현재의 po 파일이 아닌, 새로 추츨해서 세기')
+    program.command('_extractPot')
+        .option('--pot [pot]', '기본 위치 대신 주어진 pot 파일로 추출')
+        .description('[고급] 소스에서 번역 추출하여 pot 파일 작성')
+        .action(c => {cmd = c})
+
+    program.command('_updatePo')
+        .description('[고급] pot 파일에서 po 파일 업데이트')
+        .option('-l, --locales [locales]', '주어진 로케일만 업데이트 (콤마로 나열 가능)')
+        .option('--pot [pot]', '기본 위치 대신 주어진 pot 파일에서 추출')
+        .option('--podir [podir]', '기본 위치 대신 주어진 위치에 업데이트된 po 파일 저장')
+        .action(c => {cmd = c})
+
+    program.command('_count')
+        .description('[고급] 번역 항목 갯수 세기')
+        .option('--podir [podir]', '기본 위치 대신 주어진 위치에 있는 po 항목 세기')
         .option('-l, --locale [locale]', '갯수를 셀 로케일 (필수)')
         .option('-s, --spec [spec]', '어떤 것을 셀지 지정 (필수, 콤마로 나열하면 모든 조건 체크, !로 시작하면 반대) 지원: total,translated,untranslated,<flag>')
         .action(c => {cmd = c})
 
-    program.command('cat')
-        .description('번역 항목 표시')
-        .option('-c, --current', '현재의 po 파일이 아닌, 새로 추츨해서 표시')
+    program.command('_cat')
+        .description('[고급] 번역 항목 표시')
+        .option('--podir [podir]', '기본 위치 대신 주어진 위치에 있는 po 항목 표시')
         .option('-l, --locale [locale]', '표시할 로케일 (필수)')
         .option('-s, --spec [spec]', '어떤 것을 표시할지 지정 (필수, 콤마로 나열하면 모든 조건 체크, !로 시작하면 반대) 지원: total,translated,untranslated,<flag>')
-        .action(c => {cmd = c})
-
-    program.command('_extractPot')
-        .option('--pot [pot-file]', '기본 위치 대신 주어진 pot 파일로 추출')
-        .description('[고급] 소스에서 번역 추출하여 POT 파일 작성')
-        .action(c => {cmd = c})
-
-    program.command('_updatePo')
-        .description('[고급] POT 파일에서 PO 파일 업데이트')
         .action(c => {cmd = c})
 
     program.command('_apply')
@@ -118,7 +120,7 @@ async function run () {
     const rc = jsonfile.readFileSync(program.rcfile || '.l10nrc')
 
     const domainNames = program.domains || Object.keys(rc.domains)
-    if (cmdName === 'count') {
+    if (cmdName === '_count') {
         if (!cmd.locale || !cmd.spec) {
             cmd.help()
         }
@@ -127,27 +129,10 @@ async function run () {
         const specs = cmd.spec.split(',')
         let count = 0
         for (const domainName of domainNames) {
-            if (cmd.current) {
-                const type = getDomainConfig(rc, domainName, 'type')
-                const domainModule = getDomainModule(type)
-                const i18nDir = getDomainConfig(rc, domainName, 'i18n-dir')
-
-                const fromPoDir = path.join(i18nDir, domainName)
-                const tempDir = path.join(os.tmpdir(), domainName)
-                const potPath = path.join(tempDir, 'template.pot')
-                const poDir = tempDir
-                const poPath = path.join(poDir, locale + '.po')
-
-                shell.rm('-rf', tempDir)
-                await domainModule.extractPot(rc, domainName, potPath)
-                await updatePo(domainName, potPath, fromPoDir, poDir, [locale])
-                count += countPoEntries(poPath, specs)
-                shell.rm('-rf', tempDir)
-            } else {
-                const i18nDir = getDomainConfig(rc, domainName, 'i18n-dir')
-                const poPath = path.join(i18nDir, domainName, locale + '.po')
-                count += countPoEntries(poPath, specs)
-            }
+            const i18nDir = getDomainConfig(rc, domainName, 'i18n-dir')
+            const poDir = cmd.podir || path.join(i18nDir, domainName)
+            const poPath = path.join(poDir, locale + '.po')
+            count += countPoEntries(poPath, specs)
         }
 
         process.stdout.write(count.toString() + '\n')
@@ -163,8 +148,7 @@ async function run () {
         switch (cmdName) {
             case '_extractPot': {
                 const i18nDir = getDomainConfig(rc, domainName, 'i18n-dir')
-
-                const potPath = path.join(i18nDir, domainName, 'template.pot')
+                const potPath = cmd.pot || path.join(i18nDir, domainName, 'template.pot')
 
                 await domainModule.extractPot(rc, domainName, potPath)
                 break
@@ -172,12 +156,13 @@ async function run () {
 
             case '_updatePo': {
                 const i18nDir = getDomainConfig(rc, domainName, 'i18n-dir')
-                const locales = getDomainConfig(rc, domainName, 'locales')
+                const locales = cmd.locales ? cmd.locales.split(',') : getDomainConfig(rc, domainName, 'locales')
 
-                const potPath = path.join(i18nDir, domainName, 'template.pot')
-                const poDir = path.join(i18nDir, domainName)
+                const potPath = cmd.pot || path.join(i18nDir, domainName, 'template.pot')
+                const fromPoDir = path.join(i18nDir, domainName)
+                const poDir = cmd.podir || path.join(i18nDir, domainName)
 
-                await updatePo(domainName, potPath, poDir, poDir, locales)
+                await updatePo(domainName, potPath, fromPoDir, poDir, locales)
                 break
             }
 
@@ -188,7 +173,7 @@ async function run () {
                 const poDir = path.join(i18nDir, domainName)
 
                 if (fallbackLocale != null) {
-                    const tempDir = path.join(os.tmpdir(), domainName)
+                    const tempDir = path.join(getTempDir(), domainName)
                     shell.rm('-rf', tempDir)
                     const mergedPoDir = tempDir
                     await mergeFallbackLocale(domainName, poDir, fallbackLocale, mergedPoDir)
@@ -222,7 +207,7 @@ async function run () {
                 await updatePo(domainName, potPath, poDir, poDir, locales)
 
                 if (fallbackLocale != null) {
-                    const tempDir = path.join(os.tmpdir(), domainName)
+                    const tempDir = path.join(getTempDir(), domainName)
                     shell.rm('-rf', tempDir)
                     const mergedPoDir = tempDir
                     await mergeFallbackLocale(domainName, poDir, fallbackLocale, mergedPoDir)
@@ -240,7 +225,7 @@ async function run () {
                 const tag = getDomainConfig(rc, domainName, 'tag')
 
                 const fromPoDir = path.join(i18nDir, domainName)
-                const tempDir = path.join(os.tmpdir(), domainName)
+                const tempDir = path.join(getTempDir(), domainName)
                 const potPath = path.join(tempDir, 'template.pot')
                 const poDir = tempDir
 
@@ -268,7 +253,7 @@ async function run () {
                 await updatePo(domainName, potPath, poDir, poDir, locales)
 
                 if (fallbackLocale != null) {
-                    const tempDir = path.join(os.tmpdir(), domainName)
+                    const tempDir = path.join(getTempDir(), domainName)
                     shell.rm('-rf', tempDir)
                     const mergedPoDir = tempDir
                     await mergeFallbackLocale(domainName, poDir, fallbackLocale, mergedPoDir)
@@ -280,35 +265,17 @@ async function run () {
                 break
             }
 
-            case 'cat': {
+            case '_cat': {
                 if (!cmd.locale || !cmd.spec) {
                     cmd.help()
                 }
 
                 const locale = cmd.locale
                 const specs = cmd.spec.split(',')
-                let poEntries
-                if (cmd.current) {
-                    const type = getDomainConfig(rc, domainName, 'type')
-                    const domainModule = getDomainModule(type)
-                    const i18nDir = getDomainConfig(rc, domainName, 'i18n-dir')
-
-                    const fromPoDir = path.join(i18nDir, domainName)
-                    const tempDir = path.join(os.tmpdir(), domainName)
-                    const potPath = path.join(tempDir, 'template.pot')
-                    const poDir = tempDir
-                    const poPath = path.join(poDir, locale + '.po')
-
-                    shell.rm('-rf', tempDir)
-                    await domainModule.extractPot(rc, domainName, potPath)
-                    await updatePo(domainName, potPath, fromPoDir, poDir, [locale])
-                    poEntries = getPoEntries(poPath, specs)
-                    shell.rm('-rf', tempDir)
-                } else {
-                    const i18nDir = getDomainConfig(rc, domainName, 'i18n-dir')
-                    const poPath = path.join(i18nDir, domainName, locale + '.po')
-                    poEntries = getPoEntries(poPath, specs)
-                }
+                const i18nDir = getDomainConfig(rc, domainName, 'i18n-dir')
+                const poDir = cmd.podir || path.join(i18nDir, domainName)
+                const poPath = path.join(poDir, locale + '.po')
+                const poEntries = getPoEntries(poPath, specs)
 
                 for (const poEntry of poEntries) {
                     const flag = getPoEntryFlag(poEntry)

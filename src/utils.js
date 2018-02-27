@@ -2,6 +2,8 @@ import {spawn} from 'child_process'
 import commandExists from 'command-exists'
 import log from 'npmlog'
 import objectPath from 'object-path'
+import os from 'os'
+import path from 'path'
 
 export function execWithLog (cmd, logPrefix = '') {
     return new Promise((resolve, reject) => {
@@ -68,4 +70,8 @@ async function requireBrewCmd (cmd, pkg, needForceLink = false) {
             throw new Error(`install '${cmd}' by 'brew install ${pkg}' or else you like`)
         }
     }
+}
+
+export function getTempDir() {
+    return path.join(os.tmpdir(), process.pid.toString())
 }
