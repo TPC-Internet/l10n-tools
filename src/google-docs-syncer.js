@@ -12,7 +12,7 @@ import fs from 'fs'
 import {google} from 'googleapis'
 import {OAuth2Client} from 'google-auth-library'
 import jsonfile from 'jsonfile'
-import {promisify} from 'util'
+import promisify from 'util-promisify'
 import opn from 'opn'
 import shell from 'shelljs'
 
