@@ -1,7 +1,7 @@
 {
   "name": "l10n-tools",
-  "version": "0.0.1",
-  "description": "",
+  "version": "1.0.0",
+  "description": "Localization tools",
   "main": "dist/index",
   "scripts": {
     "prepare": "babel --source-maps true src --out-dir dist/",
@@ -9,7 +9,7 @@
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "author": "Beren <beren.song@vonvon.me>",
-  "license": "ISC",
+  "license": "MIT",
   "bin": {
     "l10n": "./dist/l10n-cli.js"
   },
