@@ -16,6 +16,7 @@ async function run () {
         .description('번역 추출, 동기화 툴')
         .option('-r, --rcfile [rcfile]', '설정 파일 지정, 기본값은 .l10nrc')
         .option('-d, --domains [domains]', '적용할 도메인 지정, 없으면 설정 파일에 있는 모든 도메인 (콤마로 여러 도메인 나열 가능)', val => val.split(','))
+        .option('-q, --quiet', '조용히')
         .on('--help', () => {
             console.info(`
 
@@ -75,27 +76,27 @@ async function run () {
         .action(c => {cmd = c})
 
     program.command('_extractPot')
-        .option('--pot [pot]', '기본 위치 대신 주어진 pot 파일로 추출')
         .description('[고급] 소스에서 번역 추출하여 pot 파일 작성')
+        .option('--potdir [potdir]', '설정한 위치에 pot 파일 추출')
         .action(c => {cmd = c})
 
     program.command('_updatePo')
         .description('[고급] pot 파일에서 po 파일 업데이트')
-        .option('-l, --locales [locales]', '주어진 로케일만 업데이트 (콤마로 나열 가능)')
-        .option('--pot [pot]', '기본 위치 대신 주어진 pot 파일에서 추출')
-        .option('--podir [podir]', '기본 위치 대신 주어진 위치에 업데이트된 po 파일 저장')
+        .option('-l, --locales [locales]', '설정한 로케일만 업데이트 (콤마로 나열 가능)')
+        .option('--potdir [potdir]', '설정한 위치에 있는 pot 파일에서 추출')
+        .option('--podir [podir]', '설정한 위치에 업데이트된 po 파일 저장')
         .action(c => {cmd = c})
 
     program.command('_count')
         .description('[고급] 번역 항목 갯수 세기')
-        .option('--podir [podir]', '기본 위치 대신 주어진 위치에 있는 po 항목 세기')
-        .option('-l, --locale [locale]', '갯수를 셀 로케일 (필수)')
+        .option('--podir [podir]', '설정한 위치에 있는 po 항목 세기')
+        .option('-l, --locales [locales]', '갯수를 셀 로케일 (콤마로 나열 가능)')
         .option('-s, --spec [spec]', '어떤 것을 셀지 지정 (필수, 콤마로 나열하면 모든 조건 체크, !로 시작하면 반대) 지원: total,translated,untranslated,<flag>')
         .action(c => {cmd = c})
 
     program.command('_cat')
         .description('[고급] 번역 항목 표시')
-        .option('--podir [podir]', '기본 위치 대신 주어진 위치에 있는 po 항목 표시')
+        .option('--podir [podir]', '설정한 위치에 있는 po 항목 표시')
         .option('-l, --locale [locale]', '표시할 로케일 (필수)')
         .option('-s, --spec [spec]', '어떤 것을 표시할지 지정 (필수, 콤마로 나열하면 모든 조건 체크, !로 시작하면 반대) 지원: total,translated,untranslated,<flag>')
         .action(c => {cmd = c})
@@ -117,27 +118,12 @@ async function run () {
     const cmdName = cmd._name
     log.heading = cmdName
 
-    const rc = jsonfile.readFileSync(program.rcfile || '.l10nrc')
-
-    const domainNames = program.domains || Object.keys(rc.domains)
-    if (cmdName === '_count') {
-        if (!cmd.locale || !cmd.spec) {
-            cmd.help()
-        }
-
-        const locale = cmd.locale
-        const specs = cmd.spec.split(',')
-        let count = 0
-        for (const domainName of domainNames) {
-            const i18nDir = getDomainConfig(rc, domainName, 'i18n-dir')
-            const poDir = cmd.podir || path.join(i18nDir, domainName)
-            const poPath = path.join(poDir, locale + '.po')
-            count += countPoEntries(poPath, specs)
-        }
-
-        process.stdout.write(count.toString() + '\n')
-        return
+    if (program.quiet) {
+        log.level = 'warn'
     }
+
+    const rc = jsonfile.readFileSync(program.rcfile || '.l10nrc')
+    const domainNames = program.domains || Object.keys(rc.domains)
 
     for (const domainName of domainNames) {
         const type = getDomainConfig(rc, domainName, 'type')
@@ -146,8 +132,8 @@ async function run () {
         log.heading = `[${domainName}] ${cmdName}`
         switch (cmdName) {
             case '_extractPot': {
-                const i18nDir = getDomainConfig(rc, domainName, 'i18n-dir')
-                const potPath = cmd.pot || path.join(i18nDir, domainName, 'template.pot')
+                const i18nDir = cmd.potdir || getDomainConfig(rc, domainName, 'i18n-dir')
+                const potPath = path.join(i18nDir, domainName, 'template.pot')
 
                 await domainModule.extractPot(rc, domainName, potPath)
                 break
@@ -157,11 +143,54 @@ async function run () {
                 const i18nDir = getDomainConfig(rc, domainName, 'i18n-dir')
                 const locales = cmd.locales ? cmd.locales.split(',') : getDomainConfig(rc, domainName, 'locales')
 
-                const potPath = cmd.pot || path.join(i18nDir, domainName, 'template.pot')
+                const potPath = path.join(cmd.potdir || i18nDir, domainName, 'template.pot')
                 const fromPoDir = path.join(i18nDir, domainName)
-                const poDir = cmd.podir || path.join(i18nDir, domainName)
+                const poDir = path.join(cmd.podir || i18nDir, domainName)
 
                 await updatePo(domainName, potPath, fromPoDir, poDir, locales)
+                break
+            }
+
+            case '_count': {
+                const i18nDir = getDomainConfig(rc, domainName, 'i18n-dir')
+                const locales = cmd.locales ? cmd.locales.split(',') : getDomainConfig(rc, domainName, 'locales')
+                const specs = cmd.spec ? cmd.spec.split(',') : ['total']
+
+                const poDir = path.join(cmd.podir || i18nDir, domainName)
+                const counts = locales.map(locale => {
+                    const poPath = path.join(poDir, locale + '.po')
+                    return locale + ':' + countPoEntries(poPath, specs)
+                })
+
+                process.stdout.write(`${domainName},${counts.join(',')}\n`)
+                break
+            }
+
+            case '_cat': {
+                if (!cmd.locale) {
+                    cmd.help()
+                }
+
+                const i18nDir = getDomainConfig(rc, domainName, 'i18n-dir')
+                const locale = cmd.locale
+                const specs = cmd.spec ? cmd.spec.split(',') : ['total']
+
+                const poDir = path.join(cmd.podir || i18nDir, domainName)
+                const poPath = path.join(poDir, locale + '.po')
+
+                const poEntries = getPoEntries(poPath, specs)
+
+                for (const poEntry of poEntries) {
+                    const flag = getPoEntryFlag(poEntry)
+                    if (flag) {
+                        process.stdout.write(`#, ${flag}\n`)
+                    }
+                    if (poEntry.msgctxt) {
+                        process.stdout.write(`msgctxt "${poEntry.msgctxt.replace(/\n/g, '\\n')}"\n`)
+                    }
+                    process.stdout.write(`msgid   "${poEntry.msgid.replace(/\n/g, '\\n')}"\n`)
+                    process.stdout.write(`msgstr  "${poEntry.msgstr[0].replace(/\n/g, '\\n')}"\n\n`)
+                }
                 break
             }
 
@@ -264,31 +293,6 @@ async function run () {
                 break
             }
 
-            case '_cat': {
-                if (!cmd.locale || !cmd.spec) {
-                    cmd.help()
-                }
-
-                const locale = cmd.locale
-                const specs = cmd.spec.split(',')
-                const i18nDir = getDomainConfig(rc, domainName, 'i18n-dir')
-                const poDir = cmd.podir || path.join(i18nDir, domainName)
-                const poPath = path.join(poDir, locale + '.po')
-                const poEntries = getPoEntries(poPath, specs)
-
-                for (const poEntry of poEntries) {
-                    const flag = getPoEntryFlag(poEntry)
-                    if (flag) {
-                        process.stdout.write(`#, ${flag}\n`)
-                    }
-                    if (poEntry.msgctxt) {
-                        process.stdout.write(`msgctxt "${poEntry.msgctxt.replace(/\n/g, '\\n')}"\n`)
-                    }
-                    process.stdout.write(`msgid   "${poEntry.msgid.replace(/\n/g, '\\n')}"\n`)
-                    process.stdout.write(`msgstr  "${poEntry.msgstr[0].replace(/\n/g, '\\n')}"\n\n`)
-                }
-                break
-            }
             default:
                 throw new Error(`unknown sub-command: ${cmdName}`)
         }
