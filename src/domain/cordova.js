@@ -8,7 +8,7 @@ import jsonfile from 'jsonfile'
 import glob from 'glob-promise'
 
 module.exports = {
-    async extractPot(rc, domainName, potPath) {
+    extractPot(rc, domainName, potPath) {
         const baseLocale = getDomainConfig(rc, domainName, 'base-locale')
         const targetDir = getDomainConfig(rc, domainName, 'target-dir')
 
@@ -43,7 +43,7 @@ module.exports = {
 
         shell.mkdir('-p', path.dirname(potPath))
         fs.writeFileSync(potPath, output)
-        await cleanupPot(domainName, potPath)
+        cleanupPot(domainName, potPath)
     },
 
     async apply(rc, domainName, poDir) {

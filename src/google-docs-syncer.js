@@ -42,7 +42,7 @@ export async function syncPoToGoogleDocs (rc, domainName, tag, poDir) {
 
     const docActions = await updateSheet(domainName, tag, sheetName, rows, columnMap, sheetData)
     await applyDocumentActions(domainName, sheetName, sheets, oauth2Client, docId, docActions)
-    await writePoFiles(domainName, poDir, poData)
+    writePoFiles(domainName, poDir, poData)
 }
 
 async function authorize(domainName, sheetName, clientSecretPath) {
@@ -142,13 +142,13 @@ async function readPoFiles(poDir) {
     return poData
 }
 
-async function writePoFiles(domainName, poDir, poData) {
+function writePoFiles(domainName, poDir, poData) {
     // console.log('po data to write', JSON.stringify(poData, null, 2))
     for (const [locale, po] of Object.entries(poData)) {
         const output = gettextParser.po.compile(po)
         const poPath = path.join(poDir, locale + '.po')
         fs.writeFileSync(poPath, output)
-        await cleanupPo(domainName, poPath)
+        cleanupPo(domainName, poPath)
     }
 }
 

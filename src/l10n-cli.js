@@ -150,7 +150,7 @@ async function run () {
                 const fromPoDir = path.join(i18nDir, domainName)
                 const poDir = path.join(cmd.podir || i18nDir, domainName)
 
-                await updatePo(domainName, potPath, fromPoDir, poDir, locales)
+                updatePo(domainName, potPath, fromPoDir, poDir, locales)
                 break
             }
 
@@ -246,7 +246,7 @@ async function run () {
                 const poDir = path.join(i18nDir, domainName)
 
                 await domainModule.extractPot(rc, domainName, potPath)
-                await updatePo(domainName, potPath, poDir, poDir, locales)
+                updatePo(domainName, potPath, poDir, poDir, locales)
 
                 if (fallbackLocale != null) {
                     const tempDir = path.join(getTempDir(), domainName)
@@ -274,7 +274,7 @@ async function run () {
                 log.info('l10n', `temp dir: '${tempDir}'`)
                 shell.rm('-rf', tempDir)
                 await domainModule.extractPot(rc, domainName, potPath)
-                await updatePo(domainName, potPath, fromPoDir, poDir, locales)
+                updatePo(domainName, potPath, fromPoDir, poDir, locales)
                 await syncPoToGoogleDocs(rc, domainName, tag, poDir)
                 shell.rm('-rf', tempDir)
                 break
@@ -290,9 +290,9 @@ async function run () {
                 const poDir = path.join(i18nDir, domainName)
 
                 await domainModule.extractPot(rc, domainName, potPath)
-                await updatePo(domainName, potPath, poDir, poDir, locales)
+                updatePo(domainName, potPath, poDir, poDir, locales)
                 await syncPoToGoogleDocs(rc, domainName, tag, poDir)
-                await updatePo(domainName, potPath, poDir, poDir, locales)
+                updatePo(domainName, potPath, poDir, poDir, locales)
 
                 if (fallbackLocale != null) {
                     const tempDir = path.join(getTempDir(), domainName)

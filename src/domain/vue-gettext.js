@@ -35,7 +35,7 @@ module.exports = {
         fs.writeFileSync(potPath, gettextExtractor.toString())
 
         await xgettext(domainName, 'JavaScript', ['npgettext:1c,2,3'], potPath, srcPaths, true)
-        await cleanupPot(domainName, potPath)
+        cleanupPot(domainName, potPath)
     },
 
     async apply(rc, domainName, poDir) {

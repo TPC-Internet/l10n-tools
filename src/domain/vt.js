@@ -64,7 +64,7 @@ module.exports = {
         fs.writeFileSync(potPath, output)
 
         await xgettext(domainName, 'Python', keywords, potPath, pyPaths, true)
-        await cleanupPot(domainName, potPath)
+        cleanupPot(domainName, potPath)
     },
 
     async apply(rc, domainName, poDir) {

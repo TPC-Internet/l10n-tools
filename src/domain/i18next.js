@@ -11,7 +11,7 @@ module.exports = {
         const srcPaths = await getDomainSrcPaths(rc, domainName, ['.js'])
         const keywords = getDomainConfig(rc, domainName, 'keywords')
         await xgettext(domainName, 'JavaScript', keywords, potPath, srcPaths, false)
-        await cleanupPot(domainName, potPath)
+        cleanupPot(domainName, potPath)
     },
 
     async apply(rc, domainName, poDir) {

@@ -20,7 +20,7 @@ module.exports = {
             gettextExtractor.parse(srcPath, input)
         }
         fs.writeFileSync(potPath, gettextExtractor.toString())
-        await cleanupPot(domainName, potPath)
+        cleanupPot(domainName, potPath)
     },
 
     async apply(rc, domainName, poDir) {

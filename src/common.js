@@ -41,7 +41,7 @@ export async function xgettext (domainName, language, keywords, potPath, srcPath
             ${srcPaths.join(' ')}`, 'xgettext')
 }
 
-export async function updatePo (domainName, potPath, fromPoDir, poDir, locales) {
+export function updatePo (domainName, potPath, fromPoDir, poDir, locales) {
     shell.mkdir('-p', poDir)
     const potInput = fs.readFileSync(potPath)
     for (const locale of locales) {
@@ -74,7 +74,7 @@ export async function updatePo (domainName, potPath, fromPoDir, poDir, locales) 
         const output = gettextParser.po.compile(pot)
         const poPath = path.join(poDir, poFile)
         fs.writeFileSync(poPath, output)
-        await cleanupPo(domainName, poPath)
+        cleanupPo(domainName, poPath)
     }
 }
 
@@ -105,7 +105,7 @@ export async function mergeFallbackLocale(domainName, poDir, fallbackLocale, mer
         const output = gettextParser.po.compile(po)
         const mergedPoPath = path.join(mergedPoDir, path.basename(poPath))
         fs.writeFileSync(mergedPoPath, output)
-        await cleanupPo(domainName, mergedPoPath)
+        cleanupPo(domainName, mergedPoPath)
     }
 }
 
@@ -129,15 +129,15 @@ export async function compilePoToMo (domainName, poDir, targetDir) {
 export function cleanupPot (domainName, potPath) {
     // POT-Creation-Date 항목이 자꾸 바뀌어서 diff 생기는 것 방지
     // 빈 주석, fuzzy 마크 지우기
-    return execWithLog(
-        `sed -i '' -E \
-            ' \
-                /^"POT-Creation-Date:/d; \
-                /^#$/d; \
-                /^#, fuzzy$/d; \
-                s/^(#.*), fuzzy(.*)/\\1\\2/ \
-            ' \
-            "${potPath}"`, 'cleanupPot')
+    const input = fs.readFileSync(potPath, {encoding: 'UTF-8'})
+    let output = input
+        .replace(/^"POT-Creation-Date:.*\n/mg, '')
+        .replace(/^# *\n/mg, '')
+        .replace(/^#, fuzzy *\n/mg, '')
+        .replace(/^(#.*), fuzzy(.*)/mg, '$1$2')
+    if (!output.endsWith('\n'))
+        output += '\n'
+    fs.writeFileSync(potPath, output, {encoding: 'UTF-8'})
 }
 
 export function cleanupPo (domainName, poPath) {
@@ -146,16 +146,16 @@ export function cleanupPo (domainName, poPath) {
     // source 주석 제거 (쓸데없는 diff 방지)
     // Language 항목 제대로 설정
     const language = path.basename(poPath, '.po')
-    return execWithLog(
-        `sed -i '' -E \
-            ' \
-                /^"POT-Creation-Date:/d; \
-                /^#$/d; \
-                /^#, fuzzy$/d; \
-                s/^(#.*), fuzzy(.*)/\\1\\2/; \
-                /^#:/d; \
-                s/^"Content-Type: .*\\\\n"$/"Content-Type: text\\/plain; charset=UTF-8\\\\n"/; \
-                s/^"Language: \\\\n"$/"Language: ${language}\\\\n"/ \
-            ' \
-            "${poPath}"`, 'cleanupPo')
+    const input = fs.readFileSync(poPath, {encoding: 'UTF-8'})
+    let output = input
+        .replace(/^"POT-Creation-Date:.*\n/mg, '')
+        .replace(/^# *\n/mg, '')
+        .replace(/^#, fuzzy *\n/mg, '')
+        .replace(/^(#.*), fuzzy(.*)/mg, '$1$2')
+        .replace(/^#:.*\n/mg, '')
+        .replace(/^"Content-Type: .*\\n"/mg, '"Content-Type: text/plain; charset=UTF-8\\n"')
+        .replace(/^"Language: \\n"/mg, `"Language: ${language}\\n"`)
+    if (!output.endsWith('\n'))
+        output += '\n'
+    fs.writeFileSync(poPath, output, {encoding: 'UTF-8'})
 }
