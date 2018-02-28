@@ -2,6 +2,7 @@
 
 import program from 'commander'
 import jsonfile from 'jsonfile'
+import findRoot from 'find-root'
 import log from 'npmlog'
 import {countPoEntries, getPoEntryFlag, getPoEntries} from './po'
 import {getDomainConfig, getTempDir} from './utils'
@@ -11,6 +12,8 @@ import {syncPoToGoogleDocs} from './google-docs-syncer'
 import path from 'path'
 
 async function run () {
+    process.chdir(findRoot(process.cwd()))
+
     let cmd = null
     program.version('0.1')
         .description('번역 추출, 동기화 툴')
