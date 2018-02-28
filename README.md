@@ -2,7 +2,7 @@
 Localization tools
 
 ```text
-  Usage: l10n-cli [options] [command]
+  Usage: l10n [options] [command]
 
   번역 추출, 동기화 툴
 
