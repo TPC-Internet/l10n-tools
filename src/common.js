@@ -4,7 +4,7 @@ import glob from 'glob-promise'
 import log from 'npmlog'
 import path from 'path'
 import shell from 'shelljs'
-import {forPoEntries, getPoEntryFlag, setPoEntryFlag} from './po'
+import {forPoEntries, getPoEntry, getPoEntryFlag, setPoEntryFlag} from './po'
 import {execWithLog, getDomainConfig, requireCmd} from './utils'
 
 export async function getDomainSrcPaths (rc, domainName, exts) {
@@ -86,22 +86,19 @@ export async function mergeFallbackLocale(domainName, poDir, fallbackLocale, mer
 
     const poPaths = await glob.promise(`${poDir}/*.po`)
     for (const poPath of poPaths) {
+        const locale = path.basename(poPath, '.po')
         const poInput = fs.readFileSync(poPath)
         const po = gettextParser.po.parse(poInput, 'UTF-8')
-        forPoEntries(po, poEntry => {
-            if (!poEntry.msgstr[0]) {
-                if (poEntry.msgctxt in fallbackPo.translations && poEntry.msgid in fallbackPo.translations[poEntry.msgctxt]) {
-                    const fallbackPoEntry = fallbackPo.translations[poEntry.msgctxt][poEntry.msgid]
-                    if (fallbackPoEntry.msgstr[0]) {
+        if (locale !== fallbackLocale) {
+            forPoEntries(po, poEntry => {
+                if (!poEntry.msgstr[0]) {
+                    const fallbackPoEntry = getPoEntry(fallbackPo, poEntry.msgctxt, poEntry.msgid)
+                    if (fallbackPoEntry != null && fallbackPoEntry.msgstr[0]) {
                         poEntry.msgstr = fallbackPoEntry.msgstr
                     }
                 }
-
-                if (!poEntry.msgstr[0]) {
-                    poEntry.msgstr = [poEntry.msgid]
-                }
-            }
-        })
+            })
+        }
         const output = gettextParser.po.compile(po)
         const mergedPoPath = path.join(mergedPoDir, path.basename(poPath))
         fs.writeFileSync(mergedPoPath, output)

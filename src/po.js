@@ -22,6 +22,16 @@ export function getPoEntryFlag(poEntry) {
     return poEntry.comments.flag || null
 }
 
+export function getPoEntry(po, msgctxt, msgid) {
+    if (msgctxt == null) {
+        msgctxt = ''
+    }
+    if (!(msgctxt in po.translations)) {
+        return null
+    }
+    return po.translations[msgctxt][msgid]
+}
+
 export function forPoEntries(po, callback) {
     for (const [msgctxt, poEntries] of Object.entries(po.translations)) {
         for (const [msgid, poEntry] of Object.entries(poEntries)) {
