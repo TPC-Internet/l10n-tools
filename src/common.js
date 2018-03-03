@@ -53,22 +53,16 @@ export function updatePo (domainName, potPath, fromPoDir, poDir, locales) {
         if (fs.existsSync(fromPoPath)) {
             const fromPoInput = fs.readFileSync(fromPoPath)
             const fromPo = gettextParser.po.parse(fromPoInput, 'UTF-8')
-            for (const [msgctxt, potEntries] of Object.entries(pot.translations)) {
-                for (const [msgid, potEntry] of Object.entries(potEntries)) {
-                    if (msgctxt === '' && msgid === '') {
-                        continue
-                    }
-
-                    if (msgctxt in fromPo.translations && msgid in fromPo.translations[msgctxt]) {
-                        const fromPoEntry = fromPo.translations[msgctxt][msgid]
-                        potEntry.msgstr = fromPoEntry.msgstr.filter(value => value !== '$$no translation$$')
-                        const flag = getPoEntryFlag(fromPoEntry)
-                        if (flag) {
-                            setPoEntryFlag(potEntry, flag)
-                        }
+            forPoEntries(pot, potEntry => {
+                const fromPoEntry = getPoEntry(fromPo, potEntry.msgctxt, potEntry.msgid)
+                if (fromPoEntry != null) {
+                    potEntry.msgstr = fromPoEntry.msgstr.map(value => value === '$$no translation$$' ? '' : value)
+                    const flag = getPoEntryFlag(fromPoEntry)
+                    if (flag) {
+                        setPoEntryFlag(potEntry, flag)
                     }
                 }
-            }
+            })
         }
 
         const output = gettextParser.po.compile(pot)
