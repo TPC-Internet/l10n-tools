@@ -1,49 +1,137 @@
 import {Extractor} from 'angular-gettext-tools'
 import cheerio from 'cheerio'
-import * as esprima from 'esprima'
-import estraverse from 'estraverse'
+import * as babylon from 'babylon'
+import traverse from 'babel-traverse'
 import fs from 'fs'
 import glob from 'glob-promise'
 import log from 'npmlog'
 import {gettextToI18next} from 'i18next-conv'
 import shell from 'shelljs'
 import path from 'path'
-import {cleanupPot, getDomainSrcPaths, xgettext} from '../common'
+import {cleanupPot, getDomainSrcPaths} from '../common'
 import {getDomainConfig} from '../utils'
 import jsonfile from 'jsonfile'
 
-Extractor.prototype.extractBindAttrs = function (filename, src, lineNumber = 0) {
-    const $ = cheerio.load(src, { decodeEntities: false, withStartIndices: true })
+function getLineNumber(src, index, startLineNumber = 0) {
+    const matches = src.substr(0, index).match(/\n/g)
+    if (!matches) {
+        return startLineNumber
+    }
+    return startLineNumber + matches.length
+}
 
-    const newlines = index => src.substr(0, index).match(/\n/g) || []
-    const reference = index => {
-        return {
-            file: filename,
-            location: {
-                start: {
-                    line: lineNumber + newlines(index).length + 1
-                }
+function getReference(filename, line) {
+    return {
+        file: filename,
+        location: {
+            start: {
+                line: line
             }
         }
     }
+}
+
+function getReferenceByIndex(filename, src, index, startLineNumber = 0) {
+    return {
+        file: filename,
+        location: {
+            start: {
+                line: getLineNumber(src, index, startLineNumber) + 1
+            }
+        }
+    }
+}
+
+Extractor.prototype.extractVue = function (filename, src, lineNumber = 0) {
+    const $ = cheerio.load(src, {decodeEntities: false, withStartIndices: true})
 
     $('*').each((index, n) => {
-        for (const [attr, content] of Object.entries($(n).attr())) {
+        const node = $(n)
+        if (n.name === 'script') {
+            if (!('type' in n.attribs) || n.attribs.type === 'text/javascript') {
+                this.extractVueJsModule(filename, n.children[0].data, getLineNumber(src, n.children[0].startIndex, lineNumber))
+            }
+        } else if (n.name === 'translate') {
+            const ref = getReferenceByIndex(filename, src, n.children[0].startIndex, lineNumber)
+            const id = node.html().trim()
+            const plural = n.attribs['translate-plural'] || null
+            const comment = n.attribs['translate-comment'] || null
+            const context = n.attribs['translate-context'] || null
+            this.addString(ref, id, plural, comment, context)
+        }
+
+        if ('v-translate' in n.attribs) {
+            const ref = getReferenceByIndex(filename, src, n.children[0].startIndex, lineNumber)
+            const id = node.html().trim()
+            const plural = n.attribs['translate-plural'] || null
+            const comment = n.attribs['translate-comment'] || null
+            const context = n.attribs['translate-context'] || null
+            this.addString(ref, id, plural, comment, context)
+        }
+
+        for (const [attr, content] of Object.entries(n.attribs)) {
             if (attr.startsWith(':') || attr.startsWith('v-bind:')) {
-                const ast = esprima.parseScript(content)
-                estraverse.traverse(ast, {
-                    enter: node => {
-                        if (node.type === 'CallExpression') {
-                            if (node.callee.type === 'Identifier' && node.callee.name === '$gettext') {
-                                const idArg = node.arguments[0]
-                                if (idArg.type === 'Literal') {
-                                    this.addString(reference(n.startIndex), idArg.value, false, null, null)
-                                }
-                            }
+                let contentIndex = 0
+                const attrIndex = src.substr(n.startIndex).indexOf(attr)
+                if (attrIndex >= 0) {
+                    contentIndex = attrIndex + attr.length
+                    while (/[=\s]/.test(src.substr(n.startIndex + contentIndex)[0])) {
+                        contentIndex++
+                    }
+                    if (['\'', '"'].includes(src.substr(n.startIndex + contentIndex)[0])) {
+                        contentIndex++
+                    }
+                }
+                this.extractVueJsExpression(filename, content, getLineNumber(src, n.startIndex + contentIndex, lineNumber))
+            }
+        }
+    })
+}
+
+Extractor.prototype.extractVueJsModule = function (filename, src, lineNumber = 0) {
+    const ast = babylon.parse(src, {
+        sourceType: 'module',
+        sourceFilename: filename,
+        startLine: lineNumber + 1,
+        plugins: ['objectRestSpread']
+    })
+    traverse(ast, {
+        enter: path => {
+            const node = path.node
+            if (node.type === 'CallExpression') {
+                if (node.callee.type === 'MemberExpression') {
+                    if (node.callee.property.type === 'Identifier' && node.callee.property.name === '$gettext') {
+                        const idArgument = node.arguments[0]
+                        if (idArgument.type === 'StringLiteral') {
+                            this.addString(getReference(filename, node.loc.start.line), idArgument.value, false, null, null)
                         }
                     }
-                })
+                }
+            }
+        }
+    })
+}
 
+Extractor.prototype.extractVueJsExpression = function (filename, src, lineNumber = 0) {
+    const ast = babylon.parse(src, {
+        sourceType: 'script',
+        sourceFilename: filename,
+        startLine: lineNumber + 1,
+        plugins: ['objectRestSpread']
+    })
+    traverse(ast, {
+        noScope: true,
+        enter: path => {
+            const node = path.node
+            if (node.type === 'CallExpression') {
+                if (node.callee.type === 'Identifier') {
+                    if (node.callee.name === '$gettext') {
+                        const idArgument = node.arguments[0]
+                        if (idArgument.type === 'StringLiteral') {
+                            this.addString(getReference(filename, node.loc.start.line), idArgument.value, false, null, null)
+                        }
+                    }
+                }
             }
         }
     })
@@ -67,15 +155,20 @@ module.exports = {
             extensions: {vue: 'html'}
         })
         log.info('extractPot', 'from vue templates')
-        for (const vuePath of vuePaths) {
-            log.info('extractPot', `processing '${vuePath}'`)
-            const input = fs.readFileSync(vuePath, {encoding: 'UTF-8'})
-            gettextExtractor.parse(vuePath, input)
-            gettextExtractor.extractBindAttrs(vuePath, input)
+        for (const srcPath of srcPaths) {
+            log.info('extractPot', `processing '${srcPath}'`)
+            const ext = path.extname(srcPath)
+            if (ext === '.vue') {
+                const input = fs.readFileSync(srcPath, {encoding: 'UTF-8'})
+                gettextExtractor.extractVue(srcPath, input)
+            } else if (ext === '.js') {
+                const input = fs.readFileSync(srcPath, {encoding: 'UTF-8'})
+                gettextExtractor.extractVueJsModule(srcPath, input)
+            } else {
+                log.warn('extractPot', `skipping unknown extension: '${ext}'`)
+            }
         }
         fs.writeFileSync(potPath, gettextExtractor.toString())
-
-        await xgettext(domainName, 'JavaScript', ['npgettext:1c,2,3'], potPath, srcPaths, true)
         cleanupPot(domainName, potPath)
     },
 
