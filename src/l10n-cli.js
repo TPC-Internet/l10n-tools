@@ -160,23 +160,11 @@ async function run () {
                 const specs = cmd.spec ? cmd.spec.split(',') : ['total']
 
                 const poDir = path.join(cmd.podir || i18nDir, domainName)
-                let countOutput = ''
-                if (locales.length === 1) {
-                    const poPath = path.join(poDir, locales[0] + '.po')
-                    countOutput = countPoEntries(poPath, specs)
-                } else if (locales.length > 1) {
-                    const counts = locales.map(locale => {
-                        const poPath = path.join(poDir, locale + '.po')
-                        return locale + ':' + countPoEntries(poPath, specs)
-                    })
-                    countOutput = counts.join(',')
-                }
-
-                if (domainNames.length > 1) {
-                    process.stdout.write(`${domainName},${countOutput}\n`)
-                } else {
-                    process.stdout.write(`${countOutput}\n`)
-                }
+                const counts = locales.map(locale => {
+                    const poPath = path.join(poDir, locale + '.po')
+                    return locale + ':' + countPoEntries(poPath, specs)
+                })
+                process.stdout.write(`${domainName},${counts.join(',')}\n`)
                 break
             }
 
