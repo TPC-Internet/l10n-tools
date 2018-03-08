@@ -1,6 +1,7 @@
 import {Extractor} from 'angular-gettext-tools'
 import cheerio from 'cheerio'
 import * as babylon from 'babylon'
+import createBabylonOptions from 'babylon-options'
 import traverse from 'babel-traverse'
 import fs from 'fs'
 import glob from 'glob-promise'
@@ -89,24 +90,12 @@ Extractor.prototype.extractVue = function (filename, src, startLine = 0) {
 }
 
 Extractor.prototype.extractVueJsModule = function (filename, src, startLine = 0) {
-    const ast = babylon.parse(src, {
+    const ast = babylon.parse(src, createBabylonOptions({
         sourceType: 'module',
         sourceFilename: filename,
         startLine: startLine + 1,
-        plugins: [
-            'jsx',
-            'flow',
-            'doExpressions',
-            'objectRestSpread',
-            'decorators',
-            'classProperties',
-            'exportExtensions',
-            'asyncGenerators',
-            'functionBind',
-            'functionSent',
-            'dynamicImport'
-        ]
-    })
+        stage: 0
+    }))
     traverse(ast, {
         enter: path => {
             const node = path.node
@@ -125,24 +114,12 @@ Extractor.prototype.extractVueJsModule = function (filename, src, startLine = 0)
 }
 
 Extractor.prototype.extractVueJsExpression = function (filename, src, startLine = 0) {
-    const ast = babylon.parse('(' + src + ')', {
+    const ast = babylon.parse('(' + src + ')', createBabylonOptions({
         sourceType: 'script',
         sourceFilename: filename,
         startLine: startLine + 1,
-        plugins: [
-            'jsx',
-            'flow',
-            'doExpressions',
-            'objectRestSpread',
-            'decorators',
-            'classProperties',
-            'exportExtensions',
-            'asyncGenerators',
-            'functionBind',
-            'functionSent',
-            'dynamicImport'
-        ]
-    })
+        stage: 0
+    }))
     traverse(ast, {
         noScope: true,
         enter: path => {
