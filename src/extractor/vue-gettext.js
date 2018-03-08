@@ -4,14 +4,10 @@ import * as babylon from 'babylon'
 import createBabylonOptions from 'babylon-options'
 import traverse from 'babel-traverse'
 import fs from 'fs'
-import glob from 'glob-promise'
 import log from 'npmlog'
-import {gettextToI18next} from 'i18next-conv'
 import shell from 'shelljs'
 import path from 'path'
-import {cleanupPot, getDomainSrcPaths} from '../common'
-import {getDomainConfig} from '../utils'
-import jsonfile from 'jsonfile'
+import {getSrcPaths} from '../common'
 
 function getLine(src, index, startLine = 0) {
     const matches = src.substr(0, index).match(/\n/g)
@@ -138,55 +134,35 @@ Extractor.prototype.extractVueJsExpression = function (filename, src, startLine 
     })
 }
 
-module.exports = {
-    async extractPot(rc, domainName, potPath) {
-        const srcPaths = await getDomainSrcPaths(rc, domainName, ['.vue', '.js'])
+export default async function (domainName, config, potPath) {
+    const srcPaths = await getSrcPaths(config, ['.vue', '.js'])
 
-        shell.mkdir('-p', path.dirname(potPath))
+    shell.mkdir('-p', path.dirname(potPath))
 
-        const vuePaths = []
-        for (const srcPath of srcPaths) {
-            if (path.extname(srcPath) === '.vue') {
-                vuePaths.push(srcPath)
-            }
+    const vuePaths = []
+    for (const srcPath of srcPaths) {
+        if (path.extname(srcPath) === '.vue') {
+            vuePaths.push(srcPath)
         }
-
-        const gettextExtractor = new Extractor({
-            attributes: ['v-translate', 'translate'],
-            extensions: {vue: 'html'}
-        })
-        log.info('extractPot', 'from vue templates')
-        for (const srcPath of srcPaths) {
-            log.info('extractPot', `processing '${srcPath}'`)
-            const ext = path.extname(srcPath)
-            if (ext === '.vue') {
-                const input = fs.readFileSync(srcPath, {encoding: 'UTF-8'})
-                gettextExtractor.extractVue(srcPath, input)
-            } else if (ext === '.js') {
-                const input = fs.readFileSync(srcPath, {encoding: 'UTF-8'})
-                gettextExtractor.extractVueJsModule(srcPath, input)
-            } else {
-                log.warn('extractPot', `skipping unknown extension: '${ext}'`)
-            }
-        }
-        fs.writeFileSync(potPath, gettextExtractor.toString())
-        cleanupPot(domainName, potPath)
-    },
-
-    async apply(rc, domainName, poDir) {
-        const targetPath = getDomainConfig(rc, domainName, 'target-path')
-
-        const translations = {}
-        const poPaths = await glob.promise(`${poDir}/*.po`)
-        for (const poPath of poPaths) {
-            const locale = path.basename(poPath, '.po')
-            const json = await gettextToI18next(locale, fs.readFileSync(poPath), {
-                keyseparator: false,
-                skipUntranslated: true,
-                ctxSeparator: false
-            })
-            translations[locale] = JSON.parse(json)
-        }
-        jsonfile.writeFileSync(targetPath, translations, {spaces: 4})
     }
+
+    const gettextExtractor = new Extractor({
+        attributes: ['v-translate', 'translate'],
+        extensions: {vue: 'html'}
+    })
+    log.info('extractPot', 'from vue templates')
+    for (const srcPath of srcPaths) {
+        log.info('extractPot', `processing '${srcPath}'`)
+        const ext = path.extname(srcPath)
+        if (ext === '.vue') {
+            const input = fs.readFileSync(srcPath, {encoding: 'UTF-8'})
+            gettextExtractor.extractVue(srcPath, input)
+        } else if (ext === '.js') {
+            const input = fs.readFileSync(srcPath, {encoding: 'UTF-8'})
+            gettextExtractor.extractVueJsModule(srcPath, input)
+        } else {
+            log.warn('extractPot', `skipping unknown extension: '${ext}'`)
+        }
+    }
+    fs.writeFileSync(potPath, gettextExtractor.toString())
 }

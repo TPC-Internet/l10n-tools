@@ -5,13 +5,13 @@ import log from 'npmlog'
 import path from 'path'
 import shell from 'shelljs'
 import {forPoEntries, getPoEntry, getPoEntryFlag, setPoEntryFlag} from './po'
-import {execWithLog, getDomainConfig, requireCmd} from './utils'
+import {execWithLog, requireCmd} from './utils'
 
-export async function getDomainSrcPaths (rc, domainName, exts) {
-    const srcDirs = getDomainConfig(rc, domainName, 'src-dirs', [])
-    const srcPatterns = getDomainConfig(rc, domainName, 'src-patterns', [])
+export async function getSrcPaths (config, exts) {
+    const srcDirs = config.get('src-dirs', [])
+    const srcPatterns = config.get('src-patterns', [])
     if (srcDirs.length === 0 && srcPatterns.length === 0) {
-        throw new Error(`config 'domains.${domainName}.src-dirs' or 'domains.${domainName}.src-patterns' is required`)
+        throw new Error(`config '${config.appendPrefix('src-dirs')}' or '${config.appendPrefix('src-patterns')}' is required`)
     }
 
     for (const srcDir of srcDirs) {
@@ -41,7 +41,7 @@ export async function xgettext (domainName, language, keywords, potPath, srcPath
             ${srcPaths.join(' ')}`, 'xgettext')
 }
 
-export function updatePo (domainName, potPath, fromPoDir, poDir, locales) {
+export function updatePo (potPath, fromPoDir, poDir, locales) {
     shell.mkdir('-p', poDir)
     const potInput = fs.readFileSync(potPath)
     for (const locale of locales) {
@@ -68,7 +68,7 @@ export function updatePo (domainName, potPath, fromPoDir, poDir, locales) {
         const output = gettextParser.po.compile(pot)
         const poPath = path.join(poDir, poFile)
         fs.writeFileSync(poPath, output)
-        cleanupPo(domainName, poPath)
+        cleanupPo(poPath)
     }
 }
 
@@ -96,7 +96,7 @@ export async function mergeFallbackLocale(domainName, poDir, fallbackLocale, mer
         const output = gettextParser.po.compile(po)
         const mergedPoPath = path.join(mergedPoDir, path.basename(poPath))
         fs.writeFileSync(mergedPoPath, output)
-        cleanupPo(domainName, mergedPoPath)
+        cleanupPo(mergedPoPath)
     }
 }
 
@@ -117,7 +117,7 @@ export async function compilePoToMo (domainName, poDir, targetDir) {
     }
 }
 
-export function cleanupPot (domainName, potPath) {
+export function cleanupPot (potPath) {
     // POT-Creation-Date 항목이 자꾸 바뀌어서 diff 생기는 것 방지
     // 빈 주석, fuzzy 마크 지우기
     const input = fs.readFileSync(potPath, {encoding: 'UTF-8'})
@@ -131,7 +131,7 @@ export function cleanupPot (domainName, potPath) {
     fs.writeFileSync(potPath, output, {encoding: 'UTF-8'})
 }
 
-export function cleanupPo (domainName, poPath) {
+export function cleanupPo (poPath) {
     // POT-Creation-Date 항목 제가 (쓸데없는 diff 방지)
     // 빈 주석, fuzzy 마크 지우기
     // source 주석 제거 (쓸데없는 diff 방지)

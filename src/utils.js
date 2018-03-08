@@ -1,7 +1,6 @@
 import {spawn} from 'child_process'
 import commandExists from 'command-exists'
 import log from 'npmlog'
-import objectPath from 'object-path'
 import os from 'os'
 import path from 'path'
 
@@ -33,27 +32,6 @@ export function execWithLog (cmd, logPrefix = '') {
             }
         })
     })
-}
-
-export function getDomainConfig (rc, domainName, path, defaultValue) {
-    const value = objectPath.get(rc, ['domains', domainName, path], defaultValue)
-    if (value === undefined) {
-        throw new Error(`config 'domains.${domainName}.${path}' is required`)
-    }
-    return value
-}
-
-export function getGoogleDocsConfig (rc, domainName, path, defaultValue) {
-    const domainValue = objectPath.get(rc, ['domains', domainName, 'google-docs', path])
-    if (domainValue !== undefined) {
-        return domainValue
-    }
-
-    const value = objectPath.get(rc, ['google-docs', path], defaultValue)
-    if (value === undefined) {
-        throw new Error(`config 'google-docs.${path}' is required`)
-    }
-    return value
 }
 
 export const requireCmd = {

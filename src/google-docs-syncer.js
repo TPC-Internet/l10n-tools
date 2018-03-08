@@ -8,7 +8,6 @@ import querystring from 'querystring'
 import url from 'url'
 import {cleanupPo} from './common'
 import {forPoEntries, getPoEntryFlag, removePoEntryFlag, setPoEntryFlag} from './po'
-import {getGoogleDocsConfig} from './utils'
 import fs from 'fs'
 import {google} from 'googleapis'
 import {OAuth2Client} from 'google-auth-library'
@@ -19,49 +18,50 @@ import shell from 'shelljs'
 
 httpShutdown.extend()
 
-export async function syncPoToGoogleDocs (rc, domainName, tag, poDir) {
-    const clientSecretPath = getGoogleDocsConfig(rc, domainName, 'client-secret-path')
-    const docName = getGoogleDocsConfig(rc, domainName, 'doc-name')
-    const sheetName = getGoogleDocsConfig(rc, domainName, 'sheet-name')
+function getGoogleDocsConfig (config, domainConfig, path) {
+    return domainConfig.get(['google-docs', path], null) || config.get(['google-docs', path])
+
+}
+
+export async function syncPoToGoogleDocs (config, domainConfig, tag, poDir) {
+    const docName = getGoogleDocsConfig(config, domainConfig, 'doc-name')
+    const sheetName = getGoogleDocsConfig(config, domainConfig, 'sheet-name')
+    const clientSecretPath = getGoogleDocsConfig(config, domainConfig, 'client-secret-path')
+    const credentials = jsonfile.readFileSync(clientSecretPath)['installed']
 
     const drive = promisifyDrive(google.drive('v3'))
     const sheets = promisifySheets(google.sheets('v4'))
 
-    const oauth2Client = await authorize(domainName, sheetName, clientSecretPath)
+    const auth = await authorize(sheetName, credentials)
 
     log.info('syncPoToGoogleDocs', `finding doc by named ${docName}...`)
-    const docId = await findDocumentId(drive, oauth2Client, docName)
+    const docId = await findDocumentId(drive, auth, docName)
     log.notice('syncPoToGoogleDocs', `docId: ${docId}`)
 
     const poData = await readPoFiles(poDir)
-    const rows = await readSheet(domainName, tag, sheetName, sheets, oauth2Client, docId)
+    const rows = await readSheet(sheets, sheetName, auth, docId)
     const columnMap = getColumnMap(rows[0])
-    const sheetData = createSheetData(domainName, tag, sheetName, rows, columnMap)
-    updateSheetData(domainName, tag, sheetName, poData, sheetData)
-    updatePoData(domainName, tag, sheetName, poData, sheetData)
+    const sheetData = createSheetData(tag, rows, columnMap)
+    updateSheetData(tag, poData, sheetData)
+    updatePoData(tag, poData, sheetData)
 
-    const docActions = await updateSheet(domainName, tag, sheetName, rows, columnMap, sheetData)
-    await applyDocumentActions(domainName, sheetName, sheets, oauth2Client, docId, docActions)
-    writePoFiles(domainName, poDir, poData)
+    const docActions = await updateSheet(tag, rows, columnMap, sheetData)
+    await applyDocumentActions(sheetName, sheets, auth, docId, docActions)
+    writePoFiles(poDir, poData)
 }
 
-async function authorize(domainName, sheetName, clientSecretPath) {
-    /**
-     * @property {object} installed
-     * @property {installed.string[]} redirect_uris
-     */
-    const credentials = jsonfile.readFileSync(clientSecretPath).installed
+async function authorize(sheetName, credentials) {
     const clientSecret = credentials.client_secret
     const clientId = credentials.client_id
     const redirectUrl = 'http://localhost:8106/oauth2callback'
     const oauth2Client = new OAuth2Client(clientId, clientSecret, redirectUrl)
 
-    const token = await getToken(domainName, sheetName, oauth2Client)
+    const token = await getToken(oauth2Client)
     oauth2Client.setCredentials(token)
     return oauth2Client
 }
 
-async function getToken(domainName, sheetName, oauth2Client) {
+async function getToken(oauth2Client) {
     const tokenPath = path.join(process.env.HOME || process.env.HOMEPATH || process.env.USERPROFILE, '.credentials', 'google-docs-syncer.json')
 
     // Check if we have previously stored a token.
@@ -142,17 +142,17 @@ async function readPoFiles(poDir) {
     return poData
 }
 
-function writePoFiles(domainName, poDir, poData) {
+function writePoFiles(poDir, poData) {
     // console.log('po data to write', JSON.stringify(poData, null, 2))
     for (const [locale, po] of Object.entries(poData)) {
         const output = gettextParser.po.compile(po)
         const poPath = path.join(poDir, locale + '.po')
         fs.writeFileSync(poPath, output)
-        cleanupPo(domainName, poPath)
+        cleanupPo(poPath)
     }
 }
 
-async function readSheet(domainName, tag, sheetName, sheets, auth, docId) {
+async function readSheet(sheets, sheetName, auth, docId) {
     log.info('readSheet', 'loading sheet')
     const {values: rows} = await sheets.spreadsheets.values.getAsync({
         auth,
@@ -194,7 +194,7 @@ function getColumnMap(headerRow) {
     return columnMap
 }
 
-function createSheetData(domainName, tag, sheetName, rows, columnMap) {
+function createSheetData(tag, rows, columnMap) {
     const sheetData = {}
     for (const [index, dataRow] of rows.slice(1).entries()) {
         const entry = readDataRow(dataRow, columnMap)
@@ -229,7 +229,7 @@ function readDataRow(dataRow, columnMap) {
     }
 }
 
-function updateSheetData(domainName, tag, sheetName, poData, sheetData) {
+function updateSheetData(tag, poData, sheetData) {
     for (const [locale, po] of Object.entries(poData)) {
         // console.log('update sheet locale', locale)
         forPoEntries(po, poEntry => {
@@ -266,7 +266,7 @@ function updateSheetData(domainName, tag, sheetName, poData, sheetData) {
     // console.log('updated sheet data', sheetData)
 }
 
-function updatePoData(domainName, tag, sheetName, poData, sheetData) {
+function updatePoData(tag, poData, sheetData) {
     for (const sheetEntry of Object.values(sheetData)) {
         for (const [locale, target] of Object.entries(sheetEntry.targets)) {
             if (locale in poData) {
@@ -307,7 +307,7 @@ function updatePoData(domainName, tag, sheetName, poData, sheetData) {
     // console.log('updated po data', JSON.stringify(poData, null, 2))
 }
 
-async function updateSheet(domainName, tag, sheetName, rows, columnMap, sheetData) {
+async function updateSheet(tag, rows, columnMap, sheetData) {
     const docActions = []
     for (const [index, dataRow] of rows.slice(1).entries()) {
         const rowEntry = readDataRow(dataRow, columnMap)
@@ -376,7 +376,7 @@ async function updateSheet(domainName, tag, sheetName, rows, columnMap, sheetDat
     return docActions
 }
 
-async function applyDocumentActions(domainName, sheetName, sheets, auth, docId, docActions) {
+async function applyDocumentActions(sheetName, sheets, auth, docId, docActions) {
     const updateData = []
     const newRows = []
 

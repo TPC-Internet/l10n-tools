@@ -6,11 +6,14 @@ import jsonfile from 'jsonfile'
 import findRoot from 'find-root'
 import log from 'npmlog'
 import {countPoEntries, getPoEntryFlag, getPoEntries} from './po'
-import {getDomainConfig, getTempDir} from './utils'
+import {getTempDir} from './utils'
 import {mergeFallbackLocale, updatePo} from './common'
 import shell from 'shelljs'
 import {syncPoToGoogleDocs} from './google-docs-syncer'
 import path from 'path'
+import {Config} from './config'
+import {extractPot} from './extractor'
+import {compileAll} from './compiler'
 
 async function run () {
     process.chdir(findRoot(process.cwd()))
@@ -105,7 +108,7 @@ async function run () {
         .option('-s, --spec [spec]', '어떤 것을 표시할지 지정 (필수, 콤마로 나열하면 모든 조건 체크, !로 시작하면 반대) 지원: total,translated,untranslated,<flag>')
         .action(c => {cmd = c})
 
-    program.command('_apply')
+    program.command('_compile')
         .description('[고급] PO 파일에서 번역 에셋 작성')
         .action(c => {cmd = c})
 
@@ -127,37 +130,37 @@ async function run () {
     }
 
     const rc = jsonfile.readFileSync(program.rcfile || '.l10nrc')
-    const domainNames = program.domains || Object.keys(rc.domains)
+    const config = new Config(rc)
+    const domainNames = program.domains || Object.keys(config.get('domains'))
 
     for (const domainName of domainNames) {
-        const type = getDomainConfig(rc, domainName, 'type')
-        const domainModule = getDomainModule(type)
+        const domainConfig = config.getSubConfig(['domains', domainName])
 
         log.heading = `[${domainName}] ${cmdName}`
         switch (cmdName) {
             case '_extractPot': {
-                const i18nDir = cmd.potdir || getDomainConfig(rc, domainName, 'i18n-dir')
+                const i18nDir = cmd.potdir || domainConfig.get('i18n-dir')
                 const potPath = path.join(i18nDir, domainName, 'template.pot')
 
-                await domainModule.extractPot(rc, domainName, potPath)
+                await extractPot(domainName, domainConfig, potPath)
                 break
             }
 
             case '_updatePo': {
-                const i18nDir = getDomainConfig(rc, domainName, 'i18n-dir')
-                const locales = cmd.locales ? cmd.locales.split(',') : getDomainConfig(rc, domainName, 'locales')
+                const i18nDir = domainConfig.get('i18n-dir')
+                const locales = cmd.locales ? cmd.locales.split(',') : domainConfig.get('locales')
 
                 const potPath = path.join(cmd.potdir || i18nDir, domainName, 'template.pot')
                 const fromPoDir = path.join(i18nDir, domainName)
                 const poDir = path.join(cmd.podir || i18nDir, domainName)
 
-                updatePo(domainName, potPath, fromPoDir, poDir, locales)
+                updatePo(potPath, fromPoDir, poDir, locales)
                 break
             }
 
             case '_count': {
-                const i18nDir = getDomainConfig(rc, domainName, 'i18n-dir')
-                const locales = cmd.locales ? cmd.locales.split(',') : getDomainConfig(rc, domainName, 'locales')
+                const i18nDir = domainConfig.get('i18n-dir')
+                const locales = cmd.locales ? cmd.locales.split(',') : domainConfig.get('locales')
                 const specs = cmd.spec ? cmd.spec.split(',') : ['total']
 
                 const poDir = path.join(cmd.podir || i18nDir, domainName)
@@ -174,7 +177,7 @@ async function run () {
                     cmd.help()
                 }
 
-                const i18nDir = getDomainConfig(rc, domainName, 'i18n-dir')
+                const i18nDir = domainConfig.get('i18n-dir')
                 const locale = cmd.locale
                 const specs = cmd.spec ? cmd.spec.split(',') : ['total']
 
@@ -197,9 +200,9 @@ async function run () {
                 break
             }
 
-            case '_apply': {
-                const i18nDir = getDomainConfig(rc, domainName, 'i18n-dir')
-                const fallbackLocale = getDomainConfig(rc, domainName, 'fallback-locale', null)
+            case '_compile': {
+                const i18nDir = domainConfig.get('i18n-dir')
+                const fallbackLocale = domainConfig.get('fallback-locale', null)
 
                 const poDir = path.join(i18nDir, domainName)
 
@@ -208,52 +211,52 @@ async function run () {
                     shell.rm('-rf', tempDir)
                     const mergedPoDir = tempDir
                     await mergeFallbackLocale(domainName, poDir, fallbackLocale, mergedPoDir)
-                    await domainModule.apply(rc, domainName, mergedPoDir)
+                    await compileAll(domainName, domainConfig, mergedPoDir)
                     shell.rm('-rf', tempDir)
                 } else {
-                    await domainModule.apply(rc, domainName, poDir)
+                    await compileAll(domainName, domainConfig, poDir)
                 }
                 break
             }
 
             case '_sync': {
-                const tag = getDomainConfig(rc, domainName, 'tag')
-                const i18nDir = getDomainConfig(rc, domainName, 'i18n-dir')
+                const tag = domainConfig.get('tag')
+                const i18nDir = domainConfig.get('i18n-dir')
 
                 const poDir = path.join(i18nDir, domainName)
 
-                await syncPoToGoogleDocs(rc, domainName, tag, poDir)
+                await syncPoToGoogleDocs(config, domainConfig, tag, poDir)
                 break
             }
 
             case 'update': {
-                const i18nDir = getDomainConfig(rc, domainName, 'i18n-dir')
-                const locales = getDomainConfig(rc, domainName, 'locales')
-                const fallbackLocale = getDomainConfig(rc, domainName, 'fallback-locale', null)
+                const i18nDir = domainConfig.get('i18n-dir')
+                const locales = domainConfig.get('locales')
+                const fallbackLocale = domainConfig.get('fallback-locale', null)
 
                 const potPath = path.join(i18nDir, domainName, 'template.pot')
                 const poDir = path.join(i18nDir, domainName)
 
-                await domainModule.extractPot(rc, domainName, potPath)
-                updatePo(domainName, potPath, poDir, poDir, locales)
+                await extractPot(domainName, domainConfig, potPath)
+                updatePo(potPath, poDir, poDir, locales)
 
                 if (fallbackLocale != null) {
                     const tempDir = path.join(getTempDir(), domainName)
                     shell.rm('-rf', tempDir)
                     const mergedPoDir = tempDir
                     await mergeFallbackLocale(domainName, poDir, fallbackLocale, mergedPoDir)
-                    await domainModule.apply(rc, domainName, mergedPoDir)
+                    await compileAll(domainName, domainConfig, mergedPoDir)
                     shell.rm('-rf', tempDir)
                 } else {
-                    await domainModule.apply(rc, domainName, poDir)
+                    await compileAll(domainName, domainConfig, poDir)
                 }
                 break
             }
 
             case 'upload': {
-                const i18nDir = getDomainConfig(rc, domainName, 'i18n-dir')
-                const locales = getDomainConfig(rc, domainName, 'locales')
-                const tag = getDomainConfig(rc, domainName, 'tag')
+                const i18nDir = domainConfig.get('i18n-dir')
+                const locales = domainConfig.get('locales')
+                const tag = domainConfig.get('tag')
 
                 const fromPoDir = path.join(i18nDir, domainName)
                 const tempDir = path.join(getTempDir(), domainName)
@@ -262,36 +265,36 @@ async function run () {
 
                 log.info('l10n', `temp dir: '${tempDir}'`)
                 shell.rm('-rf', tempDir)
-                await domainModule.extractPot(rc, domainName, potPath)
-                updatePo(domainName, potPath, fromPoDir, poDir, locales)
-                await syncPoToGoogleDocs(rc, domainName, tag, poDir)
+                await extractPot(domainName, domainConfig, potPath)
+                updatePo(potPath, fromPoDir, poDir, locales)
+                await syncPoToGoogleDocs(config, domainConfig, tag, poDir)
                 shell.rm('-rf', tempDir)
                 break
             }
 
             case 'sync': {
-                const i18nDir = getDomainConfig(rc, domainName, 'i18n-dir')
-                const locales = getDomainConfig(rc, domainName, 'locales')
-                const fallbackLocale = getDomainConfig(rc, domainName, 'fallback-locale', null)
-                const tag = getDomainConfig(rc, domainName, 'tag')
+                const i18nDir = domainConfig.get('i18n-dir')
+                const locales = domainConfig.get('locales')
+                const fallbackLocale = domainConfig.get('fallback-locale', null)
+                const tag = domainConfig.get('tag')
 
                 const potPath = path.join(i18nDir, domainName, 'template.pot')
                 const poDir = path.join(i18nDir, domainName)
 
-                await domainModule.extractPot(rc, domainName, potPath)
-                updatePo(domainName, potPath, poDir, poDir, locales)
-                await syncPoToGoogleDocs(rc, domainName, tag, poDir)
-                updatePo(domainName, potPath, poDir, poDir, locales)
+                await extractPot(domainName, domainConfig, potPath)
+                updatePo(potPath, poDir, poDir, locales)
+                await syncPoToGoogleDocs(config, domainConfig, tag, poDir)
+                updatePo(potPath, poDir, poDir, locales)
 
                 if (fallbackLocale != null) {
                     const tempDir = path.join(getTempDir(), domainName)
                     shell.rm('-rf', tempDir)
                     const mergedPoDir = tempDir
                     await mergeFallbackLocale(domainName, poDir, fallbackLocale, mergedPoDir)
-                    await domainModule.apply(rc, domainName, mergedPoDir)
+                    await compileAll(domainName, domainConfig, mergedPoDir)
                     shell.rm('-rf', tempDir)
                 } else {
-                    await domainModule.apply(rc, domainName, poDir)
+                    await compileAll(domainName, domainConfig, poDir)
                 }
                 break
             }
@@ -299,25 +302,6 @@ async function run () {
             default:
                 throw new Error(`unknown sub-command: ${cmdName}`)
         }
-    }
-}
-
-function getDomainModule (type) {
-    switch (type) {
-        case 'vue-gettext':
-            return require('./domain/vue-gettext')
-        case 'i18next':
-            return require('./domain/i18next')
-        case 'vt':
-            return require('./domain/vt')
-        case 'python':
-            return require('./domain/python')
-        case 'angular-gettext':
-            return require('./domain/angular-gettext')
-        case 'cordova':
-            return require('./domain/cordova')
-        default:
-            throw new Error(`unknown domain type: ${type}`)
     }
 }
 
