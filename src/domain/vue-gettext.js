@@ -70,7 +70,7 @@ Extractor.prototype.extractVue = function (filename, src, startLine = 0) {
         }
 
         for (const [attr, content] of Object.entries(n.attribs)) {
-            if (attr.startsWith(':') || attr.startsWith('v-bind:')) {
+            if (attr.startsWith(':') || attr.startsWith('v-bind:') && content) {
                 let contentIndex = 0
                 const attrIndex = src.substr(n.startIndex).indexOf(attr)
                 if (attrIndex >= 0) {
