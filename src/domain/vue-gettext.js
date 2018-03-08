@@ -93,7 +93,19 @@ Extractor.prototype.extractVueJsModule = function (filename, src, startLine = 0)
         sourceType: 'module',
         sourceFilename: filename,
         startLine: startLine + 1,
-        plugins: ['objectRestSpread']
+        plugins: [
+            'jsx',
+            'flow',
+            'doExpressions',
+            'objectRestSpread',
+            'decorators',
+            'classProperties',
+            'exportExtensions',
+            'asyncGenerators',
+            'functionBind',
+            'functionSent',
+            'dynamicImport'
+        ]
     })
     traverse(ast, {
         enter: path => {
@@ -117,7 +129,19 @@ Extractor.prototype.extractVueJsExpression = function (filename, src, startLine 
         sourceType: 'script',
         sourceFilename: filename,
         startLine: startLine + 1,
-        plugins: ['objectRestSpread']
+        plugins: [
+            'jsx',
+            'flow',
+            'doExpressions',
+            'objectRestSpread',
+            'decorators',
+            'classProperties',
+            'exportExtensions',
+            'asyncGenerators',
+            'functionBind',
+            'functionSent',
+            'dynamicImport'
+        ]
     })
     traverse(ast, {
         noScope: true,
