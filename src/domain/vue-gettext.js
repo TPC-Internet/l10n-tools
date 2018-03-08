@@ -113,7 +113,7 @@ Extractor.prototype.extractVueJsModule = function (filename, src, startLine = 0)
 }
 
 Extractor.prototype.extractVueJsExpression = function (filename, src, startLine = 0) {
-    const ast = babylon.parse(src, {
+    const ast = babylon.parse('(' + src + ')', {
         sourceType: 'script',
         sourceFilename: filename,
         startLine: startLine + 1,
