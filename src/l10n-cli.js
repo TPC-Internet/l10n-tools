@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 
+import pkg from '../package'
 import program from 'commander'
 import jsonfile from 'jsonfile'
 import findRoot from 'find-root'
@@ -15,8 +16,8 @@ async function run () {
     process.chdir(findRoot(process.cwd()))
 
     let cmd = null
-    program.version('0.1')
-        .description('번역 추출, 동기화 툴')
+    program.version(pkg.version)
+        .description(pkg.description)
         .option('-r, --rcfile [rcfile]', '설정 파일 지정, 기본값은 .l10nrc')
         .option('-d, --domains [domains]', '적용할 도메인 지정, 없으면 설정 파일에 있는 모든 도메인 (콤마로 여러 도메인 나열 가능)', val => val.split(','))
         .option('-q, --quiet', '조용히')
