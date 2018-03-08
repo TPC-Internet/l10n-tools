@@ -12,12 +12,12 @@ import {cleanupPot, getDomainSrcPaths} from '../common'
 import {getDomainConfig} from '../utils'
 import jsonfile from 'jsonfile'
 
-function getLineNumber(src, index, startLineNumber = 0) {
+function getLine(src, index, startLine = 0) {
     const matches = src.substr(0, index).match(/\n/g)
     if (!matches) {
-        return startLineNumber
+        return startLine
     }
-    return startLineNumber + matches.length
+    return startLine + matches.length
 }
 
 function getReference(filename, line) {
@@ -31,28 +31,28 @@ function getReference(filename, line) {
     }
 }
 
-function getReferenceByIndex(filename, src, index, startLineNumber = 0) {
+function getReferenceByIndex(filename, src, index, startLine = 0) {
     return {
         file: filename,
         location: {
             start: {
-                line: getLineNumber(src, index, startLineNumber) + 1
+                line: getLine(src, index, startLine) + 1
             }
         }
     }
 }
 
-Extractor.prototype.extractVue = function (filename, src, lineNumber = 0) {
+Extractor.prototype.extractVue = function (filename, src, startLine = 0) {
     const $ = cheerio.load(src, {decodeEntities: false, withStartIndices: true})
 
     $('*').each((index, n) => {
         const node = $(n)
         if (n.name === 'script') {
             if (!('type' in n.attribs) || n.attribs.type === 'text/javascript') {
-                this.extractVueJsModule(filename, n.children[0].data, getLineNumber(src, n.children[0].startIndex, lineNumber))
+                this.extractVueJsModule(filename, n.children[0].data, getLine(src, n.children[0].startIndex, startLine))
             }
         } else if (n.name === 'translate') {
-            const ref = getReferenceByIndex(filename, src, n.children[0].startIndex, lineNumber)
+            const ref = getReferenceByIndex(filename, src, n.children[0].startIndex, startLine)
             const id = node.html().trim()
             const plural = n.attribs['translate-plural'] || null
             const comment = n.attribs['translate-comment'] || null
@@ -61,7 +61,7 @@ Extractor.prototype.extractVue = function (filename, src, lineNumber = 0) {
         }
 
         if ('v-translate' in n.attribs) {
-            const ref = getReferenceByIndex(filename, src, n.children[0].startIndex, lineNumber)
+            const ref = getReferenceByIndex(filename, src, n.children[0].startIndex, startLine)
             const id = node.html().trim()
             const plural = n.attribs['translate-plural'] || null
             const comment = n.attribs['translate-comment'] || null
@@ -82,17 +82,17 @@ Extractor.prototype.extractVue = function (filename, src, lineNumber = 0) {
                         contentIndex++
                     }
                 }
-                this.extractVueJsExpression(filename, content, getLineNumber(src, n.startIndex + contentIndex, lineNumber))
+                this.extractVueJsExpression(filename, content, getLine(src, n.startIndex + contentIndex, startLine))
             }
         }
     })
 }
 
-Extractor.prototype.extractVueJsModule = function (filename, src, lineNumber = 0) {
+Extractor.prototype.extractVueJsModule = function (filename, src, startLine = 0) {
     const ast = babylon.parse(src, {
         sourceType: 'module',
         sourceFilename: filename,
-        startLine: lineNumber + 1,
+        startLine: startLine + 1,
         plugins: ['objectRestSpread']
     })
     traverse(ast, {
@@ -112,11 +112,11 @@ Extractor.prototype.extractVueJsModule = function (filename, src, lineNumber = 0
     })
 }
 
-Extractor.prototype.extractVueJsExpression = function (filename, src, lineNumber = 0) {
+Extractor.prototype.extractVueJsExpression = function (filename, src, startLine = 0) {
     const ast = babylon.parse(src, {
         sourceType: 'script',
         sourceFilename: filename,
-        startLine: lineNumber + 1,
+        startLine: startLine + 1,
         plugins: ['objectRestSpread']
     })
     traverse(ast, {
