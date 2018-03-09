@@ -23,7 +23,7 @@ export default async function (domainName, config, potPath) {
 
     const translations = {'': {}}
     for (const htmlPath of htmlPaths) {
-        log.info('extractPot', `processing ${htmlPath}`)
+        log.info('extractPot', `processing '${htmlPath}'`)
         const html = fs.readFileSync(htmlPath, 'UTF-8')
         const regex = /{%trans ([^%]+)%}|(\n)/g
         let lineNo = 1

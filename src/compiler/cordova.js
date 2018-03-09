@@ -1,3 +1,4 @@
+import log from 'npmlog'
 import path from 'path'
 import shell from 'shelljs'
 import fs from 'fs'
@@ -8,6 +9,7 @@ import glob from 'glob-promise'
 export default async function(domainName, config, poDir) {
     const baseLocale = config.get('base-locale')
     const targetDir = config.get('target-dir')
+    log.info('compile', `generating cordova json files to '${targetDir}/'`)
 
     shell.mkdir('-p', targetDir)
     const poPaths = await glob.promise(`${poDir}/*.po`)

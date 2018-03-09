@@ -1,11 +1,13 @@
 import fs from 'fs'
 import glob from 'glob-promise'
 import {gettextToI18next} from 'i18next-conv'
+import log from 'npmlog'
 import path from 'path'
 import jsonfile from 'jsonfile'
 
 export default async function (domainName, config, poDir) {
     const targetPath = config.get('target-path')
+    log.info('compile', `generating combined json file to '${targetPath}'`)
 
     const translations = {}
     const poPaths = await glob.promise(`${poDir}/*.po`)

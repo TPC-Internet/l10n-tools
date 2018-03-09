@@ -6,7 +6,7 @@ import {Compiler} from 'angular-gettext-tools'
 
 export default async function (domainName, config, poDir) {
     const targetDir = config.get('target-dir')
-    log.info('apply', `generating js files to ${targetDir}`)
+    log.info('compile', `generating js files to '${targetDir}/'`)
     const gettextCompiler = new Compiler({format: 'javascript'})
     const poPaths = await glob.promise(`${poDir}/*.po`)
     for (const poPath of poPaths) {
