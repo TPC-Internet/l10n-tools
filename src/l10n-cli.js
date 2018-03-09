@@ -32,8 +32,6 @@ async function run () {
 
     [도메인]
       domains.[domain]                  번역 파일을 생성하는 단위
-      domains.[domain].type             도메인의 번역을 다루는 종류,
-                                        지원: vue-gettext, i18next, vt, python, angular-gettext, cordova
       domains.[domain].tag              구글 시트 동기화시 tag 항목으로 들어갈 값
       domains.[domain].locales          번역할 로케일 목록
       domains.[domain].fallback-locale  번역이 없을 경우 참조할 로케일 (옵션)
@@ -41,28 +39,23 @@ async function run () {
       domains.[domain].src-dirs         번역을 추출할 소스 디렉토리 목록
       domains.[domain].src-patterns     번역을 추출할 소스의 glob 패턴 목록
       
-    [vue-gettext 항목]
-      domains.[domain].target-path  번역 결과를 저장할 위치
+    [extractor]
+      domains.[domain].type      extractor 종류 (vue-gettext, i18next, vt, python, angular-gettext, cordova)
+      domains.[domain].keywords  번역에 사용하는 함수 이름 목록 (i18next, vt, python)
+
+    [compiler]
+      domains.[domain].outputs[n].type         compiler 종류 (mo, json, json-dir, angular-gettext, cordova)
+      domains.[domain].outputs[n].target-path  번역 결과를 저장할 파일 이름 (json)
+      domains.[domain].outputs[n].target-dir   번역 결과를 로케일 별 파일로 저장할 위치 (mo, json-dir, angular-gettext, cordova)
+      domains.[domain].outputs[n].use-locale-key  결과에 locale 키를 사용할지 결정 (json-dir)
+      domains.[domain].outputs[n].base-locale  번역 id로 사용할 로케일 (cordova)
       
-    [i18next 항목]
-      domains.[domain].keywords    번역 함수 이름 목록
-      domains.[domain].target-dir  번역 결과를 저장할 위치
+      domains.[domain].outputs 가 없을 경우 domains.[domain] 영역에서 compiler 설정 가져옴
+      이 경우 extractor type에 따른 기본 compiler type:
       
-    [vt 항목]
-      domains.[domain].keywords    번역 함수 이름 목록
-      domains.[domain].target-dir  번역 결과를 저장할 위치
-      
-    [python 항목]
-      domains.[domain].keywords    번역 함수 이름 목록
-      domains.[domain].target-dir  번역 결과를 저장할 위치
-      
-    [angular-gettext 항목]
-      domains.[domain].target-dir     번역 결과를 json 형식으로 저장할 위치
-      domains.[domain].js-target-dir  번역 결과를 javascript 형식으로 저장할 위치
-      
-    [cordova 항목]
-      domains.[domain].base-locale  번역 id로 사용할 로케일
-      domains.[domain].target-dir   번역 결과를 저장할 위치
+      - vue-gettext: json
+      - i18next: json-dir
+      - vt, python: mo 
       
     [구글 문서 동기화]
       google-docs.doc-name                     동기화에 사용할 구글 문서 이름
