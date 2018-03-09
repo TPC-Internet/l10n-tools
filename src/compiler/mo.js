@@ -3,6 +3,6 @@ import {compilePoToMo} from '../common'
 
 export default async function (domainName, config, poDir) {
     const targetDir = config.get('target-dir')
-    log.info('compile', `generating LC_MESSAGES mo file per locale to '${targetDir}/'`)
+    log.info('compile', `generating mo files to '${targetDir}/{locale}/LC_MESSAGES/${domainName}.mo'`)
     await compilePoToMo(domainName, poDir, targetDir)
 }

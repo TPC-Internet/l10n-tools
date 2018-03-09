@@ -7,7 +7,7 @@ import jsonfile from 'jsonfile'
 
 export default async function (domainName, config, poDir) {
     const targetPath = config.get('target-path')
-    log.info('compile', `generating combined json file to '${targetPath}'`)
+    log.info('compile', `generating json file to '${targetPath}'`)
 
     const translations = {}
     const poPaths = await glob.promise(`${poDir}/*.po`)

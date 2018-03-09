@@ -150,9 +150,9 @@ export default async function (domainName, config, potPath) {
         attributes: ['v-translate', 'translate'],
         extensions: {vue: 'html'}
     })
-    log.info('extractPot', 'from vue templates')
+    log.info('extractPot', 'extracting from .vue, .js files')
     for (const srcPath of srcPaths) {
-        log.info('extractPot', `processing '${srcPath}'`)
+        log.verbose('extractPot', `processing '${srcPath}'`)
         const ext = path.extname(srcPath)
         if (ext === '.vue') {
             const input = fs.readFileSync(srcPath, {encoding: 'UTF-8'})
@@ -161,7 +161,7 @@ export default async function (domainName, config, potPath) {
             const input = fs.readFileSync(srcPath, {encoding: 'UTF-8'})
             gettextExtractor.extractVueJsModule(srcPath, input)
         } else {
-            log.warn('extractPot', `skipping unknown extension: '${ext}'`)
+            log.warn('extractPot', `skipping '${srcPath}': unknown extension`)
         }
     }
     fs.writeFileSync(potPath, gettextExtractor.toString())

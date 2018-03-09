@@ -1,3 +1,4 @@
+import log from 'npmlog'
 import path from 'path'
 import shell from 'shelljs'
 import fs from 'fs'
@@ -10,8 +11,9 @@ export default function (domainName, config, potPath) {
 
     const translations = {}
 
-    const baseJsonFile = path.join(targetDir, baseLocale + '.json')
-    const baseJson = jsonfile.readFileSync(baseJsonFile)
+    const baseJsonPath = path.join(targetDir, baseLocale + '.json')
+    log.info('extractPot', `extracting from '${baseJsonPath}'`)
+    const baseJson = jsonfile.readFileSync(baseJsonPath)
     for (const [ns, entries] of Object.entries(baseJson)) {
         for (const [key, value] of Object.entries(entries)) {
             const context = ns + '.' + key

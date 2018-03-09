@@ -23,6 +23,7 @@ async function run () {
         .description(pkg.description)
         .option('-r, --rcfile [rcfile]', '설정 파일 지정, 기본값은 .l10nrc')
         .option('-d, --domains [domains]', '적용할 도메인 지정, 없으면 설정 파일에 있는 모든 도메인 (콤마로 여러 도메인 나열 가능)', val => val.split(','))
+        .option('-v, --verbose', 'log verbose')
         .option('-q, --quiet', '조용히')
         .on('--help', () => {
             console.info(`
@@ -125,7 +126,9 @@ async function run () {
     const cmdName = cmd._name
     log.heading = cmdName
 
-    if (program.quiet) {
+    if (program.verbose) {
+        log.level = 'silly'
+    } else if (program.quiet) {
         log.level = 'warn'
     }
 

@@ -8,7 +8,7 @@ import path from 'path'
 export default async function (domainName, config, poDir) {
     const targetDir = config.get('target-dir')
     const useLocaleKey = config.get('use-locale-key', false)
-    log.info('compile', `generating json file per locale to '${targetDir}/' (locale key: ${useLocaleKey})`)
+    log.info('compile', `generating json files '${targetDir}/{locale}.json' (locale key: ${useLocaleKey})`)
 
     shell.mkdir('-p', targetDir)
     const poPaths = await glob.promise(`${poDir}/*.po`)

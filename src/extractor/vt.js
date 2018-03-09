@@ -21,9 +21,10 @@ export default async function (domainName, config, potPath) {
         }
     }
 
+    log.info('extractPot', 'extracting from .html files')
     const translations = {'': {}}
     for (const htmlPath of htmlPaths) {
-        log.info('extractPot', `processing '${htmlPath}'`)
+        log.verbose('extractPot', `processing '${htmlPath}'`)
         const html = fs.readFileSync(htmlPath, 'UTF-8')
         const regex = /{%trans ([^%]+)%}|(\n)/g
         let lineNo = 1
@@ -61,5 +62,6 @@ export default async function (domainName, config, potPath) {
     })
     fs.writeFileSync(potPath, output)
 
+    log.info('extractPot', 'extracting from .py files')
     await xgettext(domainName, 'Python', keywords, potPath, pyPaths, true)
 }

@@ -10,9 +10,10 @@ export default async function (domainName, config, potPath) {
 
     shell.mkdir('-p', path.dirname(potPath))
 
-    log.info('extractPot', 'from angular gettext')
+    log.info('extractPot', 'extracting from .html, .js files')
     const gettextExtractor = new Extractor()
     for (const srcPath of srcPaths) {
+        log.verbose('extractPot', `processing '${srcPath}'`)
         const input = fs.readFileSync(srcPath, {encoding: 'UTF-8'});
         gettextExtractor.parse(srcPath, input)
     }
