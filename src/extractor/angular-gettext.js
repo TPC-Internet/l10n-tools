@@ -1,5 +1,5 @@
 import fs from 'fs'
-import shell from 'shelljs'
+import * as shell from 'shelljs'
 import log from 'npmlog'
 import path from 'path'
 import {Extractor} from 'angular-gettext-tools'

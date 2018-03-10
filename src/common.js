@@ -1,9 +1,9 @@
 import fs from 'fs'
-import gettextParser from 'gettext-parser'
+import * as gettextParser from 'gettext-parser'
 import glob from 'glob-promise'
 import log from 'npmlog'
 import path from 'path'
-import shell from 'shelljs'
+import * as shell from 'shelljs'
 import {forPoEntries, getPoEntry, getPoEntryFlag, setPoEntryFlag} from './po'
 import {execWithLog, requireCmd} from './utils'
 

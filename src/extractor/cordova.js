@@ -1,8 +1,8 @@
 import log from 'npmlog'
 import path from 'path'
-import shell from 'shelljs'
+import * as shell from 'shelljs'
 import fs from 'fs'
-import gettextParser from 'gettext-parser'
+import * as gettextParser from 'gettext-parser'
 import jsonfile from 'jsonfile'
 
 export default function (domainName, config, potPath) {

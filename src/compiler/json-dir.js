@@ -2,7 +2,7 @@ import fs from 'fs'
 import glob from 'glob-promise'
 import {gettextToI18next} from 'i18next-conv'
 import log from 'npmlog'
-import shell from 'shelljs'
+import * as shell from 'shelljs'
 import path from 'path'
 
 export default async function (domainName, config, poDir) {

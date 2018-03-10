@@ -1,5 +1,5 @@
 import fs from 'fs'
-import gettextParser from 'gettext-parser'
+import * as gettextParser from 'gettext-parser'
 import {sortSet} from './utils'
 
 export class PoEntryBuilder {

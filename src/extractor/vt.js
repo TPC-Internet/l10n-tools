@@ -1,7 +1,7 @@
 import fs from 'fs'
-import gettextParser from 'gettext-parser'
+import * as gettextParser from 'gettext-parser'
 import log from 'npmlog'
-import shell from 'shelljs'
+import * as shell from 'shelljs'
 import path from 'path'
 import {getSrcPaths, xgettext} from '../common'
 

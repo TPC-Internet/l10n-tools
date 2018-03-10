@@ -1,6 +1,6 @@
 import fs from 'fs'
 import log from 'npmlog'
-import shell from 'shelljs'
+import * as shell from 'shelljs'
 import path from 'path'
 import {getSrcPaths} from '../common'
 import {JsExtractor} from '../js-extractor'

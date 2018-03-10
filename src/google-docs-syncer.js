@@ -1,4 +1,4 @@
-import gettextParser from 'gettext-parser'
+import * as gettextParser from 'gettext-parser'
 import glob from 'glob-promise'
 import http from 'http'
 import httpShutdown from 'http-shutdown'
@@ -14,7 +14,7 @@ import {OAuth2Client} from 'google-auth-library'
 import jsonfile from 'jsonfile'
 import promisify from 'util-promisify'
 import opn from 'opn'
-import shell from 'shelljs'
+import * as shell from 'shelljs'
 
 httpShutdown.extend()
 
