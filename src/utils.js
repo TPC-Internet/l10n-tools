@@ -53,3 +53,7 @@ async function requireBrewCmd (cmd, pkg, needForceLink = false) {
 export function getTempDir() {
     return path.join(os.tmpdir(), process.pid.toString())
 }
+
+export function sortSet (set) {
+    return Array.from(set).sort()
+}
