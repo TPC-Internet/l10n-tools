@@ -108,6 +108,29 @@ export class JsExtractor {
                     this.extractJsExpression(filename, content, line)
                 }
             }
+
+            for (const child of elem.children) {
+                if (child.type === 'text') {
+                    for (const marker of this.options.markers) {
+                        let data = child.data
+                        let dataIndex = 0
+                        while (data) {
+                            let startOffset = data.indexOf(marker.start)
+                            if (startOffset === -1)
+                                break
+
+                            startOffset += marker.start.length
+                            const endOffset = data.substr(startOffset).indexOf(marker.end)
+                            const content = data.substr(startOffset, endOffset)
+                            const line = getLineTo(src, child.startIndex + dataIndex + startOffset, startLine)
+                            this.extractJsExpression(filename, content, line)
+
+                            dataIndex += startOffset + endOffset + marker.end.length
+                            data = child.data.substr(dataIndex)
+                        }
+                    }
+                }
+            }
         })
     }
 
