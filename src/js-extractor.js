@@ -30,6 +30,42 @@ export class JsExtractor {
         }, options)
     }
 
+    extractJsAst (filename, ast) {
+        traverse(ast, {
+            enter: path => {
+                const node = path.node
+                if (node.type === 'CallExpression') {
+                    for (const keyword of this.options.keywords) {
+                        const dotIndex = keyword.indexOf('.')
+                        if (dotIndex >= 0) {
+                            if (node.callee.type === 'MemberExpression') {
+                                const objectName = keyword.substring(0, dotIndex)
+                                const propName = keyword.substring(dotIndex + 1)
+                                if (objectName === 'this' && node.callee.object.type === 'ThisExpression') {
+                                    if (node.callee.property.type === 'Identifier' && node.callee.property.name === propName) {
+                                        const idArgument = node.arguments[0]
+                                        if (idArgument.type === 'StringLiteral') {
+                                            this.addMessage({filename, line: node.loc.start.line}, idArgument.value)
+                                        }
+                                    }
+                                }
+                            }
+                        } else {
+                            if (node.callee.type === 'Identifier') {
+                                if (node.callee.name === keyword) {
+                                    const idArgument = node.arguments[0]
+                                    if (idArgument.type === 'StringLiteral') {
+                                        this.addMessage({filename, line: node.loc.start.line}, idArgument.value)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        })
+    }
+
     extractJsModule (filename, src, startLine = 1) {
         const ast = babylon.parse(src, createBabylonOptions({
             sourceType: 'module',
@@ -37,28 +73,7 @@ export class JsExtractor {
             startLine: startLine,
             stage: 0
         }))
-        traverse(ast, {
-            enter: path => {
-                const node = path.node
-                if (node.type === 'CallExpression') {
-                    if (node.callee.type === 'Identifier') {
-                        if (this.options.keywords.includes(node.callee.name)) {
-                            const idArgument = node.arguments[0]
-                            if (idArgument.type === 'StringLiteral') {
-                                this.addMessage({filename, line: node.loc.start.line}, idArgument.value)
-                            }
-                        }
-                    } else if (node.callee.type === 'MemberExpression') {
-                        if (node.callee.property.type === 'Identifier' && this.options.keywords.includes(node.callee.property.name)) {
-                            const idArgument = node.arguments[0]
-                            if (idArgument.type === 'StringLiteral') {
-                                this.addMessage({filename, line: node.loc.start.line}, idArgument.value)
-                            }
-                        }
-                    }
-                }
-            }
-        })
+        this.extractJsAst(filename, ast)
     }
 
     extractVue (filename, src, startLine = 1) {
@@ -141,34 +156,13 @@ export class JsExtractor {
     }
 
     extractJsExpression (filename, src, startLine = 1) {
-        const ast = babylon.parse('(' + src + ')', createBabylonOptions({
+        const ast = babylon.parse(src, createBabylonOptions({
             sourceType: 'script',
             sourceFilename: filename,
             startLine: startLine,
             stage: 0
         }))
-        traverse(ast, {
-            enter: path => {
-                const node = path.node
-                if (node.type === 'CallExpression') {
-                    if (node.callee.type === 'Identifier') {
-                        if (this.options.keywords.includes(node.callee.name)) {
-                            const idArgument = node.arguments[0]
-                            if (idArgument.type === 'StringLiteral') {
-                                this.addMessage({filename, line: node.loc.start.line}, idArgument.value)
-                            }
-                        }
-                    } else if (node.callee.type === 'MemberExpression') {
-                        if (node.callee.property.type === 'Identifier' && this.options.keywords.includes(node.callee.property.name)) {
-                            const idArgument = node.arguments[0]
-                            if (idArgument.type === 'StringLiteral') {
-                                this.addMessage({filename, line: node.loc.start.line}, idArgument.value)
-                            }
-                        }
-                    }
-                }
-            }
-        })
+        this.extractJsAst(filename, ast)
     }
 
     addMessage ({filename, line}, id, plural = null, comment = null, context = null) {

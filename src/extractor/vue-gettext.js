@@ -10,19 +10,12 @@ export default async function (domainName, config, potPath) {
 
     shell.mkdir('-p', path.dirname(potPath))
 
-    const vuePaths = []
-    for (const srcPath of srcPaths) {
-        if (path.extname(srcPath) === '.vue') {
-            vuePaths.push(srcPath)
-        }
-    }
-
     const jsExtractor = JsExtractor.create(domainName, {
         tagNames: ['translate'],
         attrNames: ['v-translate'],
         exprAttrs: [/^:/, /^v-bind:/],
         markers: [{start: '{{', end: '}}'}],
-        keywords: ['$gettext']
+        keywords: ['$gettext', 'this.$gettext']
     })
     log.info('extractPot', 'extracting from .vue, .js files')
     for (const srcPath of srcPaths) {
