@@ -30,7 +30,7 @@ export default async function (domainName, config, potPath) {
         const ext = path.extname(srcPath)
         if (ext === '.vue') {
             const input = fs.readFileSync(srcPath, {encoding: 'UTF-8'})
-            jsExtractor.extractTemplate(srcPath, input)
+            jsExtractor.extractVue(srcPath, input)
         } else if (ext === '.js') {
             const input = fs.readFileSync(srcPath, {encoding: 'UTF-8'})
             jsExtractor.extractJsModule(srcPath, input)

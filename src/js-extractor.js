@@ -61,19 +61,31 @@ export class JsExtractor {
         })
     }
 
-    extractTemplate (filename, src, startLine = 1) {
+    extractVue (filename, src, startLine = 1) {
         const $ = cheerio.load(src, {decodeEntities: false, withStartIndices: true})
 
-        $('*').each((index, elem) => {
-            const node = $(elem)
-            if (elem.name === 'script') {
+        $.root().children().each((index, elem) => {
+            if (elem.name === 'template') {
+                const content = $(elem).html()
+                const line = getLineTo(src, elem.children[0].startIndex, startLine)
+                this.extractTemplate(filename, content, line)
+            } else if (elem.name === 'script') {
                 const type = elem.attribs.type
                 if (!type || type === 'text/javascript') {
                     const content = elem.children[0].data
                     const line = getLineTo(src, elem.children[0].startIndex, startLine)
                     this.extractJsModule(filename, content, line)
                 }
-            } else if (this.options.tagNames.includes(elem.name)) {
+            }
+        })
+    }
+
+    extractTemplate (filename, src, startLine = 1) {
+        const $ = cheerio.load(src, {decodeEntities: false, withStartIndices: true})
+
+        $('*').each((index, elem) => {
+            const node = $(elem)
+            if (this.options.tagNames.includes(elem.name)) {
                 const line = getLineTo(src, elem.children[0].startIndex, startLine)
                 const id = node.html().trim()
                 const plural = elem.attribs['translate-plural'] || null
