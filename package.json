@@ -10,6 +10,7 @@
   },
   "author": "Beren <beren.song@vonvon.me>",
   "license": "MIT",
+  "repository": "github:vonvonme/l10n-tools",
   "bin": {
     "l10n": "./dist/l10n-cli.js"
   },
