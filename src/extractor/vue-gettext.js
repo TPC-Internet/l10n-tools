@@ -20,7 +20,7 @@ export default async function (domainName, config, potPath) {
     const jsExtractor = JsExtractor.create(domainName, {
         tagNames: ['translate'],
         attrNames: ['v-translate'],
-        exprAttrPatterns: [/^:/, /^v-bind:/],
+        exprAttrs: [/^:/, /^v-bind:/],
         markers: [{start: '{{', end: '}}'}],
         keywords: ['$gettext']
     })

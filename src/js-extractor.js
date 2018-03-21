@@ -13,7 +13,7 @@ export class JsExtractor {
             tagNames: [],
             attrNames: [],
             markers: [],
-            exprAttrPatterns: []
+            exprAttrs: []
         }, options)
     }
 
@@ -92,7 +92,7 @@ export class JsExtractor {
             }
 
             for (const [attr, content] of Object.entries(elem.attribs)) {
-                if (content && this.options.exprAttrPatterns.some(pattern => attr.match(pattern))) {
+                if (content && this.options.exprAttrs.some(pattern => attr.match(pattern))) {
                     let contentIndex = 0
                     const attrIndex = src.substr(elem.startIndex).indexOf(attr)
                     if (attrIndex >= 0) {
