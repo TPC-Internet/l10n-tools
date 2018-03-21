@@ -1,6 +1,7 @@
 import cheerio from 'cheerio'
 import createBabylonOptions from 'babylon-options'
 import * as babylon from 'babylon'
+import log from 'npmlog'
 import traverse from 'babel-traverse'
 import {getPoEntry, PoEntryBuilder, setPoEntry} from './po'
 import * as gettextParser from 'gettext-parser'
@@ -67,13 +68,18 @@ export class JsExtractor {
     }
 
     extractJsModule (filename, src, startLine = 1) {
-        const ast = babylon.parse(src, createBabylonOptions({
-            sourceType: 'module',
-            sourceFilename: filename,
-            startLine: startLine,
-            stage: 0
-        }))
-        this.extractJsAst(filename, ast)
+        try {
+            const ast = babylon.parse(src, createBabylonOptions({
+                sourceType: 'module',
+                sourceFilename: filename,
+                startLine: startLine,
+                stage: 0
+            }))
+            this.extractJsAst(filename, ast)
+        } catch (err) {
+            log.error('extractJsModule', `error parsing '${src}' (${filename}:${startLine})`)
+            throw err
+        }
     }
 
     extractVue (filename, src, startLine = 1) {
@@ -156,13 +162,18 @@ export class JsExtractor {
     }
 
     extractJsExpression (filename, src, startLine = 1) {
-        const ast = babylon.parse(src, createBabylonOptions({
-            sourceType: 'script',
-            sourceFilename: filename,
-            startLine: startLine,
-            stage: 0
-        }))
-        this.extractJsAst(filename, ast)
+        try {
+            const ast = babylon.parse(src, createBabylonOptions({
+                sourceType: 'script',
+                sourceFilename: filename,
+                startLine: startLine,
+                stage: 0
+            }))
+            this.extractJsAst(filename, ast)
+        } catch (err) {
+            log.error('extractJsExpression', `error parsing '${src}' (${filename}:${startLine})`)
+            throw err
+        }
     }
 
     addMessage ({filename, line}, id, plural = null, comment = null, context = null) {
