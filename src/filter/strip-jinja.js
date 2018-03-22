@@ -1,8 +1,9 @@
 import {handleMarker} from '../common'
 
 export default function (domainName, config, src) {
+    const variableMarker = config.get('variable-marker', {start: '{{', end: '}}'})
     src = stripJinjaOperation(src)
-    return stripJinjaInterpolation(src)
+    return stripJinjaInterpolation(src, variableMarker)
 }
 
 function stripJinjaOperation (src) {
@@ -21,9 +22,9 @@ function stripJinjaOperation (src) {
     return output
 }
 
-function stripJinjaInterpolation (src) {
+function stripJinjaInterpolation (src, marker) {
     let output = ''
-    handleMarker(src, 0, {start: '{{', end: '}}'}, (inMarker, content) => {
+    handleMarker(src, 0, marker, (inMarker, content) => {
         if (!inMarker) {
             output += content
             return
