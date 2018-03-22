@@ -13,9 +13,14 @@ export class JsExtractor {
             keywords: [],
             tagNames: [],
             attrNames: [],
+            filterNames: [],
             markers: [],
             exprAttrs: []
         }, options)
+
+        this.filterExprs = this.options.filterNames.map(filterName => {
+            return new RegExp('^(.*)\\|\\s*' + filterName)
+        })
     }
 
     static create (domainName, options) {
@@ -31,7 +36,30 @@ export class JsExtractor {
         }, options)
     }
 
-    extractJsAst (filename, ast) {
+    _getArgumentValues (node) {
+        if (node.type === 'StringLiteral') {
+            return [node.value]
+        } else if (node.type === 'Identifier') {
+            throw new Error('cannot extract translations from variable, use string literal directly')
+        } else if (node.type === 'MemberExpression') {
+            throw new Error('cannot extract translations from variable, use string literal directly')
+        } else if (node.type === 'BinaryExpression' && node.operator === '+') {
+            const values = []
+            for (const leftValue of this._getArgumentValues(node.left)) {
+                for (const rightValue of this._getArgumentValues(node.right)) {
+                    values.push(leftValue + rightValue)
+                }
+            }
+            return values
+        } else if (node.type === 'ConditionalExpression') {
+            return this._getArgumentValues(node.consequent)
+                .concat(this._getArgumentValues(node.alternate))
+        } else {
+            throw new Error(`cannot extract translations from '${node.type}' node, use string literal directly`)
+        }
+    }
+
+    extractJs (filename, src, ast) {
         traverse(ast, {
             enter: path => {
                 const node = path.node
@@ -42,11 +70,17 @@ export class JsExtractor {
                             if (node.callee.type === 'MemberExpression') {
                                 const objectName = keyword.substring(0, dotIndex)
                                 const propName = keyword.substring(dotIndex + 1)
-                                if (objectName === 'this' && node.callee.object.type === 'ThisExpression') {
+                                if ((objectName === 'this' && node.callee.object.type === 'ThisExpression')
+                                    || (node.callee.object.type === 'Identifier' && node.callee.object.name === objectName)) {
                                     if (node.callee.property.type === 'Identifier' && node.callee.property.name === propName) {
-                                        const idArgument = node.arguments[0]
-                                        if (idArgument.type === 'StringLiteral') {
-                                            this.addMessage({filename, line: node.loc.start.line}, idArgument.value)
+                                        try {
+                                            const ids = this._getArgumentValues(node.arguments[0])
+                                            for (const id of ids) {
+                                                this.addMessage({filename, line: node.loc.start.line}, id)
+                                            }
+                                        } catch (err) {
+                                            log.warn('extractJs', err.message)
+                                            log.warn('extractJs', `'${src.substring(node.start, node.end)}': (${node.loc.filename}:${node.loc.start.line})`)
                                         }
                                     }
                                 }
@@ -54,9 +88,14 @@ export class JsExtractor {
                         } else {
                             if (node.callee.type === 'Identifier') {
                                 if (node.callee.name === keyword) {
-                                    const idArgument = node.arguments[0]
-                                    if (idArgument.type === 'StringLiteral') {
-                                        this.addMessage({filename, line: node.loc.start.line}, idArgument.value)
+                                    try {
+                                        const ids = this._getArgumentValues(node.arguments[0])
+                                        for (const id of ids) {
+                                            this.addMessage({filename, line: node.loc.start.line}, id)
+                                        }
+                                    } catch (err) {
+                                        log.warn('extractJs', err.message)
+                                        log.warn('extractJs', `'${src.substring(node.start, node.end)}': (${node.loc.filename}:${node.loc.start.line})`)
                                     }
                                 }
                             }
@@ -75,10 +114,9 @@ export class JsExtractor {
                 startLine: startLine,
                 stage: 0
             }))
-            this.extractJsAst(filename, ast)
+            this.extractJs(filename, src, ast)
         } catch (err) {
-            log.error('extractJsModule', `error parsing '${src}' (${filename}:${startLine})`)
-            throw err
+            log.warn('extractJsModule', `error parsing '${src.split(/\n/g)[err.loc.line - 1].trim()}' (${filename}:${startLine})`)
         }
     }
 
@@ -86,16 +124,24 @@ export class JsExtractor {
         const $ = cheerio.load(src, {decodeEntities: false, withStartIndices: true})
 
         $.root().children().each((index, elem) => {
+            if (elem.children.length === 0) {
+                return
+            }
+
             if (elem.name === 'template') {
                 const content = $(elem).html()
-                const line = getLineTo(src, elem.children[0].startIndex, startLine)
-                this.extractTemplate(filename, content, line)
-            } else if (elem.name === 'script') {
-                const type = elem.attribs.type
-                if (!type || type === 'text/javascript') {
-                    const content = elem.children[0].data
+                if (content) {
                     const line = getLineTo(src, elem.children[0].startIndex, startLine)
-                    this.extractJsModule(filename, content, line)
+                    this.extractTemplate(filename, content, line)
+                }
+            } else if (elem.name === 'script') {
+                const content = $(elem).html()
+                if (content) {
+                    const type = elem.attribs.type
+                    if (!type || type === 'text/javascript') {
+                        const line = getLineTo(src, elem.children[0].startIndex, startLine)
+                        this.extractJsModule(filename, content, line)
+                    }
                 }
             }
         })
@@ -106,22 +152,41 @@ export class JsExtractor {
 
         $('*').each((index, elem) => {
             const node = $(elem)
+
+            if (elem.name === 'script') {
+                const content = $(elem).html()
+                if (content) {
+                    const type = elem.attribs.type
+                    if (!type || type === 'text/javascript') {
+                        const line = getLineTo(src, elem.children[0].startIndex, startLine)
+                        this.extractJsModule(filename, content, line)
+                    } else if (type === 'text/ng-template') {
+                        const line = getLineTo(src, elem.children[0].startIndex, startLine)
+                        this.extractTemplate(filename, content, line)
+                    }
+                }
+            }
+
             if (this.options.tagNames.includes(elem.name)) {
-                const line = getLineTo(src, elem.children[0].startIndex, startLine)
                 const id = node.html().trim()
-                const plural = elem.attribs['translate-plural'] || null
-                const comment = elem.attribs['translate-comment'] || null
-                const context = elem.attribs['translate-context'] || null
-                this.addMessage({filename, line}, id, plural, comment, context)
+                if (id) {
+                    const line = getLineTo(src, elem.children[0].startIndex, startLine)
+                    const plural = elem.attribs['translate-plural'] || null
+                    const comment = elem.attribs['translate-comment'] || null
+                    const context = elem.attribs['translate-context'] || null
+                    this.addMessage({filename, line}, id, plural, comment, context)
+                }
             }
 
             if (this.options.attrNames.some(attrName => attrName in elem.attribs)) {
-                const line = getLineTo(src, elem.children[0].startIndex, startLine)
                 const id = node.html().trim()
-                const plural = elem.attribs['translate-plural'] || null
-                const comment = elem.attribs['translate-comment'] || null
-                const context = elem.attribs['translate-context'] || null
-                this.addMessage({filename, line}, id, plural, comment, context)
+                if (id) {
+                    const line = getLineTo(src, elem.children[0].startIndex, startLine)
+                    const plural = elem.attribs['translate-plural'] || null
+                    const comment = elem.attribs['translate-comment'] || null
+                    const context = elem.attribs['translate-context'] || null
+                    this.addMessage({filename, line}, id, plural, comment, context)
+                }
             }
 
             for (const [attr, content] of Object.entries(elem.attribs)) {
@@ -144,20 +209,34 @@ export class JsExtractor {
         })
 
         for (const marker of this.options.markers) {
-            let dataIndex = 0
+            let srcIndex = 0
             while (true) {
-                let startOffset = src.indexOf(marker.start, dataIndex)
-                if (startOffset === -1)
+                let startOffset = src.indexOf(marker.start, srcIndex)
+                if (startOffset === -1) {
                     break
+                }
 
                 startOffset += marker.start.length
                 const endOffset = src.indexOf(marker.end, startOffset)
+                if (endOffset === -1) {
+                    srcIndex = startOffset
+                    continue
+                }
+
                 const content = src.substring(startOffset, endOffset)
                 const line = getLineTo(src, startOffset, startLine)
-                this.extractJsExpression(filename, content, line)
+                this.extractMarkerExpression(filename, content, marker, line)
 
-                dataIndex = endOffset + marker.end.length
+                srcIndex = endOffset + marker.end.length
             }
+        }
+    }
+
+    extractMarkerExpression (filename, src, marker, startLine = 1) {
+        if (!marker.type || marker.type === 'js') {
+            this.extractJsExpression(filename, src, startLine)
+        } else if (marker.type === 'angular') {
+            this.extractAngularExpression(filename, src, startLine)
         }
     }
 
@@ -169,10 +248,39 @@ export class JsExtractor {
                 startLine: startLine,
                 stage: 0
             }))
-            this.extractJsAst(filename, ast)
+            this.extractJs(filename, src, ast)
         } catch (err) {
-            log.error('extractJsExpression', `error parsing '${src}' (${filename}:${startLine})`)
-            throw err
+            log.warn('extractJsExpression', `error parsing '${src}' (${filename}:${startLine})`, err)
+        }
+    }
+
+    extractAngularExpression (filename, src, startLine = 1) {
+        for (const filterExpr of this.filterExprs) {
+            const match = filterExpr.exec(src)
+            if (match == null) {
+                continue
+            }
+
+            const contentExpr = match[1]
+            try {
+                const node = babylon.parseExpression(contentExpr, createBabylonOptions({
+                    sourceType: 'script',
+                    sourceFilename: filename,
+                    startLine: startLine,
+                    stage: 0
+                }))
+                try {
+                    const ids = this._getArgumentValues(node)
+                    for (const id of ids) {
+                        this.addMessage({filename, line: node.loc.start.line}, id)
+                    }
+                } catch (err) {
+                    log.warn('extractAngularExpression', err.message)
+                    log.warn('extractAngularExpression', `${src}: (${node.loc.filename}:${node.loc.start.line})`)
+                }
+            } catch (err) {
+                log.warn('extractAngularExpression', `cannot extract from '${src}' (${filename}:${startLine})`)
+            }
         }
     }
 

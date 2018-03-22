@@ -150,3 +150,27 @@ export function cleanupPo (poPath) {
         output += '\n'
     fs.writeFileSync(poPath, output, {encoding: 'UTF-8'})
 }
+
+export function handleMarker(src, srcIndex, marker, fn) {
+    while (true) {
+        let startOffset = src.indexOf(marker.start, srcIndex)
+        if (startOffset === -1)
+            break
+
+        let endOffset = src.indexOf(marker.end, startOffset + marker.start.length)
+        if (endOffset === -1) {
+            srcIndex = startOffset + marker.start.length
+            continue
+        }
+
+        if (startOffset > srcIndex) {
+            fn(false, src.substring(srcIndex, startOffset))
+        }
+
+        endOffset += marker.end.length
+        const content = src.substring(startOffset, endOffset)
+        fn(true, content)
+        srcIndex = endOffset
+    }
+    fn(false, src.substring(srcIndex))
+}
