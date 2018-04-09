@@ -242,7 +242,7 @@ export class JsExtractor {
 
     extractJsExpression (filename, src, startLine = 1) {
         try {
-            const ast = babylon.parse(src, createBabylonOptions({
+            const ast = babylon.parse('(' + src + ')', createBabylonOptions({
                 sourceType: 'script',
                 sourceFilename: filename,
                 startLine: startLine,
