@@ -7,6 +7,10 @@ import {JsExtractor} from '../js-extractor'
 
 export default async function (domainName, config, potPath) {
     const srcPaths = await getSrcPaths(config, ['.vue', '.js'])
+    const keywords = new Set(config.get('keywords', []))
+    keywords.add('$gettext')
+    keywords.add('this.$gettext')
+    keywords.add('vm.$gettext')
 
     shell.mkdir('-p', path.dirname(potPath))
 
@@ -15,7 +19,7 @@ export default async function (domainName, config, potPath) {
         attrNames: ['v-translate'],
         exprAttrs: [/^:/, /^v-bind:/],
         markers: [{start: '{{', end: '}}'}],
-        keywords: ['$gettext', 'this.$gettext']
+        keywords: keywords
     })
     log.info('extractPot', 'extracting from .vue, .js files')
     for (const srcPath of srcPaths) {
