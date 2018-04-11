@@ -5,6 +5,7 @@ import log from 'npmlog'
 import traverse from 'babel-traverse'
 import {getPoEntry, PoEntryBuilder, setPoEntry} from './po'
 import * as gettextParser from 'gettext-parser'
+import * as ts from 'typescript'
 
 export class PotExtractor {
     constructor (po, options) {
@@ -15,7 +16,8 @@ export class PotExtractor {
             attrNames: [],
             filterNames: [],
             markers: [],
-            exprAttrs: []
+            exprAttrs: [],
+            cocosKeywords: {},
         }, options)
 
         this.filterExprs = this.options.filterNames.map(filterName => {
@@ -36,7 +38,7 @@ export class PotExtractor {
         }, options)
     }
 
-    _getArgumentValues (node) {
+    _evaluateJsArgumentValues (node) {
         if (node.type === 'StringLiteral') {
             return [node.value]
         } else if (node.type === 'Identifier') {
@@ -45,21 +47,21 @@ export class PotExtractor {
             throw new Error('cannot extract translations from variable, use string literal directly')
         } else if (node.type === 'BinaryExpression' && node.operator === '+') {
             const values = []
-            for (const leftValue of this._getArgumentValues(node.left)) {
-                for (const rightValue of this._getArgumentValues(node.right)) {
+            for (const leftValue of this._evaluateJsArgumentValues(node.left)) {
+                for (const rightValue of this._evaluateJsArgumentValues(node.right)) {
                     values.push(leftValue + rightValue)
                 }
             }
             return values
         } else if (node.type === 'ConditionalExpression') {
-            return this._getArgumentValues(node.consequent)
-                .concat(this._getArgumentValues(node.alternate))
+            return this._evaluateJsArgumentValues(node.consequent)
+                .concat(this._evaluateJsArgumentValues(node.alternate))
         } else {
             throw new Error(`cannot extract translations from '${node.type}' node, use string literal directly`)
         }
     }
 
-    extractJs (filename, src, ast) {
+    extractJsNode (filename, src, ast) {
         traverse(ast, {
             enter: path => {
                 const node = path.node
@@ -74,13 +76,13 @@ export class PotExtractor {
                                     || (node.callee.object.type === 'Identifier' && node.callee.object.name === objectName)) {
                                     if (node.callee.property.type === 'Identifier' && node.callee.property.name === propName) {
                                         try {
-                                            const ids = this._getArgumentValues(node.arguments[0])
+                                            const ids = this._evaluateJsArgumentValues(node.arguments[0])
                                             for (const id of ids) {
                                                 this.addMessage({filename, line: node.loc.start.line}, id)
                                             }
                                         } catch (err) {
-                                            log.warn('extractJs', err.message)
-                                            log.warn('extractJs', `'${src.substring(node.start, node.end)}': (${node.loc.filename}:${node.loc.start.line})`)
+                                            log.warn('extractJsNode', err.message)
+                                            log.warn('extractJsNode', `'${src.substring(node.start, node.end)}': (${node.loc.filename}:${node.loc.start.line})`)
                                         }
                                     }
                                 }
@@ -89,13 +91,13 @@ export class PotExtractor {
                             if (node.callee.type === 'Identifier') {
                                 if (node.callee.name === keyword) {
                                     try {
-                                        const ids = this._getArgumentValues(node.arguments[0])
+                                        const ids = this._evaluateJsArgumentValues(node.arguments[0])
                                         for (const id of ids) {
                                             this.addMessage({filename, line: node.loc.start.line}, id)
                                         }
                                     } catch (err) {
-                                        log.warn('extractJs', err.message)
-                                        log.warn('extractJs', `'${src.substring(node.start, node.end)}': (${node.loc.filename}:${node.loc.start.line})`)
+                                        log.warn('extractJsNode', err.message)
+                                        log.warn('extractJsNode', `'${src.substring(node.start, node.end)}': (${node.loc.filename}:${node.loc.start.line})`)
                                     }
                                 }
                             }
@@ -114,9 +116,9 @@ export class PotExtractor {
                 startLine: startLine,
                 stage: 0
             }))
-            this.extractJs(filename, src, ast)
+            this.extractJsNode(filename, src, ast)
         } catch (err) {
-            log.warn('extractJsModule', `error parsing '${src.split(/\n/g)[err.loc.line - 1].trim()}' (${filename}:${startLine})`)
+            log.warn('extractJsModule', `error parsing '${src.split(/\n/g)[err.loc.line - 1].trim()}' (${filename}:${err.loc.line})`)
         }
     }
 
@@ -248,7 +250,7 @@ export class PotExtractor {
                 startLine: startLine,
                 stage: 0
             }))
-            this.extractJs(filename, src, ast)
+            this.extractJsNode(filename, src, ast)
         } catch (err) {
             log.warn('extractJsExpression', `error parsing '${src}' (${filename}:${startLine})`, err)
         }
@@ -270,7 +272,7 @@ export class PotExtractor {
                     stage: 0
                 }))
                 try {
-                    const ids = this._getArgumentValues(node)
+                    const ids = this._evaluateJsArgumentValues(node)
                     for (const id of ids) {
                         this.addMessage({filename, line: node.loc.start.line}, id)
                     }
@@ -280,6 +282,108 @@ export class PotExtractor {
                 }
             } catch (err) {
                 log.warn('extractAngularExpression', `cannot extract from '${src}' (${filename}:${startLine})`)
+            }
+        }
+    }
+
+    _evaluateTsArgumentValues (node) {
+        if (node.kind === ts.SyntaxKind.StringLiteral) {
+            return [node.text]
+        } else if (node.kind === ts.SyntaxKind.Identifier) {
+            throw new Error('cannot extract translations from variable, use string literal directly')
+        } else if (node.kind === ts.SyntaxKind.PropertyAccessExpression) {
+            throw new Error('cannot extract translations from variable, use string literal directly')
+        } else if (node.kind === ts.SyntaxKind.BinaryExpression && node.operatorToken.kind === ts.SyntaxKind.PlusToken) {
+            const values = []
+            for (const leftValue of this._evaluateTsArgumentValues(node.left)) {
+                for (const rightValue of this._evaluateTsArgumentValues(node.right)) {
+                    values.push(leftValue + rightValue)
+                }
+            }
+            return values
+        } else if (node.kind === ts.SyntaxKind.ConditionalExpression) {
+            return this._evaluateTsArgumentValues(node.whenTrue)
+                .concat(this._evaluateTsArgumentValues(node.whenFalse))
+        } else {
+            throw new Error(`cannot extract translations from '${node.kind}' node, use string literal directly`)
+        }
+    }
+
+    extractTsNode (filename, src, ast, startLine = 1) {
+        const visit = node => {
+            if (node.kind === ts.SyntaxKind.CallExpression) {
+                const pos = findNonSpace(src, node.pos)
+                for (const keyword of this.options.keywords) {
+                    const dotIndex = keyword.indexOf('.')
+                    if (dotIndex >= 0) {
+                        if (node.expression.kind === ts.SyntaxKind.PropertyAccessExpression) {
+                            const objectName = keyword.substring(0, dotIndex)
+                            const propName = keyword.substring(dotIndex + 1)
+                            const callee = node.expression.expression
+                            if ((objectName === 'this' && callee.kind === ts.SyntaxKind.ThisKeyword)
+                                || (callee.kind === ts.SyntaxKind.Identifier && callee.text === objectName)) {
+                                const name = node.expression.name
+                                if (name.kind === ts.SyntaxKind.Identifier && name.text === propName) {
+                                    try {
+                                        const ids = this._evaluateTsArgumentValues(node.arguments[0])
+                                        for (const id of ids) {
+                                            this.addMessage({filename, line: getLineTo(src, pos, startLine)}, id)
+                                        }
+                                    } catch (err) {
+                                        log.warn('extractTsNode', err.message)
+                                        log.warn('extractTsNode', `'${src.substring(pos, node.end)}': (${filename}:${getLineTo(src, pos, startLine)})`)
+                                    }
+                                }
+                            }
+                        }
+                    } else {
+                        if (node.expression.kind === ts.SyntaxKind.Identifier) {
+                            const callee = node.expression
+                            if (callee.text === keyword) {
+                                try {
+                                    const ids = this._evaluateTsArgumentValues(node.arguments[0])
+                                    for (const id of ids) {
+                                        this.addMessage({filename, line: getLineTo(src, pos, startLine)}, id)
+                                    }
+                                } catch (err) {
+                                    log.warn('extractTsNode', err.message)
+                                    log.warn('extractTsNode', `'${src.substring(pos, node.end)}': (${filename}:${getLineTo(src, pos, startLine)})`)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            ts.forEachChild(node, visit)
+        }
+        visit(ast)
+    }
+
+    extractTsModule (filename, src, startLine = 1) {
+        try {
+            const ast = ts.createSourceFile(filename, src, ts.ScriptTarget.Latest, true)
+            this.extractTsNode(filename, src, ast, startLine)
+        } catch (err) {
+            debugger
+            log.warn('extractJsModule', `error parsing '${src.split(/\n/g)[err.loc.line - 1].trim()}' (${filename}:${err.loc.line})`)
+        }
+    }
+
+    extractCocosAsset (filename, src) {
+        const objs = JSON.parse(src)
+        for (const obj of objs) {
+            if (!obj.hasOwnProperty('__type__')) {
+                return
+            }
+
+            const type = obj['__type__']
+            if (this.options.cocosKeywords.hasOwnProperty(type)) {
+                const name = this.options.cocosKeywords[type]
+                const id = obj[name]
+                if (id) {
+                    const path = getCocosNodePath(objs, obj)
+                    this.addMessage({filename, line: path}, id)
+                }
             }
         }
     }
@@ -305,6 +409,37 @@ export class PotExtractor {
 
     toString () {
         return gettextParser.po.compile(this.po, {sortByMsgid: true})
+    }
+}
+
+function findNonSpace(src, index) {
+    const match = /^(\s*)\S/.exec(src.substring(index))
+    if (match) {
+        return index + match[1].length
+    } else {
+        return index
+    }
+}
+
+function getCocosNodePath (nodes, obj) {
+    if (obj.hasOwnProperty('node')) {
+        const node = nodes[obj['node']['__id__']]
+        return getCocosNodePath(nodes, node)
+    } else if (obj.hasOwnProperty('_parent')) {
+        if (obj['_parent']) {
+            const parent = nodes[obj['_parent']['__id__']]
+            const name = obj['_name']
+            const path = getCocosNodePath(nodes, parent)
+            if (path) {
+                return path + '.' + name
+            } else {
+                return name
+            }
+        } else {
+            return ''
+        }
+    } else {
+        throw new Error(`unknown cocos object: ${JSON.stringify(obj)}`)
     }
 }
 

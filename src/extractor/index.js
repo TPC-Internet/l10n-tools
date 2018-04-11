@@ -20,6 +20,8 @@ function loadExtractor (type) {
             return require('./angular-gettext').default
         case 'cordova':
             return require('./cordova').default
+        case 'cocos':
+            return require('./cocos').default
         default:
             throw new Error(`unknown domain type: ${type}`)
     }

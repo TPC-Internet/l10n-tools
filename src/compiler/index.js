@@ -35,6 +35,8 @@ function loadCompiler (type) {
             return require('./angular-gettext').default
         case 'cordova':
             return require('./cordova').default
+        case 'cocos':
+            return require('./cocos').default
         default:
             throw new Error(`unknown compiler type: ${type}`)
     }
