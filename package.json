@@ -1,6 +1,6 @@
 {
   "name": "l10n-tools",
-  "version": "1.2.2",
+  "version": "1.2.3",
   "description": "Localization tools",
   "main": "dist/index",
   "scripts": {
