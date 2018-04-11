@@ -6,7 +6,7 @@ import traverse from 'babel-traverse'
 import {getPoEntry, PoEntryBuilder, setPoEntry} from './po'
 import * as gettextParser from 'gettext-parser'
 
-export class JsExtractor {
+export class PotExtractor {
     constructor (po, options) {
         this.po = po
         this.options = Object.assign({
@@ -24,7 +24,7 @@ export class JsExtractor {
     }
 
     static create (domainName, options) {
-        return new JsExtractor({
+        return new PotExtractor({
             charset: 'utf-8',
             headers: {
                 'project-id-version': domainName,

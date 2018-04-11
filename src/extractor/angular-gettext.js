@@ -3,7 +3,7 @@ import * as shell from 'shelljs'
 import log from 'npmlog'
 import path from 'path'
 import {getSrcPaths} from '../common'
-import {JsExtractor} from '../js-extractor'
+import {PotExtractor} from '../pot-extractor'
 import {applyFilter} from '../filter'
 
 export default async function (domainName, config, potPath) {
@@ -11,7 +11,7 @@ export default async function (domainName, config, potPath) {
 
     shell.mkdir('-p', path.dirname(potPath))
 
-    const jsExtractor = JsExtractor.create(domainName, {
+    const extractor = PotExtractor.create(domainName, {
         tagNames: ['translate'],
         attrNames: ['translate'],
         filterNames: ['translate'],
@@ -27,12 +27,12 @@ export default async function (domainName, config, potPath) {
 
         const ext = path.extname(srcPath)
         if (ext === '.html') {
-            jsExtractor.extractTemplate(srcPath, filtered)
+            extractor.extractTemplate(srcPath, filtered)
         } else if (ext === '.js') {
-            jsExtractor.extractJsModule(srcPath, filtered)
+            extractor.extractJsModule(srcPath, filtered)
         } else {
             log.warn('extractPot', `skipping '${srcPath}': unknown extension`)
         }
     }
-    fs.writeFileSync(potPath, jsExtractor.toString())
+    fs.writeFileSync(potPath, extractor.toString())
 }

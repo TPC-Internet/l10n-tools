@@ -3,7 +3,7 @@ import log from 'npmlog'
 import * as shell from 'shelljs'
 import path from 'path'
 import {getSrcPaths} from '../common'
-import {JsExtractor} from '../js-extractor'
+import {PotExtractor} from '../pot-extractor'
 
 export default async function (domainName, config, potPath) {
     const srcPaths = await getSrcPaths(config, ['.vue', '.js'])
@@ -14,7 +14,7 @@ export default async function (domainName, config, potPath) {
 
     shell.mkdir('-p', path.dirname(potPath))
 
-    const jsExtractor = JsExtractor.create(domainName, {
+    const extractor = PotExtractor.create(domainName, {
         tagNames: ['translate'],
         attrNames: ['v-translate'],
         exprAttrs: [/^:/, /^v-bind:/],
@@ -27,13 +27,13 @@ export default async function (domainName, config, potPath) {
         const ext = path.extname(srcPath)
         if (ext === '.vue') {
             const input = fs.readFileSync(srcPath, {encoding: 'UTF-8'})
-            jsExtractor.extractVue(srcPath, input)
+            extractor.extractVue(srcPath, input)
         } else if (ext === '.js') {
             const input = fs.readFileSync(srcPath, {encoding: 'UTF-8'})
-            jsExtractor.extractJsModule(srcPath, input)
+            extractor.extractJsModule(srcPath, input)
         } else {
             log.warn('extractPot', `skipping '${srcPath}': unknown extension`)
         }
     }
-    fs.writeFileSync(potPath, jsExtractor.toString())
+    fs.writeFileSync(potPath, extractor.toString())
 }
