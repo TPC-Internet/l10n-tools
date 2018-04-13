@@ -8,6 +8,7 @@ import path from 'path'
 export default async function (domainName, config, poDir) {
     const targetDir = config.get('target-dir')
     const useLocaleKey = config.get('use-locale-key', false)
+    const keySeparator = config.get('key-separator', false)
     log.info('compile', `generating json files '${targetDir}/{locale}.json' (locale key: ${useLocaleKey})`)
 
     shell.mkdir('-p', targetDir)
@@ -15,7 +16,7 @@ export default async function (domainName, config, poDir) {
     for (const poPath of poPaths) {
         const locale = path.basename(poPath, '.po')
         const json = await gettextToI18next(locale, fs.readFileSync(poPath), {
-            keyseparator: false,
+            keyseparator: keySeparator,
             skipUntranslated: true,
             ctxSeparator: false
         })
