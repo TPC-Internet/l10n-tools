@@ -24,6 +24,8 @@ function loadExtractor (type) {
             return require('./cordova').default
         case 'cocos':
             return require('./cocos').default
+        case 'php-gettext':
+            return require('./php-gettext').default
         default:
             throw new Error(`unknown domain type: ${type}`)
     }

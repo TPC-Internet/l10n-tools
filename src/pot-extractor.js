@@ -6,6 +6,7 @@ import traverse from 'babel-traverse'
 import {getPoEntry, PoEntryBuilder, setPoEntry} from './po'
 import * as gettextParser from 'gettext-parser'
 import * as ts from 'typescript'
+import Engine from 'php-parser'
 
 export class PotExtractor {
     constructor (po, options) {
@@ -384,6 +385,90 @@ export class PotExtractor {
                     this.addMessage({filename, line: path}, id)
                 }
             }
+        }
+    }
+
+    _evaluatePhpArgumentValues (node) {
+        if (node.kind === 'string') {
+            return [node.value]
+        } else if (node.kind === 'encapsed') {
+            throw new Error('cannot extract translations from interpolated string, use sprintf for formatting')
+        } else if (node.kind === 'variable') {
+            throw new Error('cannot extract translations from variable, use string literal directly')
+        } else if (node.kind === 'propertylookup') {
+            throw new Error('cannot extract translations from variable, use string literal directly')
+        } else if (node.kind === 'bin' && node.type === '+') {
+            const values = []
+            for (const leftValue of this._evaluatePhpArgumentValues(node.left)) {
+                for (const rightValue of this._evaluatePhpArgumentValues(node.right)) {
+                    values.push(leftValue + rightValue)
+                }
+            }
+            return values
+        } else if (node.kind === 'retif') {
+            return this._evaluatePhpArgumentValues(node.trueExpr)
+                .concat(this._evaluatePhpArgumentValues(node.falseExpr))
+        } else {
+            throw new Error(`cannot extract translations from '${node.kind}' node, use string literal directly`)
+        }
+    }
+
+    extractPhpNode (filename, src, Node, ast, startLine = 1) {
+        const visit = node => {
+            if (node.kind === 'call') {
+                for (const keyword of this.options.keywords) {
+                    if (node.what.kind === 'identifier') {
+                        if (node.what.name === keyword) {
+                            const startOffset = src.substr(0, node.loc.start.offset).lastIndexOf(keyword)
+                            try {
+                                const ids = this._evaluatePhpArgumentValues(node.arguments[0])
+                                for (const id of ids) {
+                                    this.addMessage({filename, line: node.loc.start.line}, id)
+                                }
+                            } catch (err) {
+                                log.warn('extractPhpNode', err.message)
+                                log.warn('extractPhpNode', `'${src.substring(startOffset, node.loc.end.offset)}': (${filename}:${node.loc.start.line})`)
+                            }
+                        }
+                    }
+                }
+            }
+
+            for (const key in node) {
+                // noinspection JSUnfilteredForInLoop
+                const value = node[key]
+                if (Array.isArray(value)) {
+                    for (const child of value) {
+                        if (child instanceof Node) {
+                            visit(child)
+                        }
+                    }
+                } else if (value instanceof Node) {
+                    visit(value)
+                }
+            }
+        }
+        visit(ast)
+    }
+
+    extractPhpCode (filename, src, startLine = 1) {
+        const parser = new Engine({
+            parser: {
+                extractDoc: true,
+                locations: true,
+                php7: true
+            },
+            ast: {
+                withPositions: true
+            }
+        })
+
+        try {
+            const ast = parser.parseCode(src)
+            const Node = parser.ast.constructor.prototype['node']
+            this.extractPhpNode(filename, src, Node, ast, startLine)
+        } catch (err) {
+            log.warn('extractPhpCode', `error parsing '${src.split(/\n/g)[err.loc.line - 1].trim()}' (${filename}:${err.loc.line})`)
         }
     }
 
