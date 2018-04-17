@@ -10,6 +10,7 @@ export default async function (domainName, config, potPath) {
     const keywords = new Set(config.get('keywords', []))
     keywords.add('$t')
     keywords.add('this.$t')
+    keywords.add('$i18nPath')
 
     shell.mkdir('-p', path.dirname(potPath))
 
