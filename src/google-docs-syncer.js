@@ -12,7 +12,6 @@ import fs from 'fs'
 import {google} from 'googleapis'
 import {OAuth2Client} from 'google-auth-library'
 import jsonfile from 'jsonfile'
-import promisify from 'util-promisify'
 import opn from 'opn'
 import * as shell from 'shelljs'
 
@@ -29,8 +28,8 @@ export async function syncPoToGoogleDocs (config, domainConfig, tag, poDir) {
     const clientSecretPath = getGoogleDocsConfig(config, domainConfig, 'client-secret-path')
     const credentials = jsonfile.readFileSync(clientSecretPath)['installed']
 
-    const drive = promisifyDrive(google.drive('v3'))
-    const sheets = promisifySheets(google.sheets('v4'))
+    const drive = google.drive('v3')
+    const sheets = google.sheets('v4')
 
     const auth = await authorize(sheetName, credentials)
 
@@ -107,7 +106,7 @@ const documentIdCache = {}
 
 async function findDocumentId(drive, auth, docName) {
     if (!(docName in documentIdCache)) {
-        const {files} = await promisify(drive.files.list)({
+        const {files} = await drive.files.list({
             auth,
             q: `name = '${docName}' and trashed = false`,
             spaces: 'drive'
@@ -154,7 +153,7 @@ function writePoFiles(poDir, poData) {
 
 async function readSheet(sheets, sheetName, auth, docId) {
     log.info('readSheet', 'loading sheet')
-    const {values: rows} = await sheets.spreadsheets.values.getAsync({
+    const {values: rows} = await sheets.spreadsheets.values.get({
         auth,
         spreadsheetId: docId,
         range: sheetName
@@ -393,7 +392,7 @@ async function applyDocumentActions(sheetName, sheets, auth, docId, docActions) 
 
     if (updateData.length > 0) {
         // console.log('update data', JSON.stringify(updateData, null, 2))
-        await sheets.spreadsheets.values.batchUpdateAsync({
+        await sheets.spreadsheets.values.batchUpdate({
             auth,
             spreadsheetId: docId,
             resource: {
@@ -405,7 +404,7 @@ async function applyDocumentActions(sheetName, sheets, auth, docId, docActions) 
 
     if (newRows.length > 0) {
         // console.log('new rows', JSON.stringify(newRows, null, 2))
-        await sheets.spreadsheets.values.appendAsync({
+        await sheets.spreadsheets.values.append({
             auth,
             spreadsheetId: docId,
             range: sheetName,
@@ -459,17 +458,4 @@ function decodeSheetText(sheetText) {
         }
     }
     return sheetText.replace(/\r\n/, '\n')
-}
-
-function promisifyDrive(drive) {
-    drive.files.listAsync = promisify(drive.files.list)
-    return drive
-}
-
-function promisifySheets(sheets) {
-    /** @property {object} spreadsheets */
-    sheets.spreadsheets.values.getAsync = promisify(sheets.spreadsheets.values.get)
-    sheets.spreadsheets.values.appendAsync = promisify(sheets.spreadsheets.values.append)
-    sheets.spreadsheets.values.batchUpdateAsync = promisify(sheets.spreadsheets.values.batchUpdate)
-    return sheets
 }
