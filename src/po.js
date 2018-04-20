@@ -201,3 +201,29 @@ export function getPoEntries (poPath, specs) {
     })
     return poEntries
 }
+
+export function exportPoToJson (poPath, {keySeparator = '.'} = {}) {
+    const json = {}
+    const poInput = fs.readFileSync(poPath)
+    const po = gettextParser.po.parse(poInput, 'UTF-8')
+    forPoEntries(po, poEntry => {
+        if (poEntry.msgctxt) {
+            throw new Error('[exportPoToJson] po entry with msgctxt not supported yet')
+        }
+
+        if (poEntry.msgid && poEntry.msgstr[0]) {
+            const keys = keySeparator ? poEntry.msgid.split(keySeparator) : [poEntry.msgid]
+            const lastKey = keys.pop()
+
+            let obj = json
+            for (const key of keys) {
+                if (!obj.hasOwnProperty(key)) {
+                    obj[key] = {}
+                }
+                obj = obj[key]
+            }
+            obj[lastKey] = poEntry.msgstr[0]
+        }
+    })
+    return json
+}

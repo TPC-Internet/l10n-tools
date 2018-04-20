@@ -1,9 +1,8 @@
-import fs from 'fs'
 import glob from 'glob-promise'
-import {gettextToI18next} from 'i18next-conv'
 import log from 'npmlog'
 import path from 'path'
 import jsonfile from 'jsonfile'
+import {exportPoToJson} from '../po'
 
 export default async function (domainName, config, poDir) {
     const targetPath = config.get('target-path')
@@ -13,12 +12,7 @@ export default async function (domainName, config, poDir) {
     const poPaths = await glob.promise(`${poDir}/*.po`)
     for (const poPath of poPaths) {
         const locale = path.basename(poPath, '.po')
-        const json = await gettextToI18next(locale, fs.readFileSync(poPath), {
-            keyseparator: false,
-            skipUntranslated: true,
-            ctxSeparator: false
-        })
-        translations[locale] = JSON.parse(json)
+        translations[locale] = exportPoToJson(poPath, {keySeparator: false})
     }
     jsonfile.writeFileSync(targetPath, translations, {spaces: 2})
 }
