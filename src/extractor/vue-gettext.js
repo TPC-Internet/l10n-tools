@@ -1,6 +1,5 @@
 import fs from 'fs'
 import log from 'npmlog'
-import * as shell from 'shelljs'
 import path from 'path'
 import {getSrcPaths} from '../common'
 import {PotExtractor} from '../pot-extractor'
@@ -11,8 +10,6 @@ export default async function (domainName, config, potPath) {
     keywords.add('$gettext')
     keywords.add('this.$gettext')
     keywords.add('vm.$gettext')
-
-    shell.mkdir('-p', path.dirname(potPath))
 
     const extractor = PotExtractor.create(domainName, {
         tagNames: ['translate'],

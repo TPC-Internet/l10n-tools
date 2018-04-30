@@ -1,6 +1,5 @@
 import log from 'npmlog'
 import path from 'path'
-import * as shell from 'shelljs'
 import fs from 'fs'
 import * as gettextParser from 'gettext-parser'
 import jsonfile from 'jsonfile'
@@ -39,6 +38,5 @@ export default function (domainName, config, potPath) {
         translations: translations
     })
 
-    shell.mkdir('-p', path.dirname(potPath))
     fs.writeFileSync(potPath, output)
 }

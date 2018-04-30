@@ -1,15 +1,12 @@
 import fs from 'fs'
 import * as gettextParser from 'gettext-parser'
 import log from 'npmlog'
-import * as shell from 'shelljs'
 import path from 'path'
 import {getSrcPaths, xgettext} from '../common'
 
 export default async function (domainName, config, potPath) {
     const srcPaths = await getSrcPaths(config, ['.html', '.py'])
     const keywords = config.get('keywords')
-
-    shell.mkdir('-p', path.dirname(potPath))
 
     const htmlPaths = []
     const pyPaths = []

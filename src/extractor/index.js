@@ -1,7 +1,10 @@
 import {cleanupPot} from '../common'
+import * as path from 'path'
+import * as shell from 'shelljs'
 
 export async function extractPot (domainName, domainConfig, potPath) {
     const type = domainConfig.get('type')
+    shell.mkdir('-p', path.dirname(potPath))
     await loadExtractor(type)(domainName, domainConfig, potPath)
     cleanupPot(potPath)
 }

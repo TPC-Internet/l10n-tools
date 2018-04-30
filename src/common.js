@@ -29,7 +29,6 @@ export async function getSrcPaths (config, exts) {
 
 export async function xgettext (domainName, language, keywords, potPath, srcPaths, merge) {
     await requireCmd.brew('xgettext', 'gettext', true)
-    shell.mkdir('-p', path.dirname(potPath))
     log.info('xgettext', `from ${language} source`)
     await execWithLog(
         `xgettext --language="${language}" \

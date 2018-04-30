@@ -3,14 +3,11 @@ import {getSrcPaths} from '../common'
 import {PotExtractor} from '../pot-extractor'
 import * as fs from 'fs'
 import * as path from 'path'
-import * as shell from 'shelljs'
 
 export default async function (domainName, config, potPath) {
     const srcPaths = await getSrcPaths(config, ['.js', '.ts', '.fire', '.prefab'])
     const keywords = new Set(config.get('keywords', []))
     keywords.add('i18n.t')
-
-    shell.mkdir('-p', path.dirname(potPath))
 
     const cocosKeywords = {'744dcs4DCdNprNhG0xwq6FK': '_dataID'}
     const extractor = PotExtractor.create(domainName, {keywords, cocosKeywords})

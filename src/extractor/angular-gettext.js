@@ -1,5 +1,4 @@
 import fs from 'fs'
-import * as shell from 'shelljs'
 import log from 'npmlog'
 import path from 'path'
 import {getSrcPaths} from '../common'
@@ -8,8 +7,6 @@ import {applyFilter} from '../filter'
 
 export default async function (domainName, config, potPath) {
     const srcPaths = await getSrcPaths(config, ['.html', '.js'])
-
-    shell.mkdir('-p', path.dirname(potPath))
 
     const extractor = PotExtractor.create(domainName, {
         tagNames: ['translate'],
