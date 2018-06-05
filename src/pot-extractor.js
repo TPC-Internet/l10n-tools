@@ -527,7 +527,7 @@ function getCocosNodePath (nodes, obj) {
     }
 }
 
-function getLineTo(src, index, startLine = 1) {
+export function getLineTo(src, index, startLine = 1) {
     const matches = src.substr(0, index).match(/\n/g)
     if (!matches) {
         return startLine

@@ -33,6 +33,8 @@ function loadCompiler (type) {
             return require('./mo').default
         case 'angular-gettext':
             return require('./angular-gettext').default
+        case 'android':
+            return require('./android').default
         case 'cordova':
             return require('./cordova').default
         case 'cocos':

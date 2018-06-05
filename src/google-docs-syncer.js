@@ -28,7 +28,7 @@ function getGoogleDocsConfig (config, domainConfig, path) {
     return domainConfig.get(['google-docs', path], null) || config.get(['google-docs', path])
 }
 
-export async function syncPoToGoogleDocs (config, domainConfig, tag, poDir) {
+export async function syncPoToGoogleDocs (config, domainConfig, tag, potPath, poDir) {
     const docName = getGoogleDocsConfig(config, domainConfig, 'doc-name')
     const sheetName = getGoogleDocsConfig(config, domainConfig, 'sheet-name')
     const clientSecretPath = getGoogleDocsConfig(config, domainConfig, 'client-secret-path')
@@ -43,15 +43,17 @@ export async function syncPoToGoogleDocs (config, domainConfig, tag, poDir) {
     const docId = await findDocumentId(drive, auth, docName)
     log.notice('syncPoToGoogleDocs', `docId: ${docId}`)
 
+    const pot = await readPoFile(potPath)
     const poData = await readPoFiles(poDir)
     const rows = await readSheet(sheets, sheetName, auth, docId)
     const columnMap = getColumnMap(rows[0])
     const sheetData = createSheetData(tag, rows, columnMap)
-    updateSheetData(tag, poData, sheetData)
-    updatePoData(tag, poData, sheetData)
+    updateSheetData(tag, pot, poData, sheetData)
+    updatePoData(tag, pot, poData, sheetData)
 
     const docActions = await updateSheet(tag, rows, columnMap, sheetData)
     await applyDocumentActions(sheetName, sheets, auth, docId, docActions)
+    writePoFile(potPath, pot)
     writePoFiles(poDir, poData)
 }
 
@@ -232,7 +234,24 @@ function readDataRow(dataRow, columnMap) {
     }
 }
 
-function updateSheetData(tag, poData, sheetData) {
+function updateSheetData(tag, pot, poData, sheetData) {
+    for (const potEntry of getPoEntries(pot)) {
+        const entryId = potEntry.msgctxt || potEntry.msgid
+        if (!sheetData.hasOwnProperty(entryId)) {
+            sheetData[entryId] = {
+                key: potEntry.msgctxt,
+                source: potEntry.msgid,
+                targets: {},
+                tags: new Set()
+            }
+        }
+
+        const sheetEntry = sheetData[entryId]
+        if (potEntry.msgctxt && potEntry.msgctxt === sheetEntry.key && potEntry.msgid !== sheetEntry.source) {
+            sheetEntry.source = potEntry.msgid
+        }
+    }
+
     for (const [locale, po] of Object.entries(poData)) {
         // console.log('update sheet locale', locale)
         for (const poEntry of getPoEntries(po)) {
@@ -251,14 +270,12 @@ function updateSheetData(tag, poData, sheetData) {
             }
 
             const sheetEntry = sheetData[entryId]
-            if (poEntry.msgctxt !== sheetEntry.key && poEntry.msgid !== sheetEntry.source) {
+            if (poEntry.msgctxt !== sheetEntry.key || poEntry.msgid !== sheetEntry.source) {
                 log.warn('updateSheetData', `po entry: ${JSON.stringify(poEntry, null, 2)}`)
                 log.warn('updateSheetData', `sheet entry: ${JSON.stringify(sheetEntry, null, 2)}`)
                 throw new Error(`entry conflict occurred ${poEntry.msgctxt || poEntry.msgid} vs ${sheetEntry.key || sheetEntry.source}`)
             }
 
-            sheetEntry.key = poEntry.msgctxt || ''
-            sheetEntry.source = poEntry.msgid
             sheetEntry.tags.add(tag)
 
             if (!sheetEntry.targets[locale]) {
@@ -269,14 +286,26 @@ function updateSheetData(tag, poData, sheetData) {
     // console.log('updated sheet data', sheetData)
 }
 
-function updatePoData(tag, poData, sheetData) {
+function updatePoData(tag, pot, poData, sheetData) {
     for (const sheetEntry of Object.values(sheetData)) {
+        const potEntry = findPoEntry(pot, sheetEntry.key, sheetEntry.source)
+        if (potEntry && sheetEntry.source && potEntry.msgid !== sheetEntry.source) {
+            potEntry.msgid = sheetEntry.source
+            setPoEntry(pot, potEntry)
+        }
+
         for (const [locale, target] of Object.entries(sheetEntry.targets)) {
             if (poData.hasOwnProperty(locale)) {
                 const po = poData[locale]
                 const poEntry = findPoEntry(poData[locale], sheetEntry.key, sheetEntry.source)
                 // console.log('updating po, sheet entry', sheetEntry)
                 // console.log('updating po, po', po)
+                if (poEntry) {
+                    if (sheetEntry.source && poEntry.msgid !== sheetEntry.source) {
+                        poEntry.msgid = sheetEntry.source
+                        setPoEntry(po, poEntry)
+                    }
+
                     const entryId = poEntry.msgctxt || poEntry.msgid
                     const flag = getPoEntryFlag(poEntry)
                     // console.log('updating po, po entry', poEntry)
@@ -320,6 +349,16 @@ async function updateSheet(tag, rows, columnMap, sheetData) {
 
         const sheetEntry = sheetData[entryId]
         if (sheetEntry != null) {
+            if (rowEntry.source !== sheetEntry.source) {
+                log.notice('updateSheet', `setting source of ${entryId}: ${sheetEntry.source}`)
+                docActions.push({
+                    type: 'update-cell',
+                    row: index + 1,
+                    column: columnMap.source,
+                    data: sheetEntry.source
+                })
+            }
+
             const tag = Array.from(rowEntry.tags).sort().join(',')
             const newTag = Array.from(sheetEntry.tags).sort().join(',') || 'UNUSED'
             if (tag !== newTag) {
