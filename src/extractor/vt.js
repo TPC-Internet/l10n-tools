@@ -1,8 +1,8 @@
 import fs from 'fs'
-import * as gettextParser from 'gettext-parser'
 import log from 'npmlog'
 import path from 'path'
 import {getSrcPaths, xgettext} from '../common'
+import {PotExtractor} from '../pot-extractor'
 
 export default async function (domainName, config, potPath) {
     const srcPaths = await getSrcPaths(config, ['.html', '.py'])
@@ -18,8 +18,9 @@ export default async function (domainName, config, potPath) {
         }
     }
 
+    const extractor = PotExtractor.create(domainName)
+
     log.info('extractPot', 'extracting from .html files')
-    const translations = {'': {}}
     for (const htmlPath of htmlPaths) {
         log.verbose('extractPot', `processing '${htmlPath}'`)
         const html = fs.readFileSync(htmlPath, 'UTF-8')
@@ -32,13 +33,7 @@ export default async function (domainName, config, potPath) {
             }
             if (match[1]) {
                 // console.log(`matched at ${lineNo}: ${match[1]}`)
-                translations[''][match[1]] = {
-                    comments: {
-                        reference: htmlPath + ':' + lineNo
-                    },
-                    msgid: match[1],
-                    msgstr: ['']
-                }
+                extractor.addMessage({filename: htmlPath, line: lineNo}, match[1])
             } else if (match[2]) {
                 lineNo++
             }
@@ -46,18 +41,7 @@ export default async function (domainName, config, potPath) {
     }
 
     // console.log('translations', JSON.stringify(translations, null, 2))
-    const output = gettextParser.po.compile({
-        charset: 'UTF-8',
-        headers: {
-            'Project-Id-Version': domainName,
-            'Language': '',
-            'MIME-Version': '1.0',
-            'Content-Type': 'text/plain; charset=UTF-8',
-            'Content-Transfer-Encoding': '8bit'
-        },
-        translations: translations
-    })
-    fs.writeFileSync(potPath, output)
+    fs.writeFileSync(potPath, extractor.toString())
 
     log.info('extractPot', 'extracting from .py files')
     await xgettext(domainName, 'Python', keywords, potPath, pyPaths, true)

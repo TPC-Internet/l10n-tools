@@ -5,7 +5,7 @@ import program from 'commander'
 import jsonfile from 'jsonfile'
 import findRoot from 'find-root'
 import log from 'npmlog'
-import {countPoEntries, getPoEntryFlag, getPoEntries} from './po'
+import {checkPoEntrySpecs, getPoEntriesFromFile, getPoEntryFlag} from './po'
 import {getTempDir} from './utils'
 import {mergeFallbackLocale, updatePo} from './common'
 import * as shell from 'shelljs'
@@ -162,7 +162,13 @@ async function run () {
                 const poDir = path.join(cmd.podir || i18nDir, domainName)
                 const counts = locales.map(locale => {
                     const poPath = path.join(poDir, locale + '.po')
-                    return locale + ':' + countPoEntries(poPath, specs)
+                    let count = 0
+                    for (const poEntry of getPoEntriesFromFile(poPath)) {
+                        if (checkPoEntrySpecs(poEntry, specs)) {
+                            count++
+                        }
+                    }
+                    return locale + ':' + count
                 })
                 process.stdout.write(`${domainName},${counts.join(',')}\n`)
                 break
@@ -180,9 +186,11 @@ async function run () {
                 const poDir = path.join(cmd.podir || i18nDir, domainName)
                 const poPath = path.join(poDir, locale + '.po')
 
-                const poEntries = getPoEntries(poPath, specs)
+                for (const poEntry of getPoEntriesFromFile(poPath)) {
+                    if (!checkPoEntrySpecs(poEntry, specs)) {
+                        continue
+                    }
 
-                for (const poEntry of poEntries) {
                     const flag = getPoEntryFlag(poEntry)
                     if (flag) {
                         process.stdout.write(`#, ${flag}\n`)
@@ -220,8 +228,9 @@ async function run () {
                 const i18nDir = domainConfig.get('i18n-dir')
 
                 const poDir = path.join(i18nDir, domainName)
+                const potPath = path.join(i18nDir, domainName, 'template.pot')
 
-                await syncPoToGoogleDocs(config, domainConfig, tag, poDir)
+                await syncPoToGoogleDocs(config, domainConfig, tag, potPath, poDir)
                 break
             }
 
@@ -263,7 +272,7 @@ async function run () {
                 shell.rm('-rf', tempDir)
                 await extractPot(domainName, domainConfig, potPath)
                 updatePo(potPath, fromPoDir, poDir, locales)
-                await syncPoToGoogleDocs(config, domainConfig, tag, poDir)
+                await syncPoToGoogleDocs(config, domainConfig, tag, potPath, poDir)
                 shell.rm('-rf', tempDir)
                 break
             }
@@ -279,7 +288,7 @@ async function run () {
 
                 await extractPot(domainName, domainConfig, potPath)
                 updatePo(potPath, poDir, poDir, locales)
-                await syncPoToGoogleDocs(config, domainConfig, tag, poDir)
+                await syncPoToGoogleDocs(config, domainConfig, tag, potPath, poDir)
                 updatePo(potPath, poDir, poDir, locales)
 
                 if (fallbackLocale != null) {

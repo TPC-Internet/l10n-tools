@@ -4,7 +4,15 @@ import glob from 'glob-promise'
 import log from 'npmlog'
 import path from 'path'
 import * as shell from 'shelljs'
-import {forPoEntries, getPoEntry, getPoEntryFlag, setPoEntryFlag} from './po'
+import {
+    getPoEntries,
+    findPoEntry,
+    getPoEntryFlag,
+    setPoEntryFlag,
+    readPoFile,
+    writePoFile,
+    getPoEntriesFromFile
+} from './po'
 import {execWithLog, requireCmd} from './utils'
 
 export async function getSrcPaths (config, exts) {
@@ -50,10 +58,9 @@ export function updatePo (potPath, fromPoDir, poDir, locales) {
         const pot = gettextParser.po.parse(potInput, 'UTF-8')
         pot.headers['language'] = locale
         if (fs.existsSync(fromPoPath)) {
-            const fromPoInput = fs.readFileSync(fromPoPath)
-            const fromPo = gettextParser.po.parse(fromPoInput, 'UTF-8')
-            forPoEntries(pot, potEntry => {
-                const fromPoEntry = getPoEntry(fromPo, potEntry.msgctxt, potEntry.msgid)
+            const fromPo = readPoFile(fromPoPath)
+            for (const potEntry of getPoEntries(pot)) {
+                const fromPoEntry = findPoEntry(fromPo, potEntry.msgctxt, potEntry.msgid)
                 if (fromPoEntry != null) {
                     potEntry.msgstr = fromPoEntry.msgstr.map(value => value === '$$no translation$$' ? '' : value)
                     const flag = getPoEntryFlag(fromPoEntry)
@@ -61,40 +68,35 @@ export function updatePo (potPath, fromPoDir, poDir, locales) {
                         setPoEntryFlag(potEntry, flag)
                     }
                 }
-            })
+            }
         }
 
-        const output = gettextParser.po.compile(pot)
         const poPath = path.join(poDir, poFile)
-        fs.writeFileSync(poPath, output)
+        writePoFile(poPath, pot)
         cleanupPo(poPath)
     }
 }
 
 export async function mergeFallbackLocale(domainName, poDir, fallbackLocale, mergedPoDir) {
     shell.mkdir('-p', mergedPoDir)
-    const fallbackPoPath = path.join(poDir, fallbackLocale + '.po')
-    const fallbackInput = fs.readFileSync(fallbackPoPath)
-    const fallbackPo = gettextParser.po.parse(fallbackInput, 'UTF-8')
+    const fallbackPo = readPoFile(path.join(poDir, fallbackLocale + '.po'))
 
     const poPaths = await glob.promise(`${poDir}/*.po`)
     for (const poPath of poPaths) {
         const locale = path.basename(poPath, '.po')
-        const poInput = fs.readFileSync(poPath)
-        const po = gettextParser.po.parse(poInput, 'UTF-8')
+        const po = readPoFile(poPath)
         if (locale !== fallbackLocale) {
-            forPoEntries(po, poEntry => {
+            for (const poEntry of getPoEntriesFromFile(po)) {
                 if (!poEntry.msgstr[0]) {
-                    const fallbackPoEntry = getPoEntry(fallbackPo, poEntry.msgctxt, poEntry.msgid)
+                    const fallbackPoEntry = findPoEntry(fallbackPo, poEntry.msgctxt, poEntry.msgid)
                     if (fallbackPoEntry != null && fallbackPoEntry.msgstr[0]) {
                         poEntry.msgstr = fallbackPoEntry.msgstr
                     }
                 }
-            })
+            }
         }
-        const output = gettextParser.po.compile(po)
         const mergedPoPath = path.join(mergedPoDir, path.basename(poPath))
-        fs.writeFileSync(mergedPoPath, output)
+        writePoFile(mergedPoPath, po)
         cleanupPo(mergedPoPath)
     }
 }
@@ -107,8 +109,7 @@ export async function compilePoToMo (domainName, poDir, targetDir) {
         const moDir = path.join(targetDir, locale, 'LC_MESSAGES')
         const moPath = path.join(moDir, domainName + '.mo')
 
-        const input = fs.readFileSync(poPath)
-        const po = gettextParser.po.parse(input, 'UTF-8')
+        const po = readPoFile(poPath)
         const output = gettextParser.mo.compile(po)
 
         shell.mkdir('-p', moDir)

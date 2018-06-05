@@ -3,7 +3,7 @@ import createBabylonOptions from 'babylon-options'
 import * as babylon from 'babylon'
 import log from 'npmlog'
 import traverse from 'babel-traverse'
-import {getPoEntry, PoEntryBuilder, setPoEntry} from './po'
+import {findPoEntry, PoEntryBuilder, setPoEntry} from './po'
 import * as gettextParser from 'gettext-parser'
 import * as ts from 'typescript'
 import Engine from 'php-parser'
@@ -177,18 +177,18 @@ export class PotExtractor {
                     const plural = elem.attribs['translate-plural'] || null
                     const comment = elem.attribs['translate-comment'] || null
                     const context = elem.attribs['translate-context'] || null
-                    this.addMessage({filename, line}, id, plural, comment, context)
+                    this.addMessage({filename, line}, id, {plural, comment, context})
                 }
             }
 
-            if (this.options.attrNames.some(attrName => attrName in elem.attribs)) {
+            if (this.options.attrNames.some(attrName => elem.attribs.hasOwnProperty(attrName))) {
                 const id = node.html().trim()
                 if (id) {
                     const line = getLineTo(src, elem.children[0].startIndex, startLine)
                     const plural = elem.attribs['translate-plural'] || null
                     const comment = elem.attribs['translate-comment'] || null
                     const context = elem.attribs['translate-context'] || null
-                    this.addMessage({filename, line}, id, plural, comment, context)
+                    this.addMessage({filename, line}, id, {plural, comment, context})
                 }
             }
 
@@ -472,9 +472,9 @@ export class PotExtractor {
         }
     }
 
-    addMessage ({filename, line}, id, plural = null, comment = null, context = null) {
-        const poEntry = getPoEntry(this.po, context, id)
-        const builder = poEntry ? PoEntryBuilder.fromPoEntry(poEntry) : new PoEntryBuilder(context, id)
+    addMessage ({filename, line}, id, {plural = null, comment = null, context = null, allowSpaceInId = false} = {}) {
+        const poEntry = findPoEntry(this.po, context, id)
+        const builder = poEntry ? PoEntryBuilder.fromPoEntry(poEntry) : new PoEntryBuilder(context, id, {allowSpaceInId})
 
         builder.addReference(filename, line)
         if (plural) {

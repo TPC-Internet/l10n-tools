@@ -1,4 +1,3 @@
-import * as gettextParser from 'gettext-parser'
 import glob from 'glob-promise'
 import http from 'http'
 import httpShutdown from 'http-shutdown'
@@ -7,7 +6,15 @@ import path from 'path'
 import querystring from 'querystring'
 import url from 'url'
 import {cleanupPo} from './common'
-import {forPoEntries, getPoEntryFlag, removePoEntryFlag, setPoEntryFlag} from './po'
+import {
+    findPoEntry,
+    getPoEntries,
+    getPoEntryFlag,
+    readPoFile,
+    removePoEntryFlag, setPoEntry,
+    setPoEntryFlag,
+    writePoFile
+} from './po'
 import fs from 'fs'
 import {google} from 'googleapis'
 import {OAuth2Client} from 'google-auth-library'
@@ -19,7 +26,6 @@ httpShutdown.extend()
 
 function getGoogleDocsConfig (config, domainConfig, path) {
     return domainConfig.get(['google-docs', path], null) || config.get(['google-docs', path])
-
 }
 
 export async function syncPoToGoogleDocs (config, domainConfig, tag, poDir) {
@@ -105,7 +111,7 @@ function readAuthCode(oauth2Client) {
 const documentIdCache = {}
 
 async function findDocumentId(drive, auth, docName) {
-    if (!(docName in documentIdCache)) {
+    if (!documentIdCache.hasOwnProperty(docName)) {
         const {files} = await drive.files.list({
             auth,
             q: `name = '${docName}' and trashed = false`,
@@ -134,8 +140,7 @@ async function readPoFiles(poDir) {
     const poData = {}
     for (const poPath of poPaths) {
         const locale = path.basename(poPath, '.po')
-        const input = fs.readFileSync(poPath)
-        poData[locale] = gettextParser.po.parse(input, 'UTF-8')
+        poData[locale] = readPoFile(poPath)
     }
     // console.log('po data read', JSON.stringify(poData, null, 2))
     return poData
@@ -144,9 +149,8 @@ async function readPoFiles(poDir) {
 function writePoFiles(poDir, poData) {
     // console.log('po data to write', JSON.stringify(poData, null, 2))
     for (const [locale, po] of Object.entries(poData)) {
-        const output = gettextParser.po.compile(po)
         const poPath = path.join(poDir, locale + '.po')
-        fs.writeFileSync(poPath, output)
+        writePoFile(poPath, po)
         cleanupPo(poPath)
     }
 }
@@ -182,7 +186,7 @@ function getColumnMap(headerRow) {
         }
     }
 
-    if (!('source' in columnMap)) {
+    if (!columnMap.hasOwnProperty('source')) {
         throw new Error(`no 'source' row in header of the sheet`)
     }
 
@@ -221,7 +225,7 @@ function readDataRow(dataRow, columnMap) {
     }
 
     return {
-        key: ('key' in columnMap) ? decodeSheetText(dataRow[columnMap.key]) : '',
+        key: columnMap.hasOwnProperty('key') ? decodeSheetText(dataRow[columnMap.key]) : '',
         source: decodeSheetText(dataRow[columnMap.source]),
         targets: targets,
         tags: new Set(decodeSheetText(dataRow[columnMap.tag]).split(','))
@@ -231,13 +235,13 @@ function readDataRow(dataRow, columnMap) {
 function updateSheetData(tag, poData, sheetData) {
     for (const [locale, po] of Object.entries(poData)) {
         // console.log('update sheet locale', locale)
-        forPoEntries(po, poEntry => {
+        for (const poEntry of getPoEntries(po)) {
             const entryId = poEntry.msgctxt || poEntry.msgid
             // console.log('update sheet entry id', entryId)
             // console.log('matched entry (locale)', locale)
             // console.log('po entry', poEntry)
 
-            if (!(entryId in sheetData)) {
+            if (!sheetData.hasOwnProperty(entryId)) {
                 sheetData[entryId] = {
                     key: poEntry.msgctxt,
                     source: poEntry.msgid,
@@ -260,7 +264,7 @@ function updateSheetData(tag, poData, sheetData) {
             if (!sheetEntry.targets[locale]) {
                 sheetEntry.targets[locale] = poEntry.msgstr[0]
             }
-        })
+        }
     }
     // console.log('updated sheet data', sheetData)
 }
@@ -268,12 +272,11 @@ function updateSheetData(tag, poData, sheetData) {
 function updatePoData(tag, poData, sheetData) {
     for (const sheetEntry of Object.values(sheetData)) {
         for (const [locale, target] of Object.entries(sheetEntry.targets)) {
-            if (locale in poData) {
-                const po = poData[locale].translations
+            if (poData.hasOwnProperty(locale)) {
+                const po = poData[locale]
+                const poEntry = findPoEntry(poData[locale], sheetEntry.key, sheetEntry.source)
                 // console.log('updating po, sheet entry', sheetEntry)
                 // console.log('updating po, po', po)
-                if ((sheetEntry.key in po) && (sheetEntry.source in po[sheetEntry.key])) {
-                    const poEntry = po[sheetEntry.key][sheetEntry.source]
                     const entryId = poEntry.msgctxt || poEntry.msgid
                     const flag = getPoEntryFlag(poEntry)
                     // console.log('updating po, po entry', poEntry)
@@ -358,7 +361,7 @@ async function updateSheet(tag, rows, columnMap, sheetData) {
         row[columnMap.tag] = encodeSheetText(Array.from(sheetEntry.tags).sort().join(',') || 'UNUSED')
 
         for (const [locale, value] of Object.entries(sheetEntry.targets)) {
-            if (!(locale in columnMap.targets)) {
+            if (!columnMap.targets.hasOwnProperty(locale)) {
                 log.warn('updateSheet', `ignoring ${locale}: no column`)
                 continue
             }

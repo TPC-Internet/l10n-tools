@@ -3,9 +3,12 @@ import * as gettextParser from 'gettext-parser'
 import {sortSet} from './utils'
 
 export class PoEntryBuilder {
-    constructor (msgctxt, msgid) {
+    constructor (msgctxt, msgid, {allowSpaceInId = false} = {}) {
         this.msgctxt = msgctxt || null
-        this.msgid = msgid.trim()
+        if (!allowSpaceInId) {
+            msgid = msgid.trim()
+        }
+        this.msgid = msgid
         this.plural = null
         this.references = new Set()
         this.comments = new Set()
@@ -97,57 +100,89 @@ export class PoEntryBuilder {
 }
 
 export function setPoEntryFlag(poEntry, flag) {
-    if (!('comments' in poEntry)) {
+    if (!poEntry.hasOwnProperty('comments')) {
         poEntry.comments = {}
     }
     poEntry.comments.flag = flag
 }
 
 export function removePoEntryFlag(poEntry) {
-    if (!('comments' in poEntry)) {
+    if (!poEntry.hasOwnProperty('comments')) {
         return
     }
     delete poEntry.comments.flag
 }
 
 export function getPoEntryFlag(poEntry) {
-    if (!('comments' in poEntry)) {
+    if (!poEntry.hasOwnProperty('comments')) {
         return null
     }
     return poEntry.comments.flag || null
 }
 
-export function getPoEntry(po, msgctxt, msgid) {
+export function findPoEntry(po, msgctxt, msgid) {
     if (msgctxt == null) {
         msgctxt = ''
     }
-    if (!(msgctxt in po.translations)) {
+    if (!po.translations.hasOwnProperty(msgctxt)) {
         return null
     }
-    return po.translations[msgctxt][msgid] || null
+    if (!msgctxt) {
+        return po.translations[msgctxt][msgid] || null
+    }
+    if (po.translations[msgctxt].hasOwnProperty(msgid)) {
+        return po.translations[msgctxt][msgid]
+    }
+    const contextMsgIds = Object.keys(po.translations[msgctxt])
+    if (contextMsgIds.length > 1) {
+        throw new Error(`[findPoEntry] multiple msgid in msgctxt ${msgctxt}`)
+    }
+    if (contextMsgIds.length === 0) {
+        return null
+    }
+    return po.translations[msgctxt][contextMsgIds[0]] || null
 }
 
 export function setPoEntry(po, poEntry) {
+    const oldPoEntry = findPoEntry(po, poEntry.msgctxt, poEntry.msgid)
     const msgctxt = poEntry.msgctxt || ''
-    if (!(msgctxt in po.translations)) {
+    if (oldPoEntry) {
+        if (oldPoEntry.msgid !== poEntry.msgid) {
+            delete po.translations[msgctxt][oldPoEntry.msgid]
+        }
+    }
+    if (!po.translations.hasOwnProperty(msgctxt)) {
         po.translations[msgctxt] = {}
     }
     po.translations[msgctxt][poEntry.msgid] = poEntry
 }
 
-export function forPoEntries(po, callback) {
+export function readPoFile (poPath) {
+    const poInput = fs.readFileSync(poPath)
+    return gettextParser.po.parse(poInput, 'UTF-8')
+}
+
+export function writePoFile (poPath, po) {
+    const output = gettextParser.po.compile(po)
+    fs.writeFileSync(poPath, output)
+}
+
+export function* getPoEntries(po) {
     for (const [msgctxt, poEntries] of Object.entries(po.translations)) {
         for (const [msgid, poEntry] of Object.entries(poEntries)) {
-            if (msgctxt === '' && msgid === '') {
+            if (!msgctxt && !msgid) {
                 continue
             }
-
-            callback(poEntry)
+            yield poEntry
         }
     }
 }
 
-function checkPoEntrySpecs(poEntry, specs) {
+export function* getPoEntriesFromFile(poPath) {
+    yield* getPoEntries(readPoFile(poPath))
+}
+
+export function checkPoEntrySpecs(poEntry, specs) {
     return specs.every(spec => {
         const positive = !spec.startsWith('!')
         if (!positive) {
@@ -178,35 +213,10 @@ function checkPoEntrySpecs(poEntry, specs) {
     })
 }
 
-export function countPoEntries (poPath, specs) {
-    const poInput = fs.readFileSync(poPath)
-    const po = gettextParser.po.parse(poInput, 'UTF-8')
-    let count = 0
-    forPoEntries(po, poEntry => {
-        if (checkPoEntrySpecs(poEntry, specs)) {
-            count++
-        }
-    })
-    return count
-}
-
-export function getPoEntries (poPath, specs) {
-    const poInput = fs.readFileSync(poPath)
-    const po = gettextParser.po.parse(poInput, 'UTF-8')
-    const poEntries = []
-    forPoEntries(po, poEntry => {
-        if (checkPoEntrySpecs(poEntry, specs)) {
-            poEntries.push(poEntry)
-        }
-    })
-    return poEntries
-}
-
 export function exportPoToJson (poPath, {keySeparator = '.'} = {}) {
     const json = {}
-    const poInput = fs.readFileSync(poPath)
-    const po = gettextParser.po.parse(poInput, 'UTF-8')
-    forPoEntries(po, poEntry => {
+    const po = readPoFile(poPath)
+    for (const poEntry of getPoEntries(po)) {
         if (poEntry.msgctxt) {
             throw new Error('[exportPoToJson] po entry with msgctxt not supported yet')
         }
@@ -224,6 +234,6 @@ export function exportPoToJson (poPath, {keySeparator = '.'} = {}) {
             }
             obj[lastKey] = poEntry.msgstr[0]
         }
-    })
+    }
     return json
 }

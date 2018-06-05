@@ -1,10 +1,9 @@
 import log from 'npmlog'
 import path from 'path'
 import * as shell from 'shelljs'
-import fs from 'fs'
-import * as gettextParser from 'gettext-parser'
 import jsonfile from 'jsonfile'
 import glob from 'glob-promise'
+import {getPoEntriesFromFile} from '../po'
 
 export default async function(domainName, config, poDir) {
     const baseLocale = config.get('base-locale')
@@ -15,26 +14,19 @@ export default async function(domainName, config, poDir) {
     const poPaths = await glob.promise(`${poDir}/*.po`)
     for (const poPath of poPaths) {
         const locale = path.basename(poPath, '.po')
-        const input = fs.readFileSync(poPath)
-        const {translations} = gettextParser.po.parse(input)
         const json = {}
-        for (const data of Object.values(translations)) {
-            const entry = Object.values(data)[0]
-            if (!('msgctxt' in entry) && entry.msgid === '') {
-                continue
-            }
-
-            if (entry.msgstr.length > 1) {
+        for (const poEntry of getPoEntriesFromFile(poPath)) {
+            if (poEntry.msgstr.length > 1) {
                 throw new Error('unknown po format')
             }
 
-            const [ns, key] = entry.msgctxt.split('.', 2)
-            let value = entry.msgstr[0]
+            const [ns, key] = poEntry.msgctxt.split('.', 2)
+            let value = poEntry.msgstr[0]
             if (!value && locale === baseLocale) {
-                value = entry.msgid
+                value = poEntry.msgid
             }
 
-            if (!(ns in json)) {
+            if (!json.hasOwnProperty(ns)) {
                 json[ns] = {}
             }
 
