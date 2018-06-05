@@ -4,15 +4,7 @@ import glob from 'glob-promise'
 import log from 'npmlog'
 import path from 'path'
 import * as shell from 'shelljs'
-import {
-    getPoEntries,
-    findPoEntry,
-    getPoEntryFlag,
-    setPoEntryFlag,
-    readPoFile,
-    writePoFile,
-    getPoEntriesFromFile
-} from './po'
+import {getPoEntries, findPoEntry, getPoEntryFlag, setPoEntryFlag, readPoFile, writePoFile} from './po'
 import {execWithLog, requireCmd} from './utils'
 
 export async function getSrcPaths (config, exts) {
@@ -86,7 +78,7 @@ export async function mergeFallbackLocale(domainName, poDir, fallbackLocale, mer
         const locale = path.basename(poPath, '.po')
         const po = readPoFile(poPath)
         if (locale !== fallbackLocale) {
-            for (const poEntry of getPoEntriesFromFile(po)) {
+            for (const poEntry of getPoEntries(po)) {
                 if (!poEntry.msgstr[0]) {
                     const fallbackPoEntry = findPoEntry(fallbackPo, poEntry.msgctxt, poEntry.msgid)
                     if (fallbackPoEntry != null && fallbackPoEntry.msgstr[0]) {

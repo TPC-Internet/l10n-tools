@@ -6,15 +6,7 @@ import path from 'path'
 import querystring from 'querystring'
 import url from 'url'
 import {cleanupPo} from './common'
-import {
-    findPoEntry,
-    getPoEntries,
-    getPoEntryFlag,
-    readPoFile,
-    removePoEntryFlag, setPoEntry,
-    setPoEntryFlag,
-    writePoFile
-} from './po'
+import {findPoEntry, getPoEntries, getPoEntryFlag, readPoFile, removePoEntryFlag, setPoEntry, setPoEntryFlag, writePoFile} from './po'
 import fs from 'fs'
 import {google} from 'googleapis'
 import {OAuth2Client} from 'google-auth-library'
@@ -270,10 +262,8 @@ function updateSheetData(tag, pot, poData, sheetData) {
             }
 
             const sheetEntry = sheetData[entryId]
-            if (poEntry.msgctxt !== sheetEntry.key || poEntry.msgid !== sheetEntry.source) {
-                log.warn('updateSheetData', `po entry: ${JSON.stringify(poEntry, null, 2)}`)
-                log.warn('updateSheetData', `sheet entry: ${JSON.stringify(sheetEntry, null, 2)}`)
-                throw new Error(`entry conflict occurred ${poEntry.msgctxt || poEntry.msgid} vs ${sheetEntry.key || sheetEntry.source}`)
+            if (poEntry.msgctxt && poEntry.msgid !== sheetEntry.source) {
+                log.warn('updateSheetData', `source column need update to: ${poEntry.msgid}`)
             }
 
             sheetEntry.tags.add(tag)
