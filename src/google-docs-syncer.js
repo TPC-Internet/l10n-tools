@@ -219,7 +219,7 @@ function readDataRow(dataRow, columnMap) {
     }
 
     return {
-        key: columnMap.hasOwnProperty('key') ? decodeSheetText(dataRow[columnMap.key]) : '',
+        key: decodeSheetText(columnMap.hasOwnProperty('key') ? dataRow[columnMap.key] : ''),
         source: decodeSheetText(dataRow[columnMap.source]),
         targets: targets,
         tags: new Set(decodeSheetText(dataRow[columnMap.tag]).split(','))
@@ -345,7 +345,7 @@ async function updateSheet(tag, rows, columnMap, sheetData) {
                     type: 'update-cell',
                     row: index + 1,
                     column: columnMap.source,
-                    data: sheetEntry.source
+                    data: encodeSheetText(sheetEntry.source)
                 })
             }
 
@@ -357,7 +357,7 @@ async function updateSheet(tag, rows, columnMap, sheetData) {
                     type: 'update-cell',
                     row: index + 1,
                     column: columnMap.tag,
-                    data: newTag
+                    data: encodeSheetText(newTag)
                 })
             }
 
@@ -369,7 +369,7 @@ async function updateSheet(tag, rows, columnMap, sheetData) {
                         type: 'update-cell',
                         row: index + 1,
                         column: columnMap.targets[locale],
-                        data: newValue
+                        data: encodeSheetText(newValue)
                     })
                 }
             }
@@ -379,7 +379,7 @@ async function updateSheet(tag, rows, columnMap, sheetData) {
     }
 
     for (const [entryId, sheetEntry] of Object.entries(sheetData)) {
-        if (sheetEntry.key && columnMap.key == null) {
+        if (sheetEntry.key && !columnMap.hasOwnProperty('key')) {
             log.warn('updateSheet', `ignoring ${sheetEntry.key}: no key column`)
             continue
         }
