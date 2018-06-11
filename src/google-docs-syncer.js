@@ -13,6 +13,7 @@ import {OAuth2Client} from 'google-auth-library'
 import jsonfile from 'jsonfile'
 import opn from 'opn'
 import * as shell from 'shelljs'
+import objectPath from 'object-path'
 
 httpShutdown.extend()
 
@@ -175,6 +176,8 @@ function getColumnMap(headerRow) {
             columnMap.source = index
         } else if (columnName === 'tag') {
             columnMap.tag = index
+        } else if (columnName === 'ref') {
+            columnMap.ref = index
         } else if (columnName.startsWith('target-')) {
             columnMap.targets[columnName.substr(7)] = index
         }
@@ -222,7 +225,8 @@ function readDataRow(dataRow, columnMap) {
         key: decodeSheetText(columnMap.hasOwnProperty('key') ? dataRow[columnMap.key] : ''),
         source: decodeSheetText(dataRow[columnMap.source]),
         targets: targets,
-        tags: new Set(decodeSheetText(dataRow[columnMap.tag]).split(','))
+        tags: new Set(decodeSheetText(dataRow[columnMap.tag]).split(',')),
+        ref: decodeSheetText(columnMap.hasOwnProperty('ref') ? dataRow[columnMap.ref] : '')
     }
 }
 
@@ -234,13 +238,19 @@ function updateSheetData(tag, pot, poData, sheetData) {
                 key: potEntry.msgctxt,
                 source: potEntry.msgid,
                 targets: {},
-                tags: new Set()
+                tags: new Set(),
+                ref: ''
             }
         }
 
         const sheetEntry = sheetData[entryId]
         if (potEntry.msgctxt && potEntry.msgctxt === sheetEntry.key && potEntry.msgid !== sheetEntry.source) {
             sheetEntry.source = potEntry.msgid
+        }
+
+        const ref = objectPath.get(potEntry, 'comments.reference', '')
+        if (sheetEntry.ref !== ref) {
+            sheetEntry.ref = ref
         }
     }
 
@@ -257,7 +267,8 @@ function updateSheetData(tag, pot, poData, sheetData) {
                     key: poEntry.msgctxt,
                     source: poEntry.msgid,
                     targets: {},
-                    tags: new Set()
+                    tags: new Set(),
+                    ref: ''
                 }
             }
 
@@ -270,6 +281,11 @@ function updateSheetData(tag, pot, poData, sheetData) {
 
             if (!sheetEntry.targets[locale]) {
                 sheetEntry.targets[locale] = poEntry.msgstr[0]
+            }
+
+            const ref = objectPath.get(poEntry, 'comments.reference', '')
+            if (ref && sheetEntry.ref !== ref) {
+                sheetEntry.ref = ref
             }
         }
     }
@@ -374,6 +390,16 @@ async function updateSheet(tag, rows, columnMap, sheetData) {
                 }
             }
 
+            if (columnMap.hasOwnProperty('ref') && rowEntry.ref !== sheetEntry.ref) {
+                log.notice('updateSheet', `setting ref of ${entryId}: ${sheetEntry.ref}`)
+                docActions.push({
+                    type: 'update-cell',
+                    row: index + 1,
+                    column: columnMap.ref,
+                    data: encodeSheetText(sheetEntry.ref)
+                })
+            }
+
             delete sheetData[entryId]
         }
     }
@@ -396,6 +422,11 @@ async function updateSheet(tag, rows, columnMap, sheetData) {
             }
             row[columnMap.targets[locale]] = encodeSheetText(value)
         }
+
+        if (columnMap.hasOwnProperty('ref')) {
+            row[columnMap.ref] = encodeSheetText(sheetEntry.ref)
+        }
+
         log.warn('updateSheet', `appending row of ${entryId}`)
         docActions.push({
             type: 'append-row',
