@@ -502,23 +502,11 @@ function toCellName(row, column) {
 function encodeSheetText(text) {
     if (text == null)
         return ''
-
-    if (text.startsWith('+')) {
-        return '\'' + text
-    } else {
-        return text
-    }
+    return text
 }
 
 function decodeSheetText(sheetText) {
     if (sheetText == null)
         return ''
-
-    if (sheetText.startsWith('\'')) {
-        const text = sheetText.substr(1)
-        if (text.startsWith('+')) {
-            return text
-        }
-    }
-    return sheetText.replace(/\r\n/, '\n')
+    return sheetText.replace(/\r\n/g, '\n')
 }
