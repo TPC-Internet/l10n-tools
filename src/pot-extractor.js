@@ -492,7 +492,7 @@ export class PotExtractor {
     }
 
     toString () {
-        return gettextParser.po.compile(this.po, {sortByMsgid: true})
+        return gettextParser.po.compile(this.po, {sort: true})
     }
 }
 
