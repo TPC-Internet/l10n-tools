@@ -1,13 +1,13 @@
 {
   "presets": [
-    ["env", {
+    ["@babel/preset-env", {
       "targets": {
-        "node": "6.10"
+        "node": "8"
       }
     }]
   ],
   "plugins": [
-    "transform-object-rest-spread",
-    "source-map-support-for-6"
+    "@babel/proposal-object-rest-spread",
+    "babel-plugin-source-map-support"
   ]
 }

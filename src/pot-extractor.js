@@ -1,12 +1,37 @@
 import cheerio from 'cheerio'
-import createBabylonOptions from 'babylon-options'
-import * as babylon from 'babylon'
+import * as babelParser from '@babel/parser'
 import log from 'npmlog'
-import traverse from 'babel-traverse'
+import traverse from '@babel/traverse'
 import {findPoEntry, PoEntryBuilder, setPoEntry} from './po'
 import * as gettextParser from 'gettext-parser'
 import * as ts from 'typescript'
 import Engine from 'php-parser'
+
+function getBabelParserOptions(options) {
+    options.plugins = [
+        'doExpressions',
+        'functionBind',
+        'exportExtensions',
+        'exportDefaultFrom',
+        'exportNamespaceFrom',
+        'optionalChaining',
+        'nullishCoalescingOperator',
+        'decorators2',
+        'functionSent',
+        'throwExpressions',
+        'classProperties',
+        'classPrivateProperties',
+        'classPrivateMethods',
+        'dynamicImport',
+        'importMeta',
+        'numericSeparator',
+        'bigInt',
+        'optionalCatchBinding',
+        'objectRestSpread',
+        'asyncGenerators'
+    ]
+    return options
+}
 
 export class PotExtractor {
     constructor (po, options) {
@@ -111,11 +136,10 @@ export class PotExtractor {
 
     extractJsModule (filename, src, startLine = 1) {
         try {
-            const ast = babylon.parse(src, createBabylonOptions({
+            const ast = babelParser.parse(src, getBabelParserOptions({
                 sourceType: 'module',
                 sourceFilename: filename,
-                startLine: startLine,
-                stage: 0
+                startLine: startLine
             }))
             this.extractJsNode(filename, src, ast)
         } catch (err) {
@@ -245,11 +269,10 @@ export class PotExtractor {
 
     extractJsExpression (filename, src, startLine = 1) {
         try {
-            const ast = babylon.parse('(' + src + ')', createBabylonOptions({
+            const ast = babelParser.parse('(' + src + ')', getBabelParserOptions({
                 sourceType: 'script',
                 sourceFilename: filename,
-                startLine: startLine,
-                stage: 0
+                startLine: startLine
             }))
             this.extractJsNode(filename, src, ast)
         } catch (err) {
@@ -266,11 +289,10 @@ export class PotExtractor {
 
             const contentExpr = match[1]
             try {
-                const node = babylon.parseExpression(contentExpr, createBabylonOptions({
+                const node = babelParser.parseExpression(contentExpr, getBabelParserOptions({
                     sourceType: 'script',
                     sourceFilename: filename,
-                    startLine: startLine,
-                    stage: 0
+                    startLine: startLine
                 }))
                 try {
                     const ids = this._evaluateJsArgumentValues(node)
