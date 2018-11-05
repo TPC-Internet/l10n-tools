@@ -40,6 +40,7 @@ export class PotExtractor {
             keywords: [],
             tagNames: [],
             attrNames: [],
+            valueAttrNames: [],
             filterNames: [],
             markers: [],
             exprAttrs: [],
@@ -134,6 +135,25 @@ export class PotExtractor {
         })
     }
 
+    extractJsIdentifierNode (filename, src, ast) {
+        traverse(ast, {
+            enter: path => {
+                const node = path.node
+                if (node.type === 'ExpressionStatement') {
+                    try {
+                        const ids = this._evaluateJsArgumentValues(node.expression)
+                        for (const id of ids) {
+                            this.addMessage({filename, line: node.loc.start.line}, id)
+                        }
+                    } catch (err) {
+                        log.warn('extractJsIdentifierNode', err.message)
+                        log.warn('extractJsIdentifierNode', `'${src.substring(node.start, node.end)}': (${node.loc.filename}:${node.loc.start.line})`)
+                    }
+                }
+            }
+        })
+    }
+
     extractJsModule (filename, src, startLine = 1) {
         try {
             const ast = babelParser.parse(src, getBabelParserOptions({
@@ -217,20 +237,36 @@ export class PotExtractor {
             }
 
             for (const [attr, content] of Object.entries(elem.attribs)) {
-                if (content && this.options.exprAttrs.some(pattern => attr.match(pattern))) {
-                    let contentIndex = 0
-                    const attrIndex = src.substr(elem.startIndex).indexOf(attr)
-                    if (attrIndex >= 0) {
-                        contentIndex = attrIndex + attr.length
-                        while (/[=\s]/.test(src.substr(elem.startIndex + contentIndex)[0])) {
-                            contentIndex++
+                if (content) {
+                    if (this.options.exprAttrs.some(pattern => attr.match(pattern))) {
+                        let contentIndex = 0
+                        const attrIndex = src.substr(elem.startIndex).indexOf(attr)
+                        if (attrIndex >= 0) {
+                            contentIndex = attrIndex + attr.length
+                            while (/[=\s]/.test(src.substr(elem.startIndex + contentIndex)[0])) {
+                                contentIndex++
+                            }
+                            if (['\'', '"'].includes(src.substr(elem.startIndex + contentIndex)[0])) {
+                                contentIndex++
+                            }
                         }
-                        if (['\'', '"'].includes(src.substr(elem.startIndex + contentIndex)[0])) {
-                            contentIndex++
+                        const line = getLineTo(src, elem.startIndex + contentIndex, startLine)
+                        this.extractJsExpression(filename, content, line)
+                    } else if (this.options.valueAttrNames.some(pattern => attr.match(pattern))) {
+                        let contentIndex = 0
+                        const attrIndex = src.substr(elem.startIndex).indexOf(attr)
+                        if (attrIndex >= 0) {
+                            contentIndex = attrIndex + attr.length
+                            while (/[=\s]/.test(src.substr(elem.startIndex + contentIndex)[0])) {
+                                contentIndex++
+                            }
+                            if (['\'', '"'].includes(src.substr(elem.startIndex + contentIndex)[0])) {
+                                contentIndex++
+                            }
                         }
+                        const line = getLineTo(src, elem.startIndex + contentIndex, startLine)
+                        this.extractJsIdentifier(filename, content, line)
                     }
-                    const line = getLineTo(src, elem.startIndex + contentIndex, startLine)
-                    this.extractJsExpression(filename, content, line)
                 }
             }
         })
@@ -277,6 +313,19 @@ export class PotExtractor {
             this.extractJsNode(filename, src, ast)
         } catch (err) {
             log.warn('extractJsExpression', `error parsing '${src}' (${filename}:${startLine})`, err)
+        }
+    }
+
+    extractJsIdentifier (filename, src, startLine = 1) {
+        try {
+            const ast = babelParser.parse('(' + src + ')', getBabelParserOptions({
+                sourceType: 'script',
+                sourceFilename: filename,
+                startLine: startLine
+            }))
+            this.extractJsIdentifierNode(filename, src, ast)
+        } catch (err) {
+            log.warn('extractJsIdentifier', `error parsing '${src}' (${filename}:${startLine})`, err)
         }
     }
 

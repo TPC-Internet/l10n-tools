@@ -12,6 +12,7 @@ export default async function (domainName, config, potPath) {
     keywords.add('$i18nPath')
 
     const extractor = PotExtractor.create(domainName, {
+        valueAttrNames: ['v-t'],
         exprAttrs: [/^:/, /^v-bind:/],
         markers: [{start: '{{', end: '}}'}],
         keywords: keywords
