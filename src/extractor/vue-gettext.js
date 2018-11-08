@@ -10,6 +10,9 @@ export default async function (domainName, config, potPath) {
     keywords.add('$gettext')
     keywords.add('this.$gettext')
     keywords.add('vm.$gettext')
+    keywords.add('$gettextInterpolate')
+    keywords.add('this.$gettextInterpolate')
+    keywords.add('vm.$gettextInterpolate')
 
     const extractor = PotExtractor.create(domainName, {
         tagNames: ['translate'],
