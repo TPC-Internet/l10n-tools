@@ -17,7 +17,7 @@ function loadExtractor (type) {
             return require('./vue-i18n').default
         case 'javascript':
         case 'i18next':
-            return require('./javascript').default
+            return require('./i18next').default
         case 'vt':
             return require('./vt').default
         case 'python':
