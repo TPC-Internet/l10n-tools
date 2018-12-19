@@ -17,15 +17,23 @@ import objectPath from 'object-path'
 
 httpShutdown.extend()
 
-function getGoogleDocsConfig (config, domainConfig, path) {
-    return domainConfig.get(['google-docs', path], null) || config.get(['google-docs', path])
+function getGoogleDocsConfig (config, domainConfig, path, defaultValue = undefined) {
+    return domainConfig.get(['google-docs', path], null) || config.get(['google-docs', path], defaultValue)
 }
 
 export async function syncPoToGoogleDocs (config, domainConfig, tag, potPath, poDir) {
     const docName = getGoogleDocsConfig(config, domainConfig, 'doc-name')
     const sheetName = getGoogleDocsConfig(config, domainConfig, 'sheet-name')
-    const clientSecretPath = getGoogleDocsConfig(config, domainConfig, 'client-secret-path')
-    const credentials = jsonfile.readFileSync(clientSecretPath)['installed']
+    const clientSecretPath = getGoogleDocsConfig(config, domainConfig, 'client-secret-path', null)
+    let credentials
+    if (clientSecretPath) {
+        credentials = jsonfile.readFileSync(clientSecretPath)['installed']
+    } else {
+        credentials = {
+            client_id: getGoogleDocsConfig(config, domainConfig, 'client-id'),
+            client_secret: getGoogleDocsConfig(config, domainConfig, 'client-secret')
+        }
+    }
 
     const drive = google.drive('v3')
     const sheets = google.sheets('v4')
