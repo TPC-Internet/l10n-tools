@@ -93,22 +93,6 @@ export async function mergeFallbackLocale(domainName, poDir, fallbackLocale, mer
     }
 }
 
-export async function compilePoToMo (domainName, poDir, targetDir) {
-    shell.mkdir('-p', targetDir)
-    const poPaths = await glob.promise(`${poDir}/*.po`)
-    for (const poPath of poPaths) {
-        const locale = path.basename(poPath, '.po')
-        const moDir = path.join(targetDir, locale, 'LC_MESSAGES')
-        const moPath = path.join(moDir, domainName + '.mo')
-
-        const po = readPoFile(poPath)
-        const output = gettextParser.mo.compile(po)
-
-        shell.mkdir('-p', moDir)
-        fs.writeFileSync(moPath, output)
-    }
-}
-
 export function cleanupPot (potPath) {
     // POT-Creation-Date 항목이 자꾸 바뀌어서 diff 생기는 것 방지
     // 빈 주석, fuzzy 마크 지우기
