@@ -50,6 +50,8 @@ export class PotExtractor {
         this.filterExprs = this.options.filterNames.map(filterName => {
             return new RegExp('^(.*)\\|\\s*' + filterName)
         })
+
+        this.keywordDefs = this.options.keywords.map(keyword => parseKeyword(keyword))
     }
 
     static create (domainName, options) {
@@ -93,17 +95,14 @@ export class PotExtractor {
             enter: path => {
                 const node = path.node
                 if (node.type === 'CallExpression') {
-                    for (const keyword of this.options.keywords) {
-                        const dotIndex = keyword.indexOf('.')
-                        if (dotIndex >= 0) {
+                    for (const {objectName, propName, position} of this.keywordDefs) {
+                        if (objectName != null) {
                             if (node.callee.type === 'MemberExpression') {
-                                const objectName = keyword.substring(0, dotIndex)
-                                const propName = keyword.substring(dotIndex + 1)
                                 if ((objectName === 'this' && node.callee.object.type === 'ThisExpression')
                                     || (node.callee.object.type === 'Identifier' && node.callee.object.name === objectName)) {
                                     if (node.callee.property.type === 'Identifier' && node.callee.property.name === propName) {
                                         try {
-                                            const ids = this._evaluateJsArgumentValues(node.arguments[0])
+                                            const ids = this._evaluateJsArgumentValues(node.arguments[position])
                                             for (const id of ids) {
                                                 this.addMessage({filename, line: node.loc.start.line}, id)
                                             }
@@ -116,9 +115,9 @@ export class PotExtractor {
                             }
                         } else {
                             if (node.callee.type === 'Identifier') {
-                                if (node.callee.name === keyword) {
+                                if (node.callee.name === propName) {
                                     try {
-                                        const ids = this._evaluateJsArgumentValues(node.arguments[0])
+                                        const ids = this._evaluateJsArgumentValues(node.arguments[position])
                                         for (const id of ids) {
                                             this.addMessage({filename, line: node.loc.start.line}, id)
                                         }
@@ -385,19 +384,16 @@ export class PotExtractor {
         const visit = node => {
             if (node.kind === ts.SyntaxKind.CallExpression) {
                 const pos = findNonSpace(src, node.pos)
-                for (const keyword of this.options.keywords) {
-                    const dotIndex = keyword.indexOf('.')
-                    if (dotIndex >= 0) {
+                for (const {objectName, propName, position} of this.keywordDefs) {
+                    if (objectName != null) {
                         if (node.expression.kind === ts.SyntaxKind.PropertyAccessExpression) {
-                            const objectName = keyword.substring(0, dotIndex)
-                            const propName = keyword.substring(dotIndex + 1)
                             const callee = node.expression.expression
                             if ((objectName === 'this' && callee.kind === ts.SyntaxKind.ThisKeyword)
                                 || (callee.kind === ts.SyntaxKind.Identifier && callee.text === objectName)) {
                                 const name = node.expression.name
                                 if (name.kind === ts.SyntaxKind.Identifier && name.text === propName) {
                                     try {
-                                        const ids = this._evaluateTsArgumentValues(node.arguments[0])
+                                        const ids = this._evaluateTsArgumentValues(node.arguments[position])
                                         for (const id of ids) {
                                             this.addMessage({filename, line: getLineTo(src, pos, startLine)}, id)
                                         }
@@ -411,9 +407,9 @@ export class PotExtractor {
                     } else {
                         if (node.expression.kind === ts.SyntaxKind.Identifier) {
                             const callee = node.expression
-                            if (callee.text === keyword) {
+                            if (callee.text === propName) {
                                 try {
-                                    const ids = this._evaluateTsArgumentValues(node.arguments[0])
+                                    const ids = this._evaluateTsArgumentValues(node.arguments[position])
                                     for (const id of ids) {
                                         this.addMessage({filename, line: getLineTo(src, pos, startLine)}, id)
                                     }
@@ -487,12 +483,12 @@ export class PotExtractor {
     extractPhpNode (filename, src, Node, ast, startLine = 1) {
         const visit = node => {
             if (node.kind === 'call') {
-                for (const keyword of this.options.keywords) {
+                for (const {propName, position} of this.keywordDefs) {
                     if (node.what.kind === 'identifier') {
-                        if (node.what.name === keyword) {
+                        if (node.what.name === propName) {
                             const startOffset = src.substr(0, node.loc.start.offset).lastIndexOf(keyword)
                             try {
-                                const ids = this._evaluatePhpArgumentValues(node.arguments[0])
+                                const ids = this._evaluatePhpArgumentValues(node.arguments[position])
                                 for (const id of ids) {
                                     this.addMessage({filename, line: node.loc.start.line}, id)
                                 }
@@ -564,6 +560,25 @@ export class PotExtractor {
 
     toString () {
         return gettextParser.po.compile(this.po, {sort: true})
+    }
+}
+
+function parseKeyword(keyword) {
+    const [name, _pos] = keyword.split(':')
+    const position = _pos ? Number.parseInt(_pos) : 0
+    const [name1, name2] = name.split('.')
+    if (name2) {
+        return {
+            objectName: name1,
+            propName: name2,
+            position: position
+        }
+    } else {
+        return {
+            objectName: null,
+            propName: name1,
+            position: position
+        }
     }
 }
 
