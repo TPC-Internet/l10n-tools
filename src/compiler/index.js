@@ -31,6 +31,8 @@ function loadCompiler (type) {
         case 'vt':
         case 'python':
             return require('./mo').default
+        case 'node-gettext':
+            return require('./node-gettext').default
         case 'angular-gettext':
             return require('./angular-gettext').default
         case 'android':
