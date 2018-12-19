@@ -2,7 +2,7 @@ import {spawn} from 'child_process'
 import commandExists from 'command-exists'
 import log from 'npmlog'
 import os from 'os'
-import path from 'path'
+import * as path from 'path'
 
 export function execWithLog (cmd, logPrefix = '') {
     return new Promise((resolve, reject) => {

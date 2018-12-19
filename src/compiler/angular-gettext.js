@@ -1,7 +1,7 @@
 import fs from 'fs'
 import glob from 'glob-promise'
 import log from 'npmlog'
-import path from 'path'
+import * as path from 'path'
 import {Compiler} from 'angular-gettext-tools'
 
 export default async function (domainName, config, poDir) {

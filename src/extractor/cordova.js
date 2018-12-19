@@ -1,5 +1,5 @@
 import log from 'npmlog'
-import path from 'path'
+import * as path from 'path'
 import fs from 'fs'
 import jsonfile from 'jsonfile'
 import {PotExtractor} from '../pot-extractor'

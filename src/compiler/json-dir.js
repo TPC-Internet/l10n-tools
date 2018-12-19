@@ -2,7 +2,7 @@ import fs from 'fs'
 import glob from 'glob-promise'
 import log from 'npmlog'
 import * as shell from 'shelljs'
-import path from 'path'
+import * as path from 'path'
 import {exportPoToJson} from '../po'
 
 export default async function (domainName, config, poDir) {

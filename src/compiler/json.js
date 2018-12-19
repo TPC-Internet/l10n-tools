@@ -1,6 +1,6 @@
 import glob from 'glob-promise'
 import log from 'npmlog'
-import path from 'path'
+import * as path from 'path'
 import jsonfile from 'jsonfile'
 import {exportPoToJson} from '../po'
 

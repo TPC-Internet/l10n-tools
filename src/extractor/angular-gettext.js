@@ -1,6 +1,6 @@
 import fs from 'fs'
 import log from 'npmlog'
-import path from 'path'
+import * as path from 'path'
 import {getSrcPaths} from '../common'
 import {PotExtractor} from '../pot-extractor'
 import {applyFilter} from '../filter'
