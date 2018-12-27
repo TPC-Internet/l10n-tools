@@ -51,7 +51,7 @@ export class PotExtractor {
             return new RegExp('^(.*)\\|\\s*' + filterName)
         })
 
-        this.keywordDefs = this.options.keywords.map(keyword => parseKeyword(keyword))
+        this.keywordDefs = [...this.options.keywords].map(keyword => parseKeyword(keyword))
     }
 
     static create (domainName, options) {
