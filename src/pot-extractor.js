@@ -484,9 +484,9 @@ export class PotExtractor {
         const visit = node => {
             if (node.kind === 'call') {
                 for (const {propName, position} of this.keywordDefs) {
-                    if (node.what.kind === 'identifier') {
+                    if (node.what.kind === 'classreference') {
                         if (node.what.name === propName) {
-                            const startOffset = src.substr(0, node.loc.start.offset).lastIndexOf(keyword)
+                            const startOffset = src.substr(0, node.loc.start.offset).lastIndexOf(propName)
                             try {
                                 const ids = this._evaluatePhpArgumentValues(node.arguments[position])
                                 for (const id of ids) {
@@ -532,7 +532,7 @@ export class PotExtractor {
 
         try {
             const ast = parser.parseCode(src)
-            const Node = parser.ast.constructor.prototype['node']
+            const Node = require("php-parser/src/ast/node")
             this.extractPhpNode(filename, src, Node, ast, startLine)
         } catch (err) {
             log.warn('extractPhpCode', `error parsing '${src.split(/\n/g)[err.loc.line - 1].trim()}' (${filename}:${err.loc.line})`)
