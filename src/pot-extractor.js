@@ -41,6 +41,7 @@ export class PotExtractor {
             tagNames: [],
             attrNames: [],
             valueAttrNames: [],
+            objectAttrs: {},
             filterNames: [],
             markers: [],
             exprAttrs: [],
@@ -67,26 +68,39 @@ export class PotExtractor {
         }, options)
     }
 
-    _evaluateJsArgumentValues (node) {
-        if (node.type === 'StringLiteral') {
-            return [node.value]
-        } else if (node.type === 'Identifier') {
-            throw new Error('cannot extract translations from variable, use string literal directly')
-        } else if (node.type === 'MemberExpression') {
-            throw new Error('cannot extract translations from variable, use string literal directly')
-        } else if (node.type === 'BinaryExpression' && node.operator === '+') {
-            const values = []
-            for (const leftValue of this._evaluateJsArgumentValues(node.left)) {
-                for (const rightValue of this._evaluateJsArgumentValues(node.right)) {
-                    values.push(leftValue + rightValue)
+    _evaluateJsArgumentValues (node, path = '') {
+        if (path) {
+            if (node.type === 'ObjectExpression') {
+                for (const prop of node.properties) {
+                    if (prop.key.type === 'Identifier' && prop.key.name === path) {
+                        return this._evaluateJsArgumentValues(prop.value)
+                    }
                 }
+                throw new Error(`no property path ${path} in object`)
+            } else {
+                throw new Error(`cannot extract translations with path ${path} from non-object`)
             }
-            return values
-        } else if (node.type === 'ConditionalExpression') {
-            return this._evaluateJsArgumentValues(node.consequent)
-                .concat(this._evaluateJsArgumentValues(node.alternate))
         } else {
-            throw new Error(`cannot extract translations from '${node.type}' node, use string literal directly`)
+            if (node.type === 'StringLiteral') {
+                return [node.value]
+            } else if (node.type === 'Identifier') {
+                throw new Error('cannot extract translations from variable, use string literal directly')
+            } else if (node.type === 'MemberExpression') {
+                throw new Error('cannot extract translations from variable, use string literal directly')
+            } else if (node.type === 'BinaryExpression' && node.operator === '+') {
+                const values = []
+                for (const leftValue of this._evaluateJsArgumentValues(node.left)) {
+                    for (const rightValue of this._evaluateJsArgumentValues(node.right)) {
+                        values.push(leftValue + rightValue)
+                    }
+                }
+                return values
+            } else if (node.type === 'ConditionalExpression') {
+                return this._evaluateJsArgumentValues(node.consequent)
+                    .concat(this._evaluateJsArgumentValues(node.alternate))
+            } else {
+                throw new Error(`cannot extract translations from '${node.type}' node, use string literal directly`)
+            }
         }
     }
 
@@ -147,6 +161,34 @@ export class PotExtractor {
                     } catch (err) {
                         log.warn('extractJsIdentifierNode', err.message)
                         log.warn('extractJsIdentifierNode', `'${src.substring(node.start, node.end)}': (${node.loc.filename}:${node.loc.start.line})`)
+                    }
+                }
+            }
+        })
+    }
+
+    extractJsObjectNode (filename, src, ast, paths) {
+        traverse(ast, {
+            enter: path => {
+                const node = path.node
+                const errs = []
+                if (node.type === 'ExpressionStatement') {
+                    for (const path of paths) {
+                        try {
+                            const ids = this._evaluateJsArgumentValues(node.expression, path)
+                            for (const id of ids) {
+                                this.addMessage({filename, line: node.loc.start.line}, id)
+                            }
+                            return
+                        } catch (err) {
+                            errs.push(err)
+                        }
+                    }
+                    if (errs.length > 0) {
+                        for (const err of errs) {
+                            log.warn('extractJsObjectNode', err.message)
+                        }
+                        log.warn('extractJsObjectNode', `'${src.substring(node.start, node.end)}': (${node.loc.filename}:${node.loc.start.line})`)
                     }
                 }
             }
@@ -265,6 +307,20 @@ export class PotExtractor {
                         }
                         const line = getLineTo(src, elem.startIndex + contentIndex, startLine)
                         this.extractJsIdentifier(filename, content, line)
+                    } else if (Object.keys(this.options.objectAttrs).includes(attr)) {
+                        let contentIndex = 0
+                        const attrIndex = src.substr(elem.startIndex).indexOf(attr)
+                        if (attrIndex >= 0) {
+                            contentIndex = attrIndex + attr.length
+                            while (/[=\s]/.test(src.substr(elem.startIndex + contentIndex)[0])) {
+                                contentIndex++
+                            }
+                            if (['\'', '"'].includes(src.substr(elem.startIndex + contentIndex)[0])) {
+                                contentIndex++
+                            }
+                        }
+                        const line = getLineTo(src, elem.startIndex + contentIndex, startLine)
+                        this.extractJsObjectPaths(filename, content, this.options.objectAttrs[attr], line)
                     }
                 }
             }
@@ -325,6 +381,19 @@ export class PotExtractor {
             this.extractJsIdentifierNode(filename, src, ast)
         } catch (err) {
             log.warn('extractJsIdentifier', `error parsing '${src}' (${filename}:${startLine})`, err)
+        }
+    }
+
+    extractJsObjectPaths (filename, src, paths, startLine = 1) {
+        try {
+            const ast = babelParser.parse('(' + src + ')', getBabelParserOptions({
+                sourceType: 'script',
+                sourceFilename: filename,
+                startLine: startLine
+            }))
+            this.extractJsObjectNode(filename, src, ast, paths)
+        } catch (err) {
+            log.warn('extractJsObjectPaths', `error parsing '${src}' (${filename}:${startLine})`, err)
         }
     }
 
