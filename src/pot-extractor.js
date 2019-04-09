@@ -53,6 +53,7 @@ export class PotExtractor {
         })
 
         this.keywordDefs = [...this.options.keywords].map(keyword => parseKeyword(keyword))
+        this.keywordMap = buildKeywordMap(this.options.keywords)
     }
 
     static create (domainName, options) {
@@ -104,43 +105,43 @@ export class PotExtractor {
         }
     }
 
+    _getJsCalleeName(object) {
+        if (object.type === 'Identifier') {
+            return object.name
+        }
+
+        if (object.type === 'ThisExpression') {
+            return 'this'
+        }
+
+        if (object.type === 'MemberExpression') {
+            const obj = this._getJsCalleeName(object.object)
+            const prop = this._getJsCalleeName(object.property)
+            if (obj == null || prop == null) {
+                return null
+            }
+            return obj + '.' + prop
+        }
+
+        return null
+    }
+
     extractJsNode (filename, src, ast) {
         traverse(ast, {
             enter: path => {
                 const node = path.node
                 if (node.type === 'CallExpression') {
-                    for (const {objectName, propName, position} of this.keywordDefs) {
-                        if (objectName != null) {
-                            if (node.callee.type === 'MemberExpression') {
-                                if ((objectName === 'this' && node.callee.object.type === 'ThisExpression')
-                                    || (node.callee.object.type === 'Identifier' && node.callee.object.name === objectName)) {
-                                    if (node.callee.property.type === 'Identifier' && node.callee.property.name === propName) {
-                                        try {
-                                            const ids = this._evaluateJsArgumentValues(node.arguments[position])
-                                            for (const id of ids) {
-                                                this.addMessage({filename, line: node.loc.start.line}, id)
-                                            }
-                                        } catch (err) {
-                                            log.warn('extractJsNode', err.message)
-                                            log.warn('extractJsNode', `'${src.substring(node.start, node.end)}': (${node.loc.filename}:${node.loc.start.line})`)
-                                        }
-                                    }
-                                }
+                    const calleeName = this._getJsCalleeName(node.callee)
+                    if (calleeName != null && this.keywordMap.hasOwnProperty(calleeName)) {
+                        try {
+                            const pos = this.keywordMap[calleeName]
+                            const ids = this._evaluateJsArgumentValues(node.arguments[pos])
+                            for (const id of ids) {
+                                this.addMessage({filename, line: node.loc.start.line}, id)
                             }
-                        } else {
-                            if (node.callee.type === 'Identifier') {
-                                if (node.callee.name === propName) {
-                                    try {
-                                        const ids = this._evaluateJsArgumentValues(node.arguments[position])
-                                        for (const id of ids) {
-                                            this.addMessage({filename, line: node.loc.start.line}, id)
-                                        }
-                                    } catch (err) {
-                                        log.warn('extractJsNode', err.message)
-                                        log.warn('extractJsNode', `'${src.substring(node.start, node.end)}': (${node.loc.filename}:${node.loc.start.line})`)
-                                    }
-                                }
-                            }
+                        } catch (err) {
+                            log.warn('extractJsNode', err.message)
+                            log.warn('extractJsNode', `'${src.substring(node.start, node.end)}': (${node.loc.filename}:${node.loc.start.line})`)
                         }
                     }
                 }
@@ -649,6 +650,15 @@ function parseKeyword(keyword) {
             position: position
         }
     }
+}
+
+function buildKeywordMap(keywords) {
+    const keywordMap = {}
+    for (const keyword of keywords) {
+        const [name, pos] = keyword.split(':')
+        keywordMap[name] = pos ? Number.parseInt(pos) : 0
+    }
+    return keywordMap
 }
 
 function findNonSpace(src, index) {

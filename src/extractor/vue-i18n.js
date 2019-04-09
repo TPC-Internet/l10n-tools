@@ -9,7 +9,7 @@ export default async function (domainName, config, potPath) {
     const keywords = new Set(config.get('keywords', []))
     keywords.add('$t')
     keywords.add('this.$t')
-    keywords.add('$i18nPath')
+    keywords.add('app.i18n.t')
 
     const extractor = PotExtractor.create(domainName, {
         objectAttrs: {'v-t': ['', 'path']},
