@@ -8,12 +8,13 @@ export default async function (domainName, config, potPath) {
     const srcPaths = await getSrcPaths(config, ['.vue', '.js'])
     const keywords = new Set(config.get('keywords', []))
     keywords.add('$t')
+    keywords.add('vm.$t')
     keywords.add('this.$t')
     keywords.add('app.i18n.t')
 
     const extractor = PotExtractor.create(domainName, {
         objectAttrs: {'v-t': ['', 'path']},
-        exprAttrs: [/^:/, /^v-bind:/],
+        exprAttrs: [/^:/, /^v-bind:/, /^v-html$/],
         markers: [{start: '{{', end: '}}'}],
         keywords: keywords
     })
