@@ -11,7 +11,7 @@ import fs from 'fs'
 import {google} from 'googleapis'
 import {OAuth2Client} from 'google-auth-library'
 import jsonfile from 'jsonfile'
-import opn from 'opn'
+import open from 'open'
 import * as shell from 'shelljs'
 import objectPath from 'object-path'
 
@@ -106,7 +106,7 @@ function readAuthCode(oauth2Client) {
         }).withShutdown()
 
         server.listen(8106, () => {
-            opn(authUrl, {wait: false})
+            open(authUrl, {wait: false})
         })
     })
 }
