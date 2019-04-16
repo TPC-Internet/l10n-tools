@@ -257,13 +257,29 @@ export class PotExtractor {
             }
 
             if (this.options.tagNames.includes(elem.name)) {
-                const id = node.html().trim()
-                if (id) {
-                    const line = getLineTo(src, elem.children[0].startIndex, startLine)
-                    const plural = elem.attribs['translate-plural'] || null
-                    const comment = elem.attribs['translate-comment'] || null
-                    const context = elem.attribs['translate-context'] || null
-                    this.addMessage({filename, line}, id, {plural, comment, context})
+                if (elem.name === 'translate') {
+                    const id = node.html().trim()
+                    if (id) {
+                        const line = getLineTo(src, elem.children[0].startIndex, startLine)
+                        const plural = elem.attribs['translate-plural'] || null
+                        const comment = elem.attribs['translate-comment'] || null
+                        const context = elem.attribs['translate-context'] || null
+                        this.addMessage({filename, line}, id, {plural, comment, context})
+                    }
+                } else if (elem.name === 'i18n') {
+                    if ('path' in elem.attribs) {
+                        const id = elem.attribs['path']
+                        if (id) {
+                            const line = getLineTo(src, elem.startIndex, startLine)
+                            this.addMessage({filename, line}, id)
+                        }
+                    } else if (':path' in elem.attribs) {
+                        const source = elem.attribs[':path']
+                        if (source) {
+                            const line = getLineTo(src, elem.startIndex, startLine)
+                            this.extractJsIdentifier(filename, source, line)
+                        }
+                    }
                 }
             }
 
