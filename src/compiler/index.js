@@ -27,6 +27,8 @@ function loadCompiler (type) {
         case 'json-dir':
         case 'i18next':
             return require('./json-dir').default
+        case 'po-json':
+            return require('./po-json').default
         case 'mo':
         case 'vt':
         case 'python':
