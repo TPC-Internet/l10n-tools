@@ -331,6 +331,7 @@ async function run () {
                         }
                         process.exitCode = 1
 
+                        process.stdout.write(`[${locale}] ${specs.join(',')}\n`)
                         const flag = getPoEntryFlag(poEntry)
                         if (flag) {
                             process.stdout.write(`#, ${flag}\n`)
