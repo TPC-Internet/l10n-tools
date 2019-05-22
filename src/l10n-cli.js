@@ -76,6 +76,11 @@ async function run () {
         .description('로컬 소스와 Google Docs 간 싱크')
         .action(c => {cmd = c})
 
+    program.command('check')
+        .description('전체 번역 여부 검사')
+        .option('-l, --locales [locales]', '검사한 로케일 (콤마로 나열 가능, 없으면 전체)')
+        .action(c => {cmd = c})
+
     program.command('_extractPot')
         .description('[고급] 소스에서 번역 추출하여 pot 파일 작성')
         .option('--potdir [potdir]', '설정한 위치에 pot 파일 추출')
@@ -272,7 +277,6 @@ async function run () {
                 shell.rm('-rf', tempDir)
                 await extractPot(domainName, domainConfig, potPath)
                 updatePo(potPath, fromPoDir, poDir, locales)
-                await syncPoToGoogleDocs(config, domainConfig, tag, potPath, poDir)
                 shell.rm('-rf', tempDir)
                 break
             }
@@ -301,6 +305,45 @@ async function run () {
                 } else {
                     await compileAll(domainName, domainConfig, poDir)
                 }
+                break
+            }
+
+            case 'check': {
+                const i18nDir = domainConfig.get('i18n-dir')
+                const locales = cmd.locales ? cmd.locales.split(',') : domainConfig.get('locales')
+
+                const specs = ['untranslated']
+                const fromPoDir = path.join(i18nDir, domainName)
+                const tempDir = path.join(getTempDir(), domainName)
+                const potPath = path.join(tempDir, 'template.pot')
+                const poDir = tempDir
+
+                log.info('l10n', `temp dir: '${tempDir}'`)
+                shell.rm('-rf', tempDir)
+                await extractPot(domainName, domainConfig, potPath)
+                updatePo(potPath, fromPoDir, poDir, locales)
+
+                for (const locale of locales) {
+                    const poPath = path.join(poDir, locale + '.po')
+                    for (const poEntry of getPoEntriesFromFile(poPath)) {
+                        if (!checkPoEntrySpecs(poEntry, specs)) {
+                            continue
+                        }
+                        process.exitCode = 1
+
+                        const flag = getPoEntryFlag(poEntry)
+                        if (flag) {
+                            process.stdout.write(`#, ${flag}\n`)
+                        }
+                        if (poEntry.msgctxt) {
+                            process.stdout.write(`msgctxt "${poEntry.msgctxt.replace(/\n/g, '\\n')}"\n`)
+                        }
+                        process.stdout.write(`msgid   "${poEntry.msgid.replace(/\n/g, '\\n')}"\n`)
+                        process.stdout.write(`msgstr  "${poEntry.msgstr[0].replace(/\n/g, '\\n')}"\n\n`)
+                    }
+                }
+
+                shell.rm('-rf', tempDir)
                 break
             }
 
