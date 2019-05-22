@@ -1,6 +1,6 @@
 {
   "name": "l10n-tools",
-  "version": "1.5.17",
+  "version": "1.5.18",
   "description": "Localization tools",
   "main": "dist/l10n-cli.js",
   "scripts": {
