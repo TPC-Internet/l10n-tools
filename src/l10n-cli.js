@@ -277,6 +277,7 @@ async function run () {
                 shell.rm('-rf', tempDir)
                 await extractPot(domainName, domainConfig, potPath)
                 updatePo(potPath, fromPoDir, poDir, locales)
+                await syncPoToGoogleDocs(config, domainConfig, tag, potPath, poDir)
                 shell.rm('-rf', tempDir)
                 break
             }
