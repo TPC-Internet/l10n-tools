@@ -234,7 +234,7 @@ function readDataRow(dataRow, columnMap) {
         source: decodeSheetText(dataRow[columnMap.source]),
         targets: targets,
         tags: new Set(decodeSheetText(dataRow[columnMap.tag]).split(',')),
-        ref: decodeSheetText(columnMap.hasOwnProperty('ref') ? dataRow[columnMap.ref] : '')
+        refs: decodeSheetText(columnMap.hasOwnProperty('ref') ? dataRow[columnMap.ref] : '').split('\n').filter(ref => ref)
     }
 }
 
@@ -247,7 +247,7 @@ function updateSheetData(tag, pot, poData, sheetData) {
                 source: potEntry.msgid,
                 targets: {},
                 tags: new Set(),
-                ref: ''
+                refs: []
             }
         }
 
@@ -256,10 +256,10 @@ function updateSheetData(tag, pot, poData, sheetData) {
             sheetEntry.source = potEntry.msgid
         }
 
-        const ref = objectPath.get(potEntry, 'comments.reference', '')
-        if (sheetEntry.ref !== ref) {
-            sheetEntry.ref = ref
-        }
+        const thisRefs = objectPath.get(potEntry, 'comments.reference', '').split('\n').filter(ref => ref)
+            .map(ref => `${tag}:${ref}`)
+        const otherRefs = sheetEntry.refs.filter(ref => !ref.startsWith(`${tag}:`))
+        sheetEntry.refs = [...otherRefs, ...thisRefs]
     }
 
     for (const [locale, po] of Object.entries(poData)) {
@@ -291,9 +291,11 @@ function updateSheetData(tag, pot, poData, sheetData) {
                 sheetEntry.targets[locale] = poEntry.msgstr[0]
             }
 
-            const ref = objectPath.get(poEntry, 'comments.reference', '')
-            if (ref && sheetEntry.ref !== ref) {
-                sheetEntry.ref = ref
+            const thisRefs = objectPath.get(poEntry, 'comments.reference', '').split('\n').filter(ref => ref)
+                .map(ref => `${tag}:${ref}`)
+            if (thisRefs.length > 0) {
+                const otherRefs = sheetEntry.refs.filter(ref => !ref.startsWith(`${tag}:`))
+                sheetEntry.refs = [...otherRefs, ...thisRefs]
             }
         }
     }
@@ -398,14 +400,20 @@ async function updateSheet(tag, rows, columnMap, sheetData) {
                 }
             }
 
-            if (columnMap.hasOwnProperty('ref') && rowEntry.ref !== sheetEntry.ref) {
-                log.notice('updateSheet', `setting ref of ${entryId}: ${sheetEntry.ref}`)
-                docActions.push({
-                    type: 'update-cell',
-                    row: index + 1,
-                    column: columnMap.ref,
-                    data: encodeSheetText(sheetEntry.ref)
-                })
+            if (columnMap.hasOwnProperty('ref')) {
+                const otherRefs = rowEntry.refs.filter(ref => ref.startsWith(`${tag}:`))
+                const thisRefs = sheetEntry.refs.filter(ref => !ref.startsWith(`${tag}:`))
+                const newRef = [...otherRefs, ...thisRefs].sort().join('\n')
+                const oldRef = rowEntry.refs.join('\n')
+                if (oldRef !== newRef) {
+                    log.notice('updateSheet', `setting ref of ${entryId}: ${newRef}`)
+                    docActions.push({
+                        type: 'update-cell',
+                        row: index + 1,
+                        column: columnMap.ref,
+                        data: encodeSheetText(newRef)
+                    })
+                }
             }
 
             delete sheetData[entryId]
@@ -432,7 +440,7 @@ async function updateSheet(tag, rows, columnMap, sheetData) {
         }
 
         if (columnMap.hasOwnProperty('ref')) {
-            row[columnMap.ref] = encodeSheetText(sheetEntry.ref)
+            row[columnMap.ref] = encodeSheetText(sheetEntry.refs.sort().join('\n'))
         }
 
         log.warn('updateSheet', `appending row of ${entryId}`)
