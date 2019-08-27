@@ -1,6 +1,4 @@
-#!/usr/bin/env node
-
-import pkg from '../package'
+import pkg from './package'
 import program from 'commander'
 import jsonfile from 'jsonfile'
 import findRoot from 'find-root'

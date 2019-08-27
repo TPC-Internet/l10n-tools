@@ -2,22 +2,15 @@
   "name": "l10n-tools",
   "version": "1.6.0",
   "description": "Localization tools",
-  "main": "dist/l10n-cli.js",
   "scripts": {
-    "prepare": "babel --source-maps true src --out-dir dist/",
-    "watch": "babel -w --source-maps true src --out-dir dist/",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "author": "Beren <beren.song@vonvon.me>",
   "license": "MIT",
   "repository": "github:vonvonme/l10n-tools",
   "bin": {
-    "l10n": "./dist/l10n-cli.js"
+    "l10n": "l10n-cli.js"
   },
-  "files": [
-    "src",
-    "dist"
-  ],
   "dependencies": {
     "@babel/parser": "^7.5.5",
     "@babel/traverse": "^7.5.5",
@@ -25,6 +18,7 @@
     "cheerio": "^0.22.0",
     "command-exists": "^1.2.8",
     "commander": "^3.0.0",
+    "esm": "^3.2.25",
     "find-root": "^1.1.0",
     "gettext-parser": "^4.0.1",
     "glob": "^7.1.4",
@@ -39,15 +33,7 @@
     "open": "^6.4.0",
     "php-parser": "^3.0.0-prerelease.9",
     "shelljs": "^0.8.3",
-    "source-map-support": "^0.5.13",
     "typescript": "^3.5.3",
     "xml2js": "^0.4.19"
-  },
-  "devDependencies": {
-    "@babel/cli": "^7.5.5",
-    "@babel/core": "^7.5.5",
-    "@babel/plugin-proposal-object-rest-spread": "^7.5.5",
-    "@babel/preset-env": "^7.5.5",
-    "babel-plugin-source-map-support": "^2.1.1"
   }
 }
