@@ -16,14 +16,14 @@ export default async function (domainName, config, potPath) {
 }
 
 function extractAndroidStrings(extractor, filename, src, startLine = 1) {
-    const $ = cheerio.load(src, {decodeEntities: false, xmlMode: true, withStartIndices: true})
+    const $ = cheerio.load(src, {decodeEntities: true, xmlMode: true, withStartIndices: true})
     $(':root > string').each((index, elem) => {
         const $e = $(elem)
         if ($e.attr('translatable') === 'false') {
             return
         }
 
-        let content = $e.html().trim()
+        let content = $e.text().trim()
         if (elem.children[0].type === 'text') {
             content = decodeAndroidStrings(content)
         }
