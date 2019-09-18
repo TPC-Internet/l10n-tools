@@ -8,7 +8,9 @@ import * as ts from 'typescript'
 import Engine from 'php-parser'
 
 function getBabelParserOptions(options) {
+    if (!options.plugins) options.plugins = []
     options.plugins = [
+        ...options.plugins,
         'doExpressions',
         'functionBind',
         'exportExtensions',
@@ -206,6 +208,20 @@ export class PotExtractor {
             this.extractJsNode(filename, src, ast)
         } catch (err) {
             log.warn('extractJsModule', `error parsing '${src.split(/\n/g)[err.loc.line - 1].trim()}' (${filename}:${err.loc.line})`)
+        }
+    }
+
+    extractReactJsModule (filename, src, startLine = 1) {
+        try {
+            const ast = babelParser.parse(src, getBabelParserOptions({
+                sourceType: 'module',
+                plugins: ['jsx'],
+                sourceFilename: filename,
+                startLine: startLine
+            }))
+            this.extractJsNode(filename, src, ast)
+        } catch (err) {
+            log.warn('extractReactJsModule', `error parsing '${src.split(/\n/g)[err.loc.line - 1].trim()}' (${filename}:${err.loc.line})`)
         }
     }
 

@@ -11,6 +11,8 @@ export async function extractPot (domainName, domainConfig, potPath) {
 
 function loadExtractor (type) {
     switch (type) {
+        case 'react':
+            return require('./react').default
         case 'vue-gettext':
             return require('./vue-gettext').default
         case 'vue-i18n':
