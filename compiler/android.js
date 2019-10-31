@@ -76,7 +76,8 @@ export default async function (domainName, config, poDir) {
 
         const xml = builder.buildObject(xmlJson)
 
-        const targetPath = path.join(resDir, 'values-' + locale, 'strings.xml')
+        const resLocale = locale.replace('_', '-r')
+        const targetPath = path.join(resDir, 'values-' + resLocale, 'strings.xml')
         shell.mkdir('-p', path.dirname(targetPath))
         fs.writeFileSync(targetPath, xml, {encoding: 'UTF-8'})
     }
