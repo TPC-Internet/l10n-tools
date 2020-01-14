@@ -28,10 +28,12 @@ export default async function (domainName, config, poDir) {
                 const strings = {}
                 for (const key of ['NSCameraUsageDescription', 'NSMicrophoneUsageDescription', 'NSPhotoLibraryUsageDescription']) {
                     const poEntry = findPoEntry(po, key)
-                    if (poEntry) {
+                    if (poEntry && poEntry.msgstr[0]) {
                         strings[key] = {
                             text: poEntry.msgstr[0] || poEntry.msgid
                         }
+                    } else {
+                        delete strings[key]
                     }
                 }
 
@@ -42,8 +44,10 @@ export default async function (domainName, config, poDir) {
                 const strings = i18nStringsFiles.readFileSync(path.join(tempDir, 'Localizable.strings'), {encoding: 'UTF-16LE', wantsComments: true})
                 for (const key of Object.keys(strings)) {
                     const poEntry = findPoEntry(po, null, key)
-                    if (poEntry) {
+                    if (poEntry && poEntry.msgstr[0]) {
                         strings[key].text = poEntry.msgstr[0] || poEntry.msgid
+                    } else {
+                        delete strings[key]
                     }
                 }
 
@@ -59,8 +63,10 @@ export default async function (domainName, config, poDir) {
                         const strings = i18nStringsFiles.readFileSync(tempStringsPath, {encoding: 'UTF-16LE', wantsComments: true})
                         for (const key of Object.keys(strings)) {
                             const poEntry = findPoEntry(po, key)
-                            if (poEntry) {
+                            if (poEntry && poEntry.msgstr[0]) {
                                 strings[key].text = poEntry.msgstr[0] || poEntry.msgid
+                            } else {
+                                delete strings[key]
                             }
                         }
 
