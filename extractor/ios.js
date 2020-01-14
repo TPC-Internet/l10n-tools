@@ -19,7 +19,7 @@ export default async function (domainName, config, potPath) {
     await execWithLog(`find "${srcDir}" -name "*.swift" -print0 | xargs -0 genstrings -q -u -o "${tempDir}"`)
     const stringsPath = path.join(tempDir, 'Localizable.strings')
     const input = fs.readFileSync(stringsPath, {encoding: 'UTF-16LE'})
-    extractIosStrings(extractor, 'Swift', input)
+    extractIosStrings(extractor, 'code', input)
 
     log.info('extractPot', 'extracting from info.plist')
     const infoPlistPath = await getInfoPlistPath(srcDir)
@@ -68,7 +68,11 @@ async function getXibPaths(srcDir) {
 function extractIosStrings(extractor, filename, src, startLine = 1) {
     const data = i18nStringsFiles.parse(src, true)
     for (const [key, value] of Object.entries(data)) {
-        const {defaultValue} = parseComment(key, value.comment)
+        const {defaultValue, ignore} = parseComment(key, value.comment)
+        if (ignore) {
+            continue
+        }
+
         const id = value.text.trim()
         if (!id) {
             continue
@@ -82,9 +86,12 @@ function extractIosStrings(extractor, filename, src, startLine = 1) {
 }
 
 function parseComment(key, commentText) {
+    let defaultValue = null
+    let ignore = false
+
     const [, field] = key.split('.')
     if (!field) {
-        return {defaultValue: null}
+        return {defaultValue, ignore}
     }
 
     const commentData = {}
@@ -103,9 +110,13 @@ function parseComment(key, commentText) {
         commentData[name] = value
     }
 
-    if (commentData[field]) {
-        return {defaultValue: JSON.parse(commentData[field])}
-    } else {
-        return {defaultValue: null}
+    if (commentData['Note']) {
+        ignore = commentData['Note'].indexOf('#vv-ignore') >= 0
     }
+
+    if (commentData[field]) {
+        defaultValue = JSON.parse(commentData[field])
+    }
+
+    return {defaultValue, ignore}
 }
