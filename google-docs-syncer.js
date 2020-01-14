@@ -178,8 +178,8 @@ function getColumnMap(headerRow) {
         size: headerRow.length
     }
     for (const [index, columnName] of headerRow.entries()) {
-        if (columnName === 'key') {
-            columnMap.key = index
+        if (columnName === 'keys') {
+            columnMap.keys = index
         } else if (columnName === 'source') {
             columnMap.source = index
         } else if (columnName === 'tag') {
@@ -206,18 +206,19 @@ function createSheetData(tag, rows, columnMap) {
     const sheetData = {}
     for (const [index, dataRow] of rows.slice(1).entries()) {
         const entry = readDataRow(dataRow, columnMap)
+        if (!entry.source) {
+            log.warn('createSheetData', `ignoring row ${toRowName(index + 1)}: no source`)
+            continue
+        }
+
+        entry.keys = entry.keys.filter(key => !key.startsWith(`${tag}:`))
+
         entry.tags.delete('')
         entry.tags.delete('OK')
         entry.tags.delete('UNUSED')
         entry.tags.delete(tag)
 
-        if (entry.key) {
-            sheetData[entry.key] = entry
-        } else if (entry.source) {
-            sheetData[entry.source] = entry
-        } else {
-            log.warn('createSheetData', `ignoring row ${toRowName(index + 1)}: no key nor source`)
-        }
+        sheetData[entry.source] = entry
     }
     // console.log(JSON.stringify(sheetData, null, 2))
     return sheetData
@@ -229,8 +230,15 @@ function readDataRow(dataRow, columnMap) {
         targets[locale] = decodeSheetText(dataRow[localeColumn])
     }
 
+    let keys
+    if (columnMap.hasOwnProperty('keys')) {
+        keys = decodeSheetText(dataRow[columnMap.keys]).split('\n').filter(key => key)
+    } else {
+        keys = []
+    }
+
     return {
-        key: decodeSheetText(columnMap.hasOwnProperty('key') ? dataRow[columnMap.key] : ''),
+        keys: keys,
         source: decodeSheetText(dataRow[columnMap.source]),
         targets: targets,
         tags: new Set(decodeSheetText(dataRow[columnMap.tag]).split(',')),
@@ -240,10 +248,10 @@ function readDataRow(dataRow, columnMap) {
 
 function updateSheetData(tag, pot, poData, sheetData) {
     for (const potEntry of getPoEntries(pot)) {
-        const entryId = potEntry.msgctxt || potEntry.msgid
+        const entryId = potEntry.msgid
         if (!sheetData.hasOwnProperty(entryId)) {
             sheetData[entryId] = {
-                key: potEntry.msgctxt,
+                keys: [],
                 source: potEntry.msgid,
                 targets: {},
                 tags: new Set(),
@@ -252,8 +260,8 @@ function updateSheetData(tag, pot, poData, sheetData) {
         }
 
         const sheetEntry = sheetData[entryId]
-        if (potEntry.msgctxt && potEntry.msgctxt === sheetEntry.key && potEntry.msgid !== sheetEntry.source) {
-            sheetEntry.source = potEntry.msgid
+        if (potEntry.msgctxt) {
+            sheetEntry.keys.push(`${tag}:${potEntry.msgctxt}`)
         }
 
         const thisRefs = objectPath.get(potEntry, 'comments.reference', '').split('\n').filter(ref => ref)
@@ -265,14 +273,14 @@ function updateSheetData(tag, pot, poData, sheetData) {
     for (const [locale, po] of Object.entries(poData)) {
         // console.log('update sheet locale', locale)
         for (const poEntry of getPoEntries(po)) {
-            const entryId = poEntry.msgctxt || poEntry.msgid
+            const entryId = poEntry.msgid
             // console.log('update sheet entry id', entryId)
             // console.log('matched entry (locale)', locale)
             // console.log('po entry', poEntry)
 
             if (!sheetData.hasOwnProperty(entryId)) {
                 sheetData[entryId] = {
-                    key: poEntry.msgctxt,
+                    keys: [],
                     source: poEntry.msgid,
                     targets: {},
                     tags: new Set(),
@@ -281,9 +289,6 @@ function updateSheetData(tag, pot, poData, sheetData) {
             }
 
             const sheetEntry = sheetData[entryId]
-            if (poEntry.msgctxt && poEntry.msgid !== sheetEntry.source) {
-                log.warn('updateSheetData', `source column need update to: ${poEntry.msgid}`)
-            }
 
             sheetEntry.tags.add(tag)
 
@@ -304,25 +309,26 @@ function updateSheetData(tag, pot, poData, sheetData) {
 
 function updatePoData(tag, pot, poData, sheetData) {
     for (const sheetEntry of Object.values(sheetData)) {
-        const potEntry = findPoEntry(pot, sheetEntry.key, sheetEntry.source)
-        if (potEntry && sheetEntry.source && potEntry.msgid !== sheetEntry.source) {
-            potEntry.msgid = sheetEntry.source
-            setPoEntry(pot, potEntry)
-        }
-
         for (const [locale, target] of Object.entries(sheetEntry.targets)) {
             if (poData.hasOwnProperty(locale)) {
                 const po = poData[locale]
-                const poEntry = findPoEntry(poData[locale], sheetEntry.key, sheetEntry.source)
-                // console.log('updating po, sheet entry', sheetEntry)
-                // console.log('updating po, po', po)
-                if (poEntry) {
-                    if (sheetEntry.source && poEntry.msgid !== sheetEntry.source) {
-                        poEntry.msgid = sheetEntry.source
-                        setPoEntry(po, poEntry)
+                const poEntries = []
+                for (const tagKey of sheetEntry.keys.filter(key => key.startsWith(`${tag}:`))) {
+                   const key = tagKey.substr(tag.length + 1)
+                    const poEntry = findPoEntry(po, key, sheetEntry.source)
+                    if (poEntry) {
+                        poEntries.push(poEntry)
                     }
+                }
+                const poEntry = findPoEntry(po, null, sheetEntry.source)
+                if (poEntry) {
+                    poEntries.push(poEntry)
+                }
 
-                    const entryId = poEntry.msgctxt || poEntry.msgid
+                for (const poEntry of poEntries) {
+                    // console.log('updating po, sheet entry', sheetEntry)
+                    // console.log('updating po, po', po)
+                    const entryId = poEntry.msgid
                     const flag = getPoEntryFlag(poEntry)
                     // console.log('updating po, po entry', poEntry)
                     sheetEntry.tags.add(tag)
@@ -358,26 +364,32 @@ async function updateSheet(tag, rows, columnMap, sheetData) {
     const docActions = []
     for (const [index, dataRow] of rows.slice(1).entries()) {
         const rowEntry = readDataRow(dataRow, columnMap)
-        const entryId = rowEntry.key || rowEntry.source
+        const entryId = rowEntry.source
         if (!entryId) {
             continue
         }
 
         const sheetEntry = sheetData[entryId]
         if (sheetEntry != null) {
-            if (rowEntry.source !== sheetEntry.source) {
-                log.notice('updateSheet', `setting source of ${entryId}: ${sheetEntry.source}`)
-                docActions.push({
-                    type: 'update-cell',
-                    row: index + 1,
-                    column: columnMap.source,
-                    data: encodeSheetText(sheetEntry.source)
-                })
+            if (columnMap.hasOwnProperty('keys')) {
+                const otherKeys = rowEntry.keys.filter(key => !key.startsWith(`${tag}:`))
+                const thisKeys = sheetEntry.keys.filter(key => key.startsWith(`${tag}:`))
+                const newKeys = [...otherKeys, ...thisKeys].sort().join('\n')
+                const oldKeys = [...rowEntry.keys].sort().join('\n')
+                if (oldKeys !== newKeys) {
+                    log.notice('updateSheet', `setting keys of ${entryId}: ${newKeys}`)
+                    docActions.push({
+                        type: 'update-cell',
+                        row: index + 1,
+                        column: columnMap.keys,
+                        data: encodeSheetText(newKeys)
+                    })
+                }
             }
 
-            const tag = Array.from(rowEntry.tags).sort().join(',')
+            const oldTag = Array.from(rowEntry.tags).sort().join(',')
             const newTag = Array.from(sheetEntry.tags).sort().join(',') || 'UNUSED'
-            if (tag !== newTag) {
+            if (oldTag !== newTag) {
                 log.notice('updateSheet', `setting tag of ${entryId}: ${newTag}`)
                 docActions.push({
                     type: 'update-cell',
@@ -401,8 +413,8 @@ async function updateSheet(tag, rows, columnMap, sheetData) {
             }
 
             if (columnMap.hasOwnProperty('ref')) {
-                const otherRefs = rowEntry.refs.filter(ref => ref.startsWith(`${tag}:`))
-                const thisRefs = sheetEntry.refs.filter(ref => !ref.startsWith(`${tag}:`))
+                const otherRefs = rowEntry.refs.filter(ref => !ref.startsWith(`${tag}:`))
+                const thisRefs = sheetEntry.refs.filter(ref => ref.startsWith(`${tag}:`))
                 const newRef = [...otherRefs, ...thisRefs].sort().join('\n')
                 const oldRef = rowEntry.refs.join('\n')
                 if (oldRef !== newRef) {
@@ -421,15 +433,17 @@ async function updateSheet(tag, rows, columnMap, sheetData) {
     }
 
     for (const [entryId, sheetEntry] of Object.entries(sheetData)) {
-        if (sheetEntry.key && !columnMap.hasOwnProperty('key')) {
-            log.warn('updateSheet', `ignoring ${sheetEntry.key}: no key column`)
+        if (sheetEntry.keys.length > 0 && !columnMap.hasOwnProperty('keys')) {
+            log.warn('updateSheet', `ignoring ${sheetEntry.key}: no keys column`)
             continue
         }
 
         const row = new Array(columnMap.size).fill('')
-        row[columnMap.key] = encodeSheetText(sheetEntry.key)
+        if (columnMap.hasOwnProperty('keys')) {
+            row[columnMap.keys] = encodeSheetText([...new Set(sheetEntry.keys)].sort().join('\n'))
+        }
         row[columnMap.source] = encodeSheetText(sheetEntry.source)
-        row[columnMap.tag] = encodeSheetText(Array.from(sheetEntry.tags).sort().join(',') || 'UNUSED')
+        row[columnMap.tag] = encodeSheetText([...sheetEntry.tags].sort().join(',') || 'UNUSED')
 
         for (const [locale, value] of Object.entries(sheetEntry.targets)) {
             if (!columnMap.targets.hasOwnProperty(locale)) {
