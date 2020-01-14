@@ -39,6 +39,8 @@ function loadCompiler (type) {
             return require('./angular-gettext').default
         case 'android':
             return require('./android').default
+        case 'ios':
+            return require('./ios').default
         case 'cordova':
             return require('./cordova').default
         case 'cocos':

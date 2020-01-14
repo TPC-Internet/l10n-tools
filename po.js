@@ -120,7 +120,7 @@ export function getPoEntryFlag(poEntry) {
     return poEntry.comments.flag || null
 }
 
-export function findPoEntry(po, msgctxt, msgid) {
+export function findPoEntry(po, msgctxt, msgid = null) {
     if (msgctxt == null) {
         msgctxt = ''
     }
