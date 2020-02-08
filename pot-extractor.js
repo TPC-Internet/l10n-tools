@@ -661,7 +661,38 @@ export class PotExtractor {
     }
 
     toString () {
-        return gettextParser.po.compile(this.po, {sort: true})
+        function compareMsgctxt(left, right) {
+            if (left && right) {
+                if (left < right)
+                    return -1
+                if (left > right)
+                    return 1
+                return 0
+            } else {
+                if (right)
+                    return -1
+                if (left)
+                    return 1
+                return 0
+            }
+        }
+
+        function compareMsgid(left, right) {
+            if (left < right)
+                return -1
+            if (left > right)
+                return 1
+            return 0
+        }
+
+        function sort(left, right) {
+            const order = compareMsgid(left.msgid, right.msgid)
+            if (order !== 0)
+                return order
+            return compareMsgctxt(left.msgctxt, right.msgctxt)
+        }
+
+        return gettextParser.po.compile(this.po, {sort})
     }
 }
 
