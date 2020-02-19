@@ -54,9 +54,10 @@ export default async function (domainName, config, poDir) {
         }
 
         const po = readPoFile(poPath)
-        const xmlJson = await xml2js.parseStringAsync(srcInput)
+
+        const srcXmlJson = await xml2js.parseStringAsync(srcInput)
         const strings = []
-        for (const string of xmlJson.resources.string) {
+        for (const string of srcXmlJson.resources.string) {
             if (string.$.translatable === 'false') {
                 continue
             }
@@ -72,12 +73,17 @@ export default async function (domainName, config, poDir) {
                 strings.push(string)
             }
         }
-        xmlJson.resources.string = strings
-
-        const xml = builder.buildObject(xmlJson)
 
         const resLocale = locale.replace('_', '-r')
         const targetPath = path.join(resDir, 'values-' + resLocale, 'strings.xml')
+
+    	const dstInput = fs.readFileSync(targetPath, {encoding: 'UTF-8'})
+		const dstXmlJson = await xml2js.parseStringAsync(dstInput)
+
+        dstXmlJson.resources.string = strings
+
+        const xml = builder.buildObject(dstXmlJson)
+
         shell.mkdir('-p', path.dirname(targetPath))
         fs.writeFileSync(targetPath, xml, {encoding: 'UTF-8'})
     }
