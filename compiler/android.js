@@ -77,8 +77,8 @@ export default async function (domainName, config, poDir) {
         const resLocale = locale.replace('_', '-r')
         const targetPath = path.join(resDir, 'values-' + resLocale, 'strings.xml')
 
-    	const dstInput = fs.readFileSync(targetPath, {encoding: 'UTF-8'})
-		const dstXmlJson = await xml2js.parseStringAsync(dstInput)
+        const dstInput = fs.readFileSync(targetPath, {encoding: 'UTF-8'})
+        const dstXmlJson = await xml2js.parseStringAsync(dstInput)
 
         dstXmlJson.resources.string = strings
 
