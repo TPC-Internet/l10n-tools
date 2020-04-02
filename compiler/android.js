@@ -4,6 +4,7 @@ import log from 'npmlog'
 import * as shell from 'shelljs'
 import * as path from 'path'
 import * as xml2js from 'xml2js'
+import { Builder } from './xml-builder'
 import {findPoEntry, readPoFile} from '../po'
 import {promisify} from 'util'
 
@@ -19,7 +20,7 @@ export default async function (domainName, config, poDir) {
     const srcPath = path.join(resDir, 'values', 'strings.xml')
     const srcInput = fs.readFileSync(srcPath, {encoding: 'UTF-8'})
 
-    const builder = new xml2js.Builder({
+    const builder = new Builder({
         renderOpts: {pretty: true, indent: '    ', newline: '\n'},
         xmldec: {version: '1.0', encoding: 'utf-8'},
         cdata: true
@@ -28,31 +29,6 @@ export default async function (domainName, config, poDir) {
     const poPaths = await glob.promise(`${poDir}/*.po`)
     for (const poPath of poPaths) {
         const locale = path.basename(poPath, '.po')
-        if (locale === defaultLocale) {
-            const po = readPoFile(poPath)
-            const xmlJson = await xml2js.parseStringAsync(srcInput)
-            for (const string of xmlJson.resources.string) {
-                if (string.$.translatable === 'false') {
-                    continue
-                }
-                const poEntry = findPoEntry(po, string.$.name, null)
-                let value = poEntry.msgstr[0]
-                if (value.includes('CDATA')) {
-                    value = value.substring(9, value.length - 3)
-                } else {
-                    value = encodeAndroidStrings(value)
-                }
-                if (value) {
-                    string._ = value
-                }
-            }
-
-            const xml = builder.buildObject(xmlJson)
-
-            shell.mkdir('-p', path.dirname(srcPath))
-            fs.writeFileSync(srcPath, xml, {encoding: 'UTF-8'})
-        }
-
         const po = readPoFile(poPath)
 
         const srcXmlJson = await xml2js.parseStringAsync(srcInput)
@@ -63,22 +39,39 @@ export default async function (domainName, config, poDir) {
             }
             const poEntry = findPoEntry(po, string.$.name, null)
             let value = poEntry.msgstr[0]
-            if (value.includes('CDATA')) {
-                value = value.substring(9, value.length - 3)
+            if (string.$.format === 'html') {
+                if (value) {
+                    for (let k in string) {
+                        if (k != '$') {
+                            delete string[k]
+                        }
+                    }
+                    string['#raw'] = value
+                    strings.push(string)
+                }
             } else {
-                value = encodeAndroidStrings(value)
+                if (value.includes('CDATA')) {
+                    value = value.substring(9, value.length - 3)
+                } else {
+                    value = encodeAndroidStrings(value)
+                }
+                if (value) {
+                    string._ = value
+                    strings.push(string)
+                }
             }
-            if (value) {
-                string._ = value
-                strings.push(string)
-            }
+        }
+
+        if (locale === defaultLocale) {
+            shell.mkdir('-p', path.dirname(srcPath))
+            fs.writeFileSync(srcPath, builder.buildObject(srcXmlJson), {encoding: 'UTF-8'})
         }
 
         const resLocale = locale.replace('_', '-r')
         const targetPath = path.join(resDir, 'values-' + resLocale, 'strings.xml')
 
-    	const dstInput = fs.readFileSync(targetPath, {encoding: 'UTF-8'})
-		const dstXmlJson = await xml2js.parseStringAsync(dstInput)
+        const dstInput = fs.readFileSync(targetPath, {encoding: 'UTF-8'})
+        const dstXmlJson = await xml2js.parseStringAsync(dstInput)
 
         dstXmlJson.resources.string = strings
 
@@ -86,6 +79,7 @@ export default async function (domainName, config, poDir) {
 
         shell.mkdir('-p', path.dirname(targetPath))
         fs.writeFileSync(targetPath, xml, {encoding: 'UTF-8'})
+
     }
 }
 
