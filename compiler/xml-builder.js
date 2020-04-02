@@ -80,8 +80,6 @@
             for (key in obj) {
               if (!hasProp.call(obj, key)) continue;
               child = obj[key];
-              if (key != '_' && key != '$')
-                console.log('key', key)
               if (key === attrkey) {
                 if (typeof child === "object") {
                   for (attr in child) {
@@ -90,7 +88,6 @@
                   }
                 }
               } else if (key === '#raw') {
-                console.log('raw', child)
                 element = element.raw(child);
               } else if (key === charkey) {
                 if (_this.options.cdata && requiresCDATA(child)) {
