@@ -1,6 +1,6 @@
 {
   "name": "l10n-tools",
-  "version": "1.8.2",
+  "version": "1.8.3",
   "description": "Localization tools",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
@@ -26,6 +26,7 @@
     "glob-to-regexp": "^0.4.1",
     "google-auth-library": "^5.2.0",
     "googleapis": "^42.0.0",
+    "html-entities": "^1.2.1",
     "http-shutdown": "^1.2.1",
     "i18n-strings-files": "^1.0.4",
     "jsonfile": "^5.0.0",
@@ -36,6 +37,6 @@
     "plist": "^3.0.1",
     "shelljs": "^0.8.3",
     "typescript": "^3.5.3",
-    "xml2js": "^0.4.19"
+    "xml2js": "^0.4.22"
   }
 }

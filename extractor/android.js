@@ -3,6 +3,9 @@ import {getLineTo, PotExtractor} from '../pot-extractor'
 import * as fs from 'fs'
 import * as path from 'path'
 import cheerio from "cheerio"
+import {XmlEntities} from 'html-entities'
+
+const entities = new XmlEntities()
 
 export default async function (domainName, config, potPath) {
     const srcPath = path.join(config.get('res-dir'), 'values', 'strings.xml')
@@ -22,10 +25,15 @@ function extractAndroidStrings(extractor, filename, src, startLine = 1) {
         if ($e.attr('translatable') === 'false') {
             return
         }
-
-        let content = $e.text().trim()
-        if (elem.children[0].type === 'text') {
-            content = decodeAndroidStrings(content)
+        
+        let content
+        if ($e.attr('format') === 'html') {
+            content = entities.decode($e.html().trim())
+        } else {
+            content = $e.text().trim()
+            if (elem.children[0].type === 'text') {
+                content = decodeAndroidStrings(content)
+            }
         }
 
         const name = $e.attr('name')
@@ -47,7 +55,7 @@ function decodeAndroidStrings(value) {
             case 'n':
                 return '\n'
             default:
-                throw new Error(`unknown android escape code: ${p1}`)
+                throw new Error(`unknown android escape code: ${p1} of '${value}'`)
         }
     })
 }
