@@ -7,6 +7,13 @@ import i18nStringsFiles from 'i18n-strings-files'
 import {findPoEntry, readPoFile} from '../po'
 import {execWithLog, getTempDir} from "../utils"
 
+const infoPlistKeys = [
+    'NSCameraUsageDescription',
+    'NSMicrophoneUsageDescription',
+    'NSPhotoLibraryUsageDescription',
+    'NSLocationWhenInUseUsageDescription'
+]
+
 export default async function (domainName, config, poDir) {
     const tempDir = path.join(getTempDir(), 'compiler')
     shell.mkdir('-p', tempDir)
@@ -26,7 +33,7 @@ export default async function (domainName, config, poDir) {
             const stringsName = path.basename(stringsPath, '.strings')
             if (stringsName === 'InfoPlist') {
                 const strings = {}
-                for (const key of ['NSCameraUsageDescription', 'NSMicrophoneUsageDescription', 'NSPhotoLibraryUsageDescription']) {
+                for (const key of infoPlistKeys) {
                     const poEntry = findPoEntry(po, key)
                     if (poEntry && poEntry.msgstr[0]) {
                         strings[key] = {

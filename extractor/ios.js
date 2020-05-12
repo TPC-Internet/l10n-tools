@@ -8,6 +8,13 @@ import glob from "glob-promise"
 import {execWithLog, getTempDir} from "../utils"
 import * as shell from "shelljs"
 
+const infoPlistKeys = [
+    'NSCameraUsageDescription',
+    'NSMicrophoneUsageDescription',
+    'NSPhotoLibraryUsageDescription',
+    'NSLocationWhenInUseUsageDescription'
+]
+
 export default async function (domainName, config, potPath) {
     const tempDir = path.join(getTempDir(), 'extractor')
     shell.mkdir('-p', tempDir)
@@ -24,7 +31,7 @@ export default async function (domainName, config, potPath) {
     log.info('extractPot', 'extracting from info.plist')
     const infoPlistPath = await getInfoPlistPath(srcDir)
     const infoPlist = plist.parse(fs.readFileSync(infoPlistPath, {encoding: 'UTF-8'}))
-    for (const key of ['NSCameraUsageDescription', 'NSMicrophoneUsageDescription', 'NSPhotoLibraryUsageDescription']) {
+    for (const key of infoPlistKeys) {
         if (infoPlist.hasOwnProperty(key)) {
             extractor.addMessage({filename: 'info.plist', line: key}, infoPlist[key], {context: key})
         }
