@@ -121,7 +121,9 @@ function parseComment(key, commentText) {
         ignore = commentData['Note'].indexOf('#vv-ignore') >= 0
     }
 
-    if (commentData[field]) {
+    if (commentData[key]) {
+        defaultValue = JSON.parse(commentData[key])
+    } else if (commentData[field]) {
         defaultValue = JSON.parse(commentData[field])
     }
 
