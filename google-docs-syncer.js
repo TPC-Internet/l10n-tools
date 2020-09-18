@@ -292,8 +292,10 @@ function updateSheetData(tag, pot, poData, sheetData) {
 
             sheetEntry.tags.add(tag)
 
-            if (!sheetEntry.targets[locale]) {
-                sheetEntry.targets[locale] = poEntry.msgstr[0]
+            if (poEntry.msgstr[0]) {
+                if (!sheetEntry.targets[locale] || sheetEntry.targets[locale].startsWith('$$needs review$$')) {
+                    sheetEntry.targets[locale] = '$$needs review$$ ' + poEntry.msgstr[0]
+                }
             }
 
             const thisRefs = objectPath.get(poEntry, 'comments.reference', '').split('\n').filter(ref => ref)
@@ -342,6 +344,8 @@ function updatePoData(tag, pot, poData, sheetData) {
                             log.notice('updatePoData', `mark 'needs-translation' flag of ${locale} of ${entryId}`)
                             setPoEntryFlag(poEntry, 'needs-translation')
                         }
+                    } else if (target.startsWith('$$needs review$$')) {
+                        // do not update po msgstr
                     } else {
                         if (flag) {
                             log.notice('updatePoData', `remove mark of ${locale} of ${entryId}`)
