@@ -31,7 +31,7 @@
     "i18n-strings-files": "^1.0.4",
     "jsonfile": "^5.0.0",
     "npmlog": "^4.1.2",
-    "object-path": "^0.11.4",
+    "object-path": "^0.11.5",
     "open": "^6.4.0",
     "php-parser": "^3.0.0-prerelease.9",
     "plist": "^3.0.1",
