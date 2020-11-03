@@ -109,12 +109,12 @@ function parseComment(key, commentText) {
             continue
         }
 
-        const [name, value] = item.split(' = ')
+        const [name, value] = item.split(' = "')
         if (!value) {
             continue
         }
 
-        commentData[name] = value
+        commentData[name] = '"' + value
     }
 
     if (commentData['Note']) {
