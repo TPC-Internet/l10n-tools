@@ -7,6 +7,7 @@ import plist from 'plist'
 import glob from "glob-promise"
 import {execWithLog, getTempDir} from "../utils"
 import * as shell from "shelljs"
+import jsonfile from "jsonfile"
 
 const infoPlistKeys = [
     'NSCameraUsageDescription',
@@ -22,11 +23,20 @@ export default async function (domainName, config, potPath) {
     const extractor = PotExtractor.create(domainName)
 
     log.info('extractPot', 'extracting from .swift files')
+    const swiftExtractorCmd = path.join(path.dirname(__dirname), 'bin', 'swift-l10n-extractor')
     const srcDir = config.get('src-dir')
-    await execWithLog(`find "${srcDir}" -name "*.swift" -print0 | xargs -0 genstrings -q -u -o "${tempDir}"`)
-    const stringsPath = path.join(tempDir, 'Localizable.strings')
-    const input = fs.readFileSync(stringsPath, {encoding: 'UTF-16LE'})
-    extractIosStrings(extractor, 'code', input)
+    try {
+        const swiftEntriesPath = `${tempDir}/swift-entries.json`
+        await execWithLog(`find "${srcDir}" -name "*.swift" -print0 | xargs -0 "${swiftExtractorCmd}" -o "${swiftEntriesPath}"`)
+        const swiftEntries = jsonfile.readFileSync(swiftEntriesPath)
+        extractSwiftEntries(extractor, srcDir, swiftEntries)
+    } catch (err) {
+        log.info('extractPot', 'failed to run swift-l10n-extractor. fallback to genstrings')
+        await execWithLog(`find "${srcDir}" -name "*.swift" -print0 | xargs -0 genstrings -q -u -o "${tempDir}"`)
+        const stringsPath = path.join(tempDir, 'Localizable.strings')
+        const input = fs.readFileSync(stringsPath, {encoding: 'UTF-16LE'})
+        extractIosStrings(extractor, 'code', input)
+    }
 
     log.info('extractPot', 'extracting from info.plist')
     const infoPlistPath = await getInfoPlistPath(srcDir)
@@ -89,6 +99,19 @@ function extractIosStrings(extractor, filename, src, startLine = 1) {
         } else {
             extractor.addMessage({filename, line: key}, key, {comment: value.comment})
         }
+    }
+}
+
+function extractSwiftEntries(extractor, srcDir, swiftEntries) {
+    for (const entry of swiftEntries) {
+        const {context, id, comment, file, line} = entry
+        let filename
+        if (file && file.startsWith(srcDir)) {
+            filename = file.substr(srcDir.length + 1)
+        } else {
+            filename = null
+        }
+        extractor.addMessage({filename, line}, id, {comment, context})
     }
 }
 
