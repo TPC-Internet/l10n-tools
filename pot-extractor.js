@@ -6,6 +6,7 @@ import {findPoEntry, PoEntryBuilder, setPoEntry} from './po'
 import * as gettextParser from 'gettext-parser'
 import * as ts from 'typescript'
 import Engine from 'php-parser'
+import pkg from './package'
 
 function getBabelParserOptions(options) {
     if (!options.plugins) options.plugins = []
@@ -62,10 +63,11 @@ export class PotExtractor {
         return new PotExtractor({
             charset: 'utf-8',
             headers: {
-                'project-id-version': domainName,
-                'mime-version': '1.0',
-                'content-type': 'text/plain; charset=utf-8',
-                'content-transfer-encoding': '8bit'
+                'Project-Id-Version': domainName,
+                'Mime-Version': '1.0',
+                'Content-Type': 'text/plain; charset=utf-8',
+                'Content-Transfer-Encoding': '8bit',
+                'X-Generator': `l10n-tools ${pkg.version}`
             },
             translations: {}
         }, options)
