@@ -109,6 +109,8 @@ function compileStringsFile(data) {
                 comment = val['comment'];
             }
         }
+        msgid = msgid.replace(/\\/g, "\\\\");
+        msgstr = msgstr.replace(/\\/g, "\\\\");
         msgid = msgid.replace(/"/g, "\\\"");
         msgstr = msgstr.replace(/"/g, "\\\"");
         msgid = msgid.replace(/\n/g, "\\n");

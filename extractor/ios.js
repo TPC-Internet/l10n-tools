@@ -125,19 +125,10 @@ function parseComment(key, commentText) {
     }
 
     const commentData = {}
-    const items = commentText.split(';')
-    for (let item of items) {
-        item = item.trim()
-        if (item.length === 0) {
-            continue
-        }
-
-        const [name, value] = item.split(' = "')
-        if (!value) {
-            continue
-        }
-
-        commentData[name] = '"' + value
+    const re = /\s*([^ ]+)\s*=\s*(".*?");/gmsui
+    let match = null
+    while (match = re.exec(commentText)) {
+        commentData[match[1]] = match[2]
     }
 
     if (commentData['Note']) {
