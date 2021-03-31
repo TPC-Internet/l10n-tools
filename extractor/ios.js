@@ -135,6 +135,11 @@ function parseComment(key, commentText) {
         ignore = commentData['Note'].indexOf('#vv-ignore') >= 0
     }
 
+    if (commentData['Class'] === '"UITextView"' && commentData['text'] && !ignore) {
+        log.warn('extractPot', `${key}: UITextView.text does not support Storyboard (xib) localization.`)
+        log.warn('extractPot', 'Consider localizing by code or note #vv-ignore to mute this warning')
+    }
+
     if (commentData[key]) {
         defaultValue = JSON.parse(commentData[key])
     } else if (commentData[field]) {
