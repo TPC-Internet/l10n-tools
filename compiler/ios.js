@@ -11,7 +11,8 @@ const infoPlistKeys = [
     'NSCameraUsageDescription',
     'NSMicrophoneUsageDescription',
     'NSPhotoLibraryUsageDescription',
-    'NSLocationWhenInUseUsageDescription'
+    'NSLocationWhenInUseUsageDescription',
+    'NSUserTrackingUsageDescription'
 ]
 
 export default async function (domainName, config, poDir) {
