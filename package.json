@@ -32,7 +32,7 @@
     "i18n-strings-files": "^1.0.6",
     "jsonfile": "^6.1.0",
     "npmlog": "^4.1.2",
-    "object-path": "^0.11.5",
+    "object-path": "^0.11.8",
     "open": "^7.3.0",
     "php-parser": "^3.0.2",
     "plist": "^3.0.1",
