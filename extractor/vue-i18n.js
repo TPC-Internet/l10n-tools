@@ -5,7 +5,7 @@ import {getSrcPaths} from '../common'
 import {PotExtractor} from '../pot-extractor'
 
 export default async function (domainName, config, potPath) {
-    const srcPaths = await getSrcPaths(config, ['.vue', '.js'])
+    const srcPaths = await getSrcPaths(config, ['.vue', '.js', '.ts'])
     const keywords = new Set(config.get('keywords', []))
     keywords.add('$t')
     keywords.add('vm.$t')
@@ -23,7 +23,7 @@ export default async function (domainName, config, potPath) {
         markers: [{start: '{{', end: '}}'}],
         keywords: keywords
     })
-    log.info('extractPot', 'extracting from .vue, .js files')
+    log.info('extractPot', 'extracting from .vue, .js, .ts files')
     for (const srcPath of srcPaths) {
         log.verbose('extractPot', `processing '${srcPath}'`)
         const ext = path.extname(srcPath)
@@ -33,6 +33,9 @@ export default async function (domainName, config, potPath) {
         } else if (ext === '.js') {
             const input = fs.readFileSync(srcPath, {encoding: 'UTF-8'})
             extractor.extractJsModule(srcPath, input)
+        } else if (ext === '.ts') {
+            const input = fs.readFileSync(srcPath, {encoding: 'UTF-8'})
+            extractor.extractTsModule(srcPath, input)
         } else {
             log.warn('extractPot', `skipping '${srcPath}': unknown extension`)
         }

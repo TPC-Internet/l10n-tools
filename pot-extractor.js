@@ -525,6 +525,15 @@ export class PotExtractor {
                         }
                     }
                 }
+            } else if (node.kind === ts.SyntaxKind.ObjectLiteralExpression) {
+                for (const prop of node.properties) {
+                    if (prop.kind === ts.SyntaxKind.PropertyAssignment && prop.name.text === 'template') {
+                        const template = prop.initializer
+                        if (template.kind === ts.SyntaxKind.NoSubstitutionTemplateLiteral) {
+                            this.extractTemplate(filename, template.text, getLineTo(src, template.pos, startLine))
+                        }
+                    }
+                }
             }
             ts.forEachChild(node, visit)
         }
