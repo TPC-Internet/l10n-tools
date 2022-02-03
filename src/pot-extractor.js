@@ -6,7 +6,8 @@ import {findPoEntry, PoEntryBuilder, setPoEntry} from './po'
 import * as gettextParser from 'gettext-parser'
 import * as ts from 'typescript'
 import Engine from 'php-parser'
-import pkg from './package'
+import fs from 'fs'
+import path from 'path'
 
 function getBabelParserOptions(options) {
     if (!options.plugins) options.plugins = []
@@ -60,6 +61,7 @@ export class PotExtractor {
     }
 
     static create (domainName, options) {
+        const pkg = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'package.json'), 'utf-8'))
         return new PotExtractor({
             charset: 'utf-8',
             headers: {

@@ -24,7 +24,7 @@ export default async function (domainName, config, potPath) {
     const extractor = PotExtractor.create(domainName)
 
     log.info('extractPot', 'extracting from .swift files')
-    const swiftExtractorCmd = path.join(path.dirname(__dirname), 'bin', 'swift-l10n-extractor')
+    const swiftExtractorCmd = path.join(path.dirname(__dirname), '..', 'bin', 'swift-l10n-extractor')
     const srcDir = config.get('src-dir')
     try {
         const swiftEntriesPath = `${tempDir}/swift-entries.json`
