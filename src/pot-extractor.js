@@ -486,45 +486,42 @@ export class PotExtractor {
         }
     }
 
+    _getTsCalleeName(node) {
+        if (node.kind === ts.SyntaxKind.Identifier) {
+            return node.text
+        }
+
+        if (node.kind === ts.SyntaxKind.ThisKeyword) {
+            return 'this'
+        }
+
+        if (node.kind === ts.SyntaxKind.PropertyAccessExpression) {
+            const obj = this._getTsCalleeName(node.expression)
+            const prop = this._getTsCalleeName(node.name)
+            if (obj == null || prop == null) {
+                return null
+            }
+            return obj + '.' + prop
+        }
+
+        return null
+    }
+
     extractTsNode (filename, src, ast, startLine = 1) {
         const visit = node => {
             if (node.kind === ts.SyntaxKind.CallExpression) {
                 const pos = findNonSpace(src, node.pos)
-                for (const {objectName, propName, position} of this.keywordDefs) {
-                    if (objectName != null) {
-                        if (node.expression.kind === ts.SyntaxKind.PropertyAccessExpression) {
-                            const callee = node.expression.expression
-                            if ((objectName === 'this' && callee.kind === ts.SyntaxKind.ThisKeyword)
-                                || (callee.kind === ts.SyntaxKind.Identifier && callee.text === objectName)) {
-                                const name = node.expression.name
-                                if (name.kind === ts.SyntaxKind.Identifier && name.text === propName) {
-                                    try {
-                                        const ids = this._evaluateTsArgumentValues(node.arguments[position])
-                                        for (const id of ids) {
-                                            this.addMessage({filename, line: getLineTo(src, pos, startLine)}, id)
-                                        }
-                                    } catch (err) {
-                                        log.warn('extractTsNode', err.message)
-                                        log.warn('extractTsNode', `'${src.substring(pos, node.end)}': (${filename}:${getLineTo(src, pos, startLine)})`)
-                                    }
-                                }
-                            }
+                const calleeName = this._getTsCalleeName(node.expression)
+                if (calleeName != null && this.keywordMap.hasOwnProperty(calleeName)) {
+                    try {
+                        const pos = this.keywordMap[calleeName]
+                        const ids = this._evaluateTsArgumentValues(node.arguments[pos])
+                        for (const id of ids) {
+                            this.addMessage({filename, line: getLineTo(src, pos, startLine)}, id)
                         }
-                    } else {
-                        if (node.expression.kind === ts.SyntaxKind.Identifier) {
-                            const callee = node.expression
-                            if (callee.text === propName) {
-                                try {
-                                    const ids = this._evaluateTsArgumentValues(node.arguments[position])
-                                    for (const id of ids) {
-                                        this.addMessage({filename, line: getLineTo(src, pos, startLine)}, id)
-                                    }
-                                } catch (err) {
-                                    log.warn('extractTsNode', err.message)
-                                    log.warn('extractTsNode', `'${src.substring(pos, node.end)}': (${filename}:${getLineTo(src, pos, startLine)})`)
-                                }
-                            }
-                        }
+                    } catch (err) {
+                        log.warn('extractTsNode', err.message)
+                        log.warn('extractTsNode', `'${src.substring(pos, node.end)}': (${filename}:${getLineTo(src, pos, startLine)})`)
                     }
                 }
             } else if (node.kind === ts.SyntaxKind.ObjectLiteralExpression) {
