@@ -544,10 +544,10 @@ export class PotExtractor {
 
     extractTsModule (filename, src, startLine = 1) {
         try {
-            const ast = ts.createSourceFile(filename, src, ts.ScriptTarget.Latest, true)
+            const ast = ts.createSourceFile(filename, src, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS)
             this.extractTsNode(filename, src, ast, startLine)
         } catch (err) {
-            log.warn('extractJsModule', `error parsing '${src.split(/\n/g)[err.loc.line - 1].trim()}' (${filename}:${err.loc.line})`)
+            log.warn('extractTsModule', `error parsing '${src.split(/\n/g)[err.loc.line - 1].trim()}' (${filename}:${err.loc.line})`)
         }
     }
 
