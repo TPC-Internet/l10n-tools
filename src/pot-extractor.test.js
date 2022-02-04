@@ -30,6 +30,25 @@ describe('PotExtractor', () => {
         })
     })
 
+    describe('vue-i18n i18n tag', () => {
+        it('path and :path', () => {
+            const module = `
+                <template>
+                    <div>
+                        <i18n tag="span" path="key-vue-i18n-path"></i18n>
+                        <i18n tag="span" :path="'key-vue-i18n-path-exp'"></i18n>
+                    </div>
+                </template>
+            `
+            const extractor = PotExtractor.create('testDomain', {tagNames: ['i18n']})
+            extractor.extractVue('test-file', module)
+            expect(extractor.po.translations).toHaveProperty(['', 'key-vue-i18n-path', 'comments', 'reference'])
+            expect(extractor.po.translations['']['key-vue-i18n-path']['comments']['reference']).toEqual('test-file:4')
+            expect(extractor.po.translations).toHaveProperty(['', 'key-vue-i18n-path-exp', 'comments', 'reference'])
+            expect(extractor.po.translations['']['key-vue-i18n-path-exp']['comments']['reference']).toEqual('test-file:5')
+        })
+    })
+
     describe('script in vue file', () => {
         it('extract with reference', () => {
             const module = `
