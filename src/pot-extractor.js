@@ -204,12 +204,8 @@ export class PotExtractor {
 
     extractJsModule (filename, src, startLine = 1) {
         try {
-            const ast = babelParser.parse(src, getBabelParserOptions({
-                sourceType: 'module',
-                sourceFilename: filename,
-                startLine: startLine
-            }))
-            this.extractJsNode(filename, src, ast)
+            const ast = ts.createSourceFile(filename, src, ts.ScriptTarget.Latest, true, ts.ScriptKind.JS)
+            this.extractTsNode(filename, src, ast, startLine)
         } catch (err) {
             log.warn('extractJsModule', `error parsing '${src.split(/\n/g)[err.loc.line - 1].trim()}' (${filename}:${err.loc.line})`)
         }
@@ -400,14 +396,10 @@ export class PotExtractor {
 
     extractJsExpression (filename, src, startLine = 1) {
         try {
-            const ast = babelParser.parse('(' + src + ')', getBabelParserOptions({
-                sourceType: 'script',
-                sourceFilename: filename,
-                startLine: startLine
-            }))
-            this.extractJsNode(filename, src, ast)
+            const ast = ts.createSourceFile(filename, `(${src})`, ts.ScriptTarget.Latest, true, ts.ScriptKind.JS)
+            this.extractTsNode(filename, src, ast, startLine)
         } catch (err) {
-            log.warn('extractJsExpression', `error parsing '${src}' (${filename}:${startLine})`, err)
+            log.warn('extractJsExpression', `error parsing '${src.split(/\n/g)[err.loc.line - 1].trim()}' (${filename}:${err.loc.line})`)
         }
     }
 
