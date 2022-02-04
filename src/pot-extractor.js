@@ -514,8 +514,8 @@ export class PotExtractor {
                 const calleeName = this._getTsCalleeName(node.expression)
                 if (calleeName != null && this.keywordMap.hasOwnProperty(calleeName)) {
                     try {
-                        const pos = this.keywordMap[calleeName]
-                        const ids = this._evaluateTsArgumentValues(node.arguments[pos])
+                        const position = this.keywordMap[calleeName]
+                        const ids = this._evaluateTsArgumentValues(node.arguments[position])
                         for (const id of ids) {
                             this.addMessage({filename, line: getLineTo(src, pos, startLine)}, id)
                         }
