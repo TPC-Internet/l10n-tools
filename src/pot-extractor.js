@@ -246,8 +246,11 @@ export class PotExtractor {
             } else if (elem.name === 'script') {
                 const content = $(elem).html()
                 if (content) {
-                    const type = elem.attribs.type
-                    if (!type || type === 'text/javascript') {
+                    const {lang, type} = elem.attribs
+                    if (lang === 'ts') {
+                        const line = getLineTo(src, elem.children[0].startIndex, startLine)
+                        this.extractTsModule(filename, content, line)
+                    } else if (!type || type === 'text/javascript') {
                         const line = getLineTo(src, elem.children[0].startIndex, startLine)
                         this.extractJsModule(filename, content, line)
                     }
