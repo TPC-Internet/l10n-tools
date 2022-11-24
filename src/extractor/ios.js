@@ -24,20 +24,11 @@ export default async function (domainName, config, potPath) {
     const extractor = PotExtractor.create(domainName)
 
     log.info('extractPot', 'extracting from .swift files')
-    const swiftExtractorCmd = path.join(path.dirname(__dirname), '..', 'bin', 'swift-l10n-extractor')
     const srcDir = config.get('src-dir')
-    try {
-        const swiftEntriesPath = `${tempDir}/swift-entries.json`
-        await execWithLog(`find "${srcDir}" -name "*.swift" -print0 | xargs -0 "${swiftExtractorCmd}" -o "${swiftEntriesPath}"`)
-        const swiftEntries = jsonfile.readFileSync(swiftEntriesPath)
-        extractSwiftEntries(extractor, srcDir, swiftEntries)
-    } catch (err) {
-        log.info('extractPot', 'failed to run swift-l10n-extractor. fallback to genstrings')
-        await execWithLog(`find "${srcDir}" -name "*.swift" -print0 | xargs -0 genstrings -q -u -o "${tempDir}"`)
-        const stringsPath = path.join(tempDir, 'Localizable.strings')
-        const input = fs.readFileSync(stringsPath, {encoding: 'UTF-16LE'})
-        extractIosStrings(extractor, 'code', input)
-    }
+    await execWithLog(`find "${srcDir}" -name "*.swift" -print0 | xargs -0 genstrings -q -u -o "${tempDir}"`)
+    const stringsPath = path.join(tempDir, 'Localizable.strings')
+    const input = fs.readFileSync(stringsPath, {encoding: 'UTF-16LE'})
+    extractIosStrings(extractor, 'code', input)
 
     log.info('extractPot', 'extracting from info.plist')
     const infoPlistPath = await getInfoPlistPath(srcDir)
