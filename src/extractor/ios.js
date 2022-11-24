@@ -25,7 +25,7 @@ export default async function (domainName, config, potPath) {
 
     log.info('extractPot', 'extracting from .swift files')
     const srcDir = config.get('src-dir')
-    await execWithLog(`find "${srcDir}" -name "*.swift" -print0 | xargs -0 genstrings -q -u -o "${tempDir}"`)
+    await execWithLog(`find "${srcDir}" -name "*.swift" -print0 | xargs -0 genstrings -q -u -SwiftUI -o "${tempDir}"`)
     const stringsPath = path.join(tempDir, 'Localizable.strings')
     const input = fs.readFileSync(stringsPath, {encoding: 'UTF-16LE'})
     extractIosStrings(extractor, 'code', input)
