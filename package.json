@@ -1,6 +1,6 @@
 {
   "name": "l10n-tools",
-  "version": "2.2.2",
+  "version": "2.2.3",
   "description": "Localization tools",
   "scripts": {
     "build": "tsc",
