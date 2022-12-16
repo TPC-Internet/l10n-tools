@@ -48,7 +48,7 @@ export default async function (domainName, config, poDir) {
                 const output = compileStringsFile(strings)
                 fs.writeFileSync(stringsPath, output, {encoding: 'UTF-8'})
             } else if (stringsName === 'Localizable') {
-                await execWithLog(`find "${srcDir}" -name "*.swift" -print0 | xargs -0 genstrings -q -u -o "${tempDir}"`)
+                await execWithLog(`find "${srcDir}" -name "*.swift" -print0 | xargs -0 genstrings -q -u -SwiftUI -o "${tempDir}"`)
                 const strings = i18nStringsFiles.readFileSync(path.join(tempDir, 'Localizable.strings'), {encoding: 'UTF-16LE', wantsComments: true})
                 for (const key of Object.keys(strings)) {
                     const poEntry = findPoEntry(po, null, key)
