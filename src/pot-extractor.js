@@ -299,6 +299,20 @@ export class PotExtractor {
                             this.extractJsIdentifier(filename, source, line)
                         }
                     }
+                } else if (elem.name === 'i18n-t') {
+                    if ('keypath' in elem.attribs) {
+                        const id = elem.attribs['keypath']
+                        if (id) {
+                            const line = getLineTo(src, elem.startIndex, startLine)
+                            this.addMessage({filename, line}, id)
+                        }
+                    } else if (':keypath' in elem.attribs) {
+                        const source = elem.attribs[':keypath']
+                        if (source) {
+                            const line = getLineTo(src, elem.startIndex, startLine)
+                            this.extractJsIdentifier(filename, source, line)
+                        }
+                    }
                 }
             }
 

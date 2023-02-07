@@ -18,7 +18,7 @@ export default async function (domainName: string, config: Config, potPath: stri
     keywords.add('app.i18n.tc')
 
     const extractor = PotExtractor.create(domainName, {
-        tagNames: ['i18n'],
+        tagNames: ['i18n', 'i18n-t'],
         objectAttrs: {'v-t': ['', 'path']},
         exprAttrs: [/^:/, /^v-bind:/, /^v-html$/],
         markers: [{start: '{{', end: '}}'}],
