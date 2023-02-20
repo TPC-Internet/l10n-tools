@@ -155,23 +155,24 @@ export class PotExtractor {
         })
     }
 
-    extractJsIdentifierNode (filename, src, ast) {
-        traverse(ast, {
-            enter: path => {
-                const node = path.node
-                if (node.type === 'ExpressionStatement') {
-                    try {
-                        const ids = this._evaluateJsArgumentValues(node.expression)
-                        for (const id of ids) {
-                            this.addMessage({filename, line: node.loc.start.line}, id)
-                        }
-                    } catch (err) {
-                        log.warn('extractJsIdentifierNode', err.message)
-                        log.warn('extractJsIdentifierNode', `'${src.substring(node.start, node.end)}': (${node.loc.filename}:${node.loc.start.line})`)
+    extractJsIdentifierNode (filename, src, ast, startLine = 1) {
+        const visit = node => {
+            if (node.kind === ts.SyntaxKind.ExpressionStatement) {
+                const pos = findNonSpace(src, node.pos)
+                try {
+                    const ids = this._evaluateTsArgumentValues(node.expression)
+                    for (const id of ids) {
+                        this.addMessage({filename, line: getLineTo(src, pos, startLine)}, id)
                     }
+                    return
+                } catch (err) {
+                    log.warn('extractJsObjectNode', err.message)
+                    log.warn('extractJsObjectNode', `'${src.substring(pos, node.end)}': (${filename}:${getLineTo(src, pos, startLine)})`)
                 }
             }
-        })
+            ts.forEachChild(node, visit)
+        }
+        visit(ast)
     }
 
     extractJsObjectNode (filename, src, ast, paths, startLine = 1) {
@@ -414,14 +415,10 @@ export class PotExtractor {
 
     extractJsIdentifier (filename, src, startLine = 1) {
         try {
-            const ast = babelParser.parse('(' + src + ')', getBabelParserOptions({
-                sourceType: 'script',
-                sourceFilename: filename,
-                startLine: startLine
-            }))
-            this.extractJsIdentifierNode(filename, src, ast)
+            const ast = ts.createSourceFile(filename, `(${src})`, ts.ScriptTarget.Latest, true, ts.ScriptKind.JS)
+            this.extractJsIdentifierNode(filename, src, ast, startLine)
         } catch (err) {
-            log.warn('extractJsIdentifier', `error parsing '${src}' (${filename}:${startLine})`, err)
+            log.warn('extractJsIdentifier', `error parsing '${src.split(/\n/g)[err.loc.line - 1].trim()}' (${filename}:${err.loc.line})`)
         }
     }
 
