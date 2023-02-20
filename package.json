@@ -16,8 +16,6 @@
     "l10n": "dist/l10n.js"
   },
   "dependencies": {
-    "@babel/parser": "^7.17.0",
-    "@babel/traverse": "^7.17.0",
     "angular-gettext-tools": "^2.5.3",
     "cheerio": "^0.22.0",
     "command-exists": "^1.2.9",
