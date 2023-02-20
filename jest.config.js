@@ -1,6 +1,7 @@
-/** @type {import('ts-jest/dist/types').InitialOptionsTsJest} */
 module.exports = {
-  preset: 'ts-jest/presets/js-with-ts',
   testEnvironment: 'node',
-  roots: ['<rootDir>/src']
+  roots: ['<rootDir>/src'],
+  transform: {
+    "^.+\\.(t|j)sx?$": "@swc/jest",
+  }
 };
