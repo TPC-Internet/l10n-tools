@@ -440,22 +440,10 @@ export class PotExtractor {
 
             const contentExpr = match[1]
             try {
-                const node = babelParser.parseExpression(contentExpr, getBabelParserOptions({
-                    sourceType: 'script',
-                    sourceFilename: filename,
-                    startLine: startLine
-                }))
-                try {
-                    const ids = this._evaluateJsArgumentValues(node)
-                    for (const id of ids) {
-                        this.addMessage({filename, line: node.loc.start.line}, id)
-                    }
-                } catch (err) {
-                    log.warn('extractAngularExpression', err.message)
-                    log.warn('extractAngularExpression', `${src}: (${node.loc.filename}:${node.loc.start.line})`)
-                }
+                const ast = ts.createSourceFile(filename, contentExpr, ts.ScriptTarget.Latest, true, ts.ScriptKind.JS)
+                this.extractJsIdentifierNode(filename, contentExpr, ast, startLine)
             } catch (err) {
-                log.warn('extractAngularExpression', `cannot extract from '${src}' (${filename}:${startLine})`)
+                log.warn('extractAngularExpression', `error parsing '${src.split(/\n/g)[err.loc.line - 1].trim()}' (${filename}:${err.loc.line})`)
             }
         }
     }
