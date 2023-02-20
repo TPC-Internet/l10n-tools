@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json.schemastore.org/swcrc",
+  "module": {
+    "type": "commonjs"
+  },
+  "jsc": {
+    "parser": {
+      "syntax": "typescript",
+      "decorators": true,
+      "dynamicImport": true,
+      "exportDefaultFrom": true
+    }
+  },
+  "env": {
+    "targets": {
+      "node": 12
+    }
+  }
+}
