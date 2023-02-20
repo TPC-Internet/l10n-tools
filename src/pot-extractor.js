@@ -1,41 +1,11 @@
 import cheerio from 'cheerio'
-import * as babelParser from '@babel/parser'
 import log from 'npmlog'
-import traverse from '@babel/traverse'
 import {findPoEntry, PoEntryBuilder, setPoEntry} from './po'
 import * as gettextParser from 'gettext-parser'
 import * as ts from 'typescript'
 import Engine from 'php-parser'
 import fs from 'fs'
 import path from 'path'
-
-function getBabelParserOptions(options) {
-    if (!options.plugins) options.plugins = []
-    options.plugins = [
-        ...options.plugins,
-        'doExpressions',
-        'functionBind',
-        'exportExtensions',
-        'exportDefaultFrom',
-        'exportNamespaceFrom',
-        'optionalChaining',
-        'nullishCoalescingOperator',
-        'decorators2',
-        'functionSent',
-        'throwExpressions',
-        'classProperties',
-        'classPrivateProperties',
-        'classPrivateMethods',
-        'dynamicImport',
-        'importMeta',
-        'numericSeparator',
-        'bigInt',
-        'optionalCatchBinding',
-        'objectRestSpread',
-        'asyncGenerators'
-    ]
-    return options
-}
 
 export class PotExtractor {
     constructor (po, options) {
@@ -130,29 +100,6 @@ export class PotExtractor {
         }
 
         return null
-    }
-
-    extractJsNode (filename, src, ast) {
-        traverse(ast, {
-            enter: path => {
-                const node = path.node
-                if (node.type === 'CallExpression') {
-                    const calleeName = this._getJsCalleeName(node.callee)
-                    if (calleeName != null && this.keywordMap.hasOwnProperty(calleeName)) {
-                        try {
-                            const pos = this.keywordMap[calleeName]
-                            const ids = this._evaluateJsArgumentValues(node.arguments[pos])
-                            for (const id of ids) {
-                                this.addMessage({filename, line: node.loc.start.line}, id)
-                            }
-                        } catch (err) {
-                            log.warn('extractJsNode', err.message)
-                            log.warn('extractJsNode', `'${src.substring(node.start, node.end)}': (${node.loc.filename}:${node.loc.start.line})`)
-                        }
-                    }
-                }
-            }
-        })
     }
 
     extractJsIdentifierNode (filename, src, ast, startLine = 1) {
