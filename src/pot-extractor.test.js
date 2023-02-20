@@ -47,6 +47,21 @@ describe('PotExtractor', () => {
             expect(extractor.po.translations).toHaveProperty(['', 'key-vue-i18n-path-exp', 'comments', 'reference'])
             expect(extractor.po.translations['']['key-vue-i18n-path-exp']['comments']['reference']).toEqual('test-file:5')
         })
+
+        it('v-t attrs', () => {
+            const module = `
+                <template>
+                    <div v-t="'key-v-t'"></div>
+                    <div v-t="{path: 'key-v-t-path'}"></div>
+                </template>
+            `
+            const extractor = PotExtractor.create('testDomain', {objectAttrs: {'v-t': ['', 'path']}})
+            extractor.extractVue('test-file', module)
+            expect(extractor.po.translations).toHaveProperty(['', 'key-v-t', 'comments', 'reference'])
+            expect(extractor.po.translations['']['key-v-t']['comments']['reference']).toEqual('test-file:3')
+            expect(extractor.po.translations).toHaveProperty(['', 'key-v-t-path', 'comments', 'reference'])
+            expect(extractor.po.translations['']['key-v-t-path']['comments']['reference']).toEqual('test-file:4')
+        })
     })
 
     describe('script in vue file', () => {
@@ -74,6 +89,39 @@ describe('PotExtractor', () => {
             expect(extractor.po.translations['']['key-js']['comments']['reference']).toEqual('test-file:6')
             expect(extractor.po.translations).toHaveProperty(['', 'key-ts', 'comments', 'reference'])
             expect(extractor.po.translations['']['key-ts']['comments']['reference']).toEqual('test-file:13')
+        })
+    })
+
+    describe('jsx file', () => {
+        it('extract with reference', () => {
+            const module = `
+                function translate(key, options) {}
+                const car = "MG Hector";
+    
+                const specifications = {
+                    length : 4655,
+                    width : 1835,
+                    height : 1760
+                }
+    
+                const getDimensions = specifications => (
+                    translate('{length}(mm) {width}(mm) {height}(mm)', specifications)
+                )
+    
+                export default function Vehicles() {
+                    return(
+                        <div>
+                            <p>{car}</p>
+                            <p>{getDimensions(specifications)}</p>
+                        </div>
+                    );
+                }
+            `
+            const extractor = PotExtractor.create('testDomain', {keywords: ['translate']})
+            extractor.extractReactJsModule('test-file', module)
+            const key = '{length}(mm) {width}(mm) {height}(mm)'
+            expect(extractor.po.translations).toHaveProperty(['', key, 'comments', 'reference'])
+            expect(extractor.po.translations[''][key]['comments']['reference']).toEqual('test-file:12')
         })
     })
 })
