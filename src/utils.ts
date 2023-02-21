@@ -4,7 +4,7 @@ import log from 'npmlog'
 import os from 'os'
 import * as path from 'path'
 
-export function execWithLog (cmd, logPrefix = '') {
+export function execWithLog (cmd: string, logPrefix: string = ''): Promise<number> {
     return new Promise((resolve, reject) => {
         const p = spawn(cmd, [], {shell: true})
 
@@ -38,7 +38,7 @@ export const requireCmd = {
     brew: requireBrewCmd
 }
 
-async function requireBrewCmd (cmd, pkg, needForceLink = false) {
+async function requireBrewCmd (cmd: string, pkg: string, needForceLink: boolean = false): Promise<void> {
     try {
         await commandExists(cmd)
     } catch (err) {
@@ -50,10 +50,10 @@ async function requireBrewCmd (cmd, pkg, needForceLink = false) {
     }
 }
 
-export function getTempDir() {
+export function getTempDir(): string {
     return path.join(os.tmpdir(), process.pid.toString())
 }
 
-export function sortSet (set) {
+export function sortSet<T> (set: Set<T>): T[] {
     return Array.from(set).sort()
 }
