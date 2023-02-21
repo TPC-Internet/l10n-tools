@@ -7,6 +7,7 @@ import * as shell from 'shelljs'
 import {getPoEntries, findPoEntry, getPoEntryFlag, setPoEntryFlag, readPoFile, writePoFile} from './po'
 import {execWithLog, requireCmd} from './utils'
 import {Config} from './config'
+import {validateMsgFormat} from './validator'
 
 export async function getSrcPaths (config: Config, exts: string[]): Promise<string[]> {
     const srcDirs = config.get<string[]>('src-dirs', [])
@@ -56,6 +57,7 @@ export function updatePo (potPath: string, fromPoDir: string, poDir: string, loc
                 const fromPoEntry = findPoEntry(fromPo, potEntry.msgctxt || null, potEntry.msgid)
                 if (fromPoEntry != null) {
                     potEntry.msgstr = fromPoEntry.msgstr.map(value => value === '$$no translation$$' ? '' : value)
+                    validateMsgFormat(potEntry.msgid, potEntry.msgstr[0])
                     const flag = getPoEntryFlag(fromPoEntry)
                     if (flag) {
                         setPoEntryFlag(potEntry, flag)

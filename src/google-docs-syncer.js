@@ -14,6 +14,7 @@ import jsonfile from 'jsonfile'
 import open from 'open'
 import * as shell from 'shelljs'
 import objectPath from 'object-path'
+import {validateMsgFormat} from './validator'
 
 httpShutdown.extend()
 
@@ -352,6 +353,7 @@ function updatePoData(tag, pot, poData, sheetData) {
                             removePoEntryFlag(poEntry)
                         }
 
+                        validateMsgFormat(poEntry.msgid, poEntry.msgstr[0])
                         if (target && target !== poEntry.msgstr[0]) {
                             log.notice('updatePoData', `updating value of ${entryId}: ${poEntry.msgstr[0]} -> ${target}`)
                             poEntry.msgstr = [target]
