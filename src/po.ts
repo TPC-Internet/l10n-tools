@@ -1,9 +1,17 @@
 import fs from 'fs'
 import * as gettextParser from 'gettext-parser'
 import {sortSet} from './utils'
+import {GetTextTranslation, GetTextTranslations} from 'gettext-parser'
 
 export class PoEntryBuilder {
-    constructor (msgctxt, msgid, {allowSpaceInId = false} = {}) {
+    public msgctxt: string | null
+    public msgid: string
+    public plural: string | null
+    public references: Set<string>
+    public comments: Set<string>
+    public flags: Set<string>
+
+    constructor (msgctxt: string | null, msgid: string, {allowSpaceInId = false} = {}) {
         this.msgctxt = msgctxt || null
         if (!allowSpaceInId) {
             msgid = msgid.trim()
@@ -15,8 +23,8 @@ export class PoEntryBuilder {
         this.flags = new Set()
     }
 
-    static fromPoEntry (poEntry) {
-        const builder = new PoEntryBuilder(poEntry.msgctxt, poEntry.msgid)
+    static fromPoEntry (poEntry: GetTextTranslation): PoEntryBuilder {
+        const builder = new PoEntryBuilder(poEntry.msgctxt || null, poEntry.msgid)
         builder.plural = poEntry.msgid_plural || null
         if (poEntry.comments) {
             if (poEntry.comments.reference) {
@@ -38,7 +46,7 @@ export class PoEntryBuilder {
         return builder
     }
 
-    setPlural (plural) {
+    setPlural (plural: string | null): this {
         if (this.plural && this.plural !== plural) {
             throw new Error(`overwriting plural from ${this.plural} to ${plural}`)
         }
@@ -46,33 +54,34 @@ export class PoEntryBuilder {
         return this
     }
 
-    addReference (filename, line = null) {
+    addReference (filename: string, line: number | string | null = null): this {
         if (line == null) {
             this.references.add(filename)
         } else {
-            this.references.add(filename + ':' + line)
+            this.references.add(filename + ':' + line.toString())
         }
         return this
     }
 
-    addComment (comment) {
+    addComment (comment: string): this {
         this.comments.add(comment)
         return this
     }
 
-    addFlag (flag) {
+    addFlag (flag: string): this {
         this.flags.add(flag)
         return this
     }
 
-    toPoEntry () {
-        const poEntry = {}
+    toPoEntry (): GetTextTranslation {
+        const poEntry: GetTextTranslation = {
+            msgid: this.msgid,
+            msgstr: []
+        }
 
         if (this.msgctxt) {
             poEntry.msgctxt = this.msgctxt
         }
-
-        poEntry.msgid = this.msgid
 
         if (this.plural) {
             poEntry.msgid_plural = this.plural
@@ -99,30 +108,33 @@ export class PoEntryBuilder {
     }
 }
 
-export function setPoEntryFlag(poEntry, flag) {
-    if (!poEntry.hasOwnProperty('comments')) {
+export function setPoEntryFlag(poEntry: GetTextTranslation, flag: string) {
+    if (!poEntry.comments) {
         poEntry.comments = {}
     }
     poEntry.comments.flag = flag
 }
 
-export function removePoEntryFlag(poEntry) {
-    if (!poEntry.hasOwnProperty('comments')) {
+export function removePoEntryFlag(poEntry: GetTextTranslation) {
+    if (!poEntry.comments) {
         return
     }
     delete poEntry.comments.flag
 }
 
-export function getPoEntryFlag(poEntry) {
-    if (!poEntry.hasOwnProperty('comments')) {
+export function getPoEntryFlag(poEntry: GetTextTranslation) {
+    if (!poEntry.comments) {
         return null
     }
     return poEntry.comments.flag || null
 }
 
-export function findPoEntry(po, msgctxt, msgid = null) {
+export function findPoEntry(po: GetTextTranslations, msgctxt: string | null, msgid: string | null = null): GetTextTranslation | null {
     if (msgctxt == null) {
         msgctxt = ''
+    }
+    if (msgid == null) {
+        msgid = ''
     }
     if (!po.translations.hasOwnProperty(msgctxt)) {
         return null
@@ -143,8 +155,8 @@ export function findPoEntry(po, msgctxt, msgid = null) {
     return po.translations[msgctxt][contextMsgIds[0]] || null
 }
 
-export function setPoEntry(po, poEntry) {
-    const oldPoEntry = findPoEntry(po, poEntry.msgctxt, poEntry.msgid)
+export function setPoEntry(po: GetTextTranslations, poEntry: GetTextTranslation) {
+    const oldPoEntry = findPoEntry(po, poEntry.msgctxt ?? null, poEntry.msgid)
     const msgctxt = poEntry.msgctxt || ''
     if (oldPoEntry) {
         if (oldPoEntry.msgid !== poEntry.msgid) {
@@ -157,17 +169,17 @@ export function setPoEntry(po, poEntry) {
     po.translations[msgctxt][poEntry.msgid] = poEntry
 }
 
-export function readPoFile (poPath) {
+export function readPoFile (poPath: string): GetTextTranslations {
     const poInput = fs.readFileSync(poPath)
     return gettextParser.po.parse(poInput, 'UTF-8')
 }
 
-export function writePoFile (poPath, po) {
+export function writePoFile (poPath: string, po: GetTextTranslations) {
     const output = gettextParser.po.compile(po)
     fs.writeFileSync(poPath, output)
 }
 
-export function* getPoEntries(po) {
+export function* getPoEntries(po: GetTextTranslations): Generator<GetTextTranslation, void> {
     for (const [msgctxt, poEntries] of Object.entries(po.translations)) {
         for (const [msgid, poEntry] of Object.entries(poEntries)) {
             if (!msgctxt && !msgid) {
@@ -178,11 +190,11 @@ export function* getPoEntries(po) {
     }
 }
 
-export function* getPoEntriesFromFile(poPath) {
+export function* getPoEntriesFromFile(poPath: string): Generator<GetTextTranslation, void> {
     yield* getPoEntries(readPoFile(poPath))
 }
 
-export function checkPoEntrySpecs(poEntry, specs) {
+export function checkPoEntrySpecs(poEntry: GetTextTranslation, specs: string[]): boolean {
     return specs.every(spec => {
         const positive = !spec.startsWith('!')
         if (!positive) {
@@ -213,8 +225,10 @@ export function checkPoEntrySpecs(poEntry, specs) {
     })
 }
 
-export function exportPoToJson (poPath, {keySeparator = '.'} = {}) {
-    const json = {}
+type PoJson = {[key: string]: string} | {[key: string]: PoJson}
+
+export function exportPoToJson (poPath: string, {keySeparator = '.'} = {}): PoJson {
+    const json: PoJson = {}
     const po = readPoFile(poPath)
     for (const poEntry of getPoEntries(po)) {
         if (poEntry.msgctxt) {
@@ -223,14 +237,14 @@ export function exportPoToJson (poPath, {keySeparator = '.'} = {}) {
 
         if (poEntry.msgid && poEntry.msgstr[0]) {
             const keys = keySeparator ? poEntry.msgid.split(keySeparator) : [poEntry.msgid]
-            const lastKey = keys.pop()
+            const lastKey = keys.pop() as string
 
             let obj = json
             for (const key of keys) {
                 if (!obj.hasOwnProperty(key)) {
                     obj[key] = {}
                 }
-                obj = obj[key]
+                obj = obj[key] as {[key: string]: PoJson}
             }
             obj[lastKey] = poEntry.msgstr[0]
         }

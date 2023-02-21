@@ -3,14 +3,40 @@ import log from 'npmlog'
 import {findPoEntry, PoEntryBuilder, setPoEntry} from './po'
 import * as gettextParser from 'gettext-parser'
 import * as ts from 'typescript'
-import Engine from 'php-parser'
+import php from 'php-parser'
 import fs from 'fs'
 import path from 'path'
+import {GetTextTranslation, GetTextTranslations} from 'gettext-parser'
+import {TemplateMarker} from './common'
+
+export type PotExtractorOptions = {
+    keywords: string[]
+    tagNames: string[]
+    attrNames: string[]
+    valueAttrNames: string[]
+    objectAttrs: {[name: string]: string[]}
+    filterNames: string[]
+    markers: TemplateMarker[]
+    exprAttrs: RegExp[]
+    cocosKeywords: {[name: string]: string}
+}
+
+type KeywordDef = {
+    objectName: string | null
+    position: number
+    propName: string
+}
 
 export class PotExtractor {
-    constructor (po, options) {
+    public readonly po: GetTextTranslations
+    private options: PotExtractorOptions
+    private readonly filterExprs: RegExp[]
+    private readonly keywordDefs: KeywordDef[]
+    private readonly keywordMap: {[keyword: string]: number}
+
+    constructor (po: GetTextTranslations, options: Partial<PotExtractorOptions>) {
         this.po = po
-        this.options = Object.assign({
+        this.options = Object.assign<PotExtractorOptions, Partial<PotExtractorOptions>>({
             keywords: [],
             tagNames: [],
             attrNames: [],
@@ -30,7 +56,7 @@ export class PotExtractor {
         this.keywordMap = buildKeywordMap(this.options.keywords)
     }
 
-    static create (domainName, options) {
+    static create (domainName: string, options: Partial<PotExtractorOptions>) {
         const pkg = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'package.json'), 'utf-8'))
         return new PotExtractor({
             charset: 'utf-8',
@@ -45,66 +71,9 @@ export class PotExtractor {
         }, options)
     }
 
-    _evaluateJsArgumentValues (node, path = '') {
-        if (path) {
-            if (node.type === 'ObjectExpression') {
-                for (const prop of node.properties) {
-                    if (prop.key.type === 'Identifier' && prop.key.name === path) {
-                        return this._evaluateJsArgumentValues(prop.value)
-                    }
-                }
-                throw new Error(`no property path ${path} in object`)
-            } else {
-                throw new Error(`cannot extract translations with path ${path} from non-object`)
-            }
-        } else {
-            if (node.type === 'StringLiteral') {
-                return [node.value]
-            } else if (node.type === 'Identifier') {
-                throw new Error('cannot extract translations from variable, use string literal directly')
-            } else if (node.type === 'MemberExpression') {
-                throw new Error('cannot extract translations from variable, use string literal directly')
-            } else if (node.type === 'BinaryExpression' && node.operator === '+') {
-                const values = []
-                for (const leftValue of this._evaluateJsArgumentValues(node.left)) {
-                    for (const rightValue of this._evaluateJsArgumentValues(node.right)) {
-                        values.push(leftValue + rightValue)
-                    }
-                }
-                return values
-            } else if (node.type === 'ConditionalExpression') {
-                return this._evaluateJsArgumentValues(node.consequent)
-                    .concat(this._evaluateJsArgumentValues(node.alternate))
-            } else {
-                throw new Error(`cannot extract translations from '${node.type}' node, use string literal directly`)
-            }
-        }
-    }
-
-    _getJsCalleeName(object) {
-        if (object.type === 'Identifier') {
-            return object.name
-        }
-
-        if (object.type === 'ThisExpression') {
-            return 'this'
-        }
-
-        if (object.type === 'MemberExpression') {
-            const obj = this._getJsCalleeName(object.object)
-            const prop = this._getJsCalleeName(object.property)
-            if (obj == null || prop == null) {
-                return null
-            }
-            return obj + '.' + prop
-        }
-
-        return null
-    }
-
-    extractJsIdentifierNode (filename, src, ast, startLine = 1) {
-        const visit = node => {
-            if (node.kind === ts.SyntaxKind.ExpressionStatement) {
+    extractJsIdentifierNode (filename: string, src: string, ast: ts.SourceFile, startLine = 1) {
+        const visit = (node: ts.Node) => {
+            if (ts.isExpressionStatement(node)) {
                 const pos = findNonSpace(src, node.pos)
                 try {
                     const ids = this._evaluateTsArgumentValues(node.expression)
@@ -112,7 +81,7 @@ export class PotExtractor {
                         this.addMessage({filename, line: getLineTo(src, pos, startLine)}, id)
                     }
                     return
-                } catch (err) {
+                } catch (err: any) {
                     log.warn('extractJsObjectNode', err.message)
                     log.warn('extractJsObjectNode', `'${src.substring(pos, node.end)}': (${filename}:${getLineTo(src, pos, startLine)})`)
                 }
@@ -122,11 +91,11 @@ export class PotExtractor {
         visit(ast)
     }
 
-    extractJsObjectNode (filename, src, ast, paths, startLine = 1) {
-        const visit = node => {
-            if (node.kind === ts.SyntaxKind.ExpressionStatement) {
+    extractJsObjectNode (filename: string, src: string, ast: ts.SourceFile, paths: string[], startLine: number = 1) {
+        const visit = (node: ts.Node) => {
+            if (ts.isExpressionStatement(node)) {
                 const pos = findNonSpace(src, node.pos)
-                const errs = []
+                const errs: any[] = []
                 for (const path of paths) {
                     try {
                         const ids = this._evaluateTsArgumentValues(node.expression, path)
@@ -134,7 +103,7 @@ export class PotExtractor {
                             this.addMessage({filename, line: getLineTo(src, pos, startLine)}, id)
                         }
                         return
-                    } catch (err) {
+                    } catch (err: any) {
                         errs.push(err)
                     }
                 }
@@ -150,28 +119,31 @@ export class PotExtractor {
         visit(ast)
     }
 
-    extractJsModule (filename, src, startLine = 1) {
+    extractJsModule (filename: string, src: string, startLine: number = 1) {
         try {
             const ast = ts.createSourceFile(filename, src, ts.ScriptTarget.Latest, true, ts.ScriptKind.JS)
             this.extractTsNode(filename, src, ast, startLine)
-        } catch (err) {
+        } catch (err: any) {
             log.warn('extractJsModule', `error parsing '${src.split(/\n/g)[err.loc.line - 1].trim()}' (${filename}:${err.loc.line})`)
         }
     }
 
-    extractReactJsModule (filename, src, startLine = 1) {
+    extractReactJsModule (filename: string, src: string, startLine: number = 1) {
         try {
             const ast = ts.createSourceFile(filename, src, ts.ScriptTarget.Latest, true, ts.ScriptKind.JSX)
             this.extractTsNode(filename, src, ast, startLine)
-        } catch (err) {
+        } catch (err: any) {
             log.warn('extractReactJsModule', `error parsing '${src.split(/\n/g)[err.loc.line - 1].trim()}' (${filename}:${err.loc.line})`)
         }
     }
 
-    extractVue (filename, src, startLine = 1) {
+    extractVue (filename: string, src: string, startLine: number = 1) {
         const $ = cheerio.load(src, {decodeEntities: false, withStartIndices: true})
 
         $.root().children().each((index, elem) => {
+            if (!isTagElement(elem)) {
+                return
+            }
             if (elem.children.length === 0) {
                 return
             }
@@ -179,7 +151,7 @@ export class PotExtractor {
             if (elem.name === 'template') {
                 const content = $(elem).html()
                 if (content) {
-                    const line = getLineTo(src, elem.children[0].startIndex, startLine)
+                    const line = getLineTo(src, elem.children[0].startIndex!, startLine)
                     this.extractTemplate(filename, content, line)
                 }
             } else if (elem.name === 'script') {
@@ -187,10 +159,10 @@ export class PotExtractor {
                 if (content) {
                     const {lang, type} = elem.attribs
                     if (lang === 'ts') {
-                        const line = getLineTo(src, elem.children[0].startIndex, startLine)
+                        const line = getLineTo(src, elem.children[0].startIndex!, startLine)
                         this.extractTsModule(filename, content, line)
                     } else if (!type || type === 'text/javascript') {
-                        const line = getLineTo(src, elem.children[0].startIndex, startLine)
+                        const line = getLineTo(src, elem.children[0].startIndex!, startLine)
                         this.extractJsModule(filename, content, line)
                     }
                 }
@@ -198,21 +170,25 @@ export class PotExtractor {
         })
     }
 
-    extractTemplate (filename, src, startLine = 1) {
+    extractTemplate (filename: string, src: string, startLine: number = 1) {
         const $ = cheerio.load(src, {decodeEntities: false, withStartIndices: true})
 
         $('*').each((index, elem) => {
             const node = $(elem)
+
+            if (!isTagElement(elem)) {
+                return
+            }
 
             if (elem.name === 'script') {
                 const content = $(elem).html()
                 if (content) {
                     const type = elem.attribs.type
                     if (!type || type === 'text/javascript') {
-                        const line = getLineTo(src, elem.children[0].startIndex, startLine)
+                        const line = getLineTo(src, elem.children[0].startIndex!, startLine)
                         this.extractJsModule(filename, content, line)
                     } else if (type === 'text/ng-template') {
-                        const line = getLineTo(src, elem.children[0].startIndex, startLine)
+                        const line = getLineTo(src, elem.children[0].startIndex!, startLine)
                         this.extractTemplate(filename, content, line)
                     }
                 }
@@ -220,9 +196,9 @@ export class PotExtractor {
 
             if (this.options.tagNames.includes(elem.name)) {
                 if (elem.name === 'translate') {
-                    const id = node.html().trim()
+                    const id = node.html()?.trim()
                     if (id) {
-                        const line = getLineTo(src, elem.children[0].startIndex, startLine)
+                        const line = getLineTo(src, elem.children[0].startIndex!, startLine)
                         const plural = elem.attribs['translate-plural'] || null
                         const comment = elem.attribs['translate-comment'] || null
                         const context = elem.attribs['translate-context'] || null
@@ -232,13 +208,13 @@ export class PotExtractor {
                     if ('path' in elem.attribs) {
                         const id = elem.attribs['path']
                         if (id) {
-                            const line = getLineTo(src, elem.startIndex, startLine)
+                            const line = getLineTo(src, elem.startIndex!, startLine)
                             this.addMessage({filename, line}, id)
                         }
                     } else if (':path' in elem.attribs) {
                         const source = elem.attribs[':path']
                         if (source) {
-                            const line = getLineTo(src, elem.startIndex, startLine)
+                            const line = getLineTo(src, elem.startIndex!, startLine)
                             this.extractJsIdentifier(filename, source, line)
                         }
                     }
@@ -246,13 +222,13 @@ export class PotExtractor {
                     if ('keypath' in elem.attribs) {
                         const id = elem.attribs['keypath']
                         if (id) {
-                            const line = getLineTo(src, elem.startIndex, startLine)
+                            const line = getLineTo(src, elem.startIndex!, startLine)
                             this.addMessage({filename, line}, id)
                         }
                     } else if (':keypath' in elem.attribs) {
                         const source = elem.attribs[':keypath']
                         if (source) {
-                            const line = getLineTo(src, elem.startIndex, startLine)
+                            const line = getLineTo(src, elem.startIndex!, startLine)
                             this.extractJsIdentifier(filename, source, line)
                         }
                     }
@@ -260,9 +236,9 @@ export class PotExtractor {
             }
 
             if (this.options.attrNames.some(attrName => elem.attribs.hasOwnProperty(attrName))) {
-                const id = node.html().trim()
+                const id = node.html()?.trim()
                 if (id) {
-                    const line = getLineTo(src, elem.children[0].startIndex, startLine)
+                    const line = getLineTo(src, elem.children[0].startIndex!, startLine)
                     const plural = elem.attribs['translate-plural'] || null
                     const comment = elem.attribs['translate-comment'] || null
                     const context = elem.attribs['translate-context'] || null
@@ -274,45 +250,45 @@ export class PotExtractor {
                 if (content) {
                     if (this.options.exprAttrs.some(pattern => attr.match(pattern))) {
                         let contentIndex = 0
-                        const attrIndex = src.substr(elem.startIndex).indexOf(attr)
+                        const attrIndex = src.substr(elem.startIndex!).indexOf(attr)
                         if (attrIndex >= 0) {
                             contentIndex = attrIndex + attr.length
-                            while (/[=\s]/.test(src.substr(elem.startIndex + contentIndex)[0])) {
+                            while (/[=\s]/.test(src.substr(elem.startIndex! + contentIndex)[0])) {
                                 contentIndex++
                             }
-                            if (['\'', '"'].includes(src.substr(elem.startIndex + contentIndex)[0])) {
+                            if (['\'', '"'].includes(src.substr(elem.startIndex! + contentIndex)[0])) {
                                 contentIndex++
                             }
                         }
-                        const line = getLineTo(src, elem.startIndex + contentIndex, startLine)
+                        const line = getLineTo(src, elem.startIndex! + contentIndex, startLine)
                         this.extractJsExpression(filename, content, line)
                     } else if (this.options.valueAttrNames.some(pattern => attr.match(pattern))) {
                         let contentIndex = 0
-                        const attrIndex = src.substr(elem.startIndex).indexOf(attr)
+                        const attrIndex = src.substr(elem.startIndex!).indexOf(attr)
                         if (attrIndex >= 0) {
                             contentIndex = attrIndex + attr.length
-                            while (/[=\s]/.test(src.substr(elem.startIndex + contentIndex)[0])) {
+                            while (/[=\s]/.test(src.substr(elem.startIndex! + contentIndex)[0])) {
                                 contentIndex++
                             }
-                            if (['\'', '"'].includes(src.substr(elem.startIndex + contentIndex)[0])) {
+                            if (['\'', '"'].includes(src.substr(elem.startIndex! + contentIndex)[0])) {
                                 contentIndex++
                             }
                         }
-                        const line = getLineTo(src, elem.startIndex + contentIndex, startLine)
+                        const line = getLineTo(src, elem.startIndex! + contentIndex, startLine)
                         this.extractJsIdentifier(filename, content, line)
                     } else if (Object.keys(this.options.objectAttrs).includes(attr)) {
                         let contentIndex = 0
-                        const attrIndex = src.substr(elem.startIndex).indexOf(attr)
+                        const attrIndex = src.substr(elem.startIndex!).indexOf(attr)
                         if (attrIndex >= 0) {
                             contentIndex = attrIndex + attr.length
-                            while (/[=\s]/.test(src.substr(elem.startIndex + contentIndex)[0])) {
+                            while (/[=\s]/.test(src.substr(elem.startIndex! + contentIndex)[0])) {
                                 contentIndex++
                             }
-                            if (['\'', '"'].includes(src.substr(elem.startIndex + contentIndex)[0])) {
+                            if (['\'', '"'].includes(src.substr(elem.startIndex! + contentIndex)[0])) {
                                 contentIndex++
                             }
                         }
-                        const line = getLineTo(src, elem.startIndex + contentIndex, startLine)
+                        const line = getLineTo(src, elem.startIndex! + contentIndex, startLine)
                         this.extractJsObjectPaths(filename, content, this.options.objectAttrs[attr], line)
                     }
                 }
@@ -343,7 +319,7 @@ export class PotExtractor {
         }
     }
 
-    extractMarkerExpression (filename, src, marker, startLine = 1) {
+    extractMarkerExpression (filename: string, src: string, marker: TemplateMarker, startLine = 1) {
         if (!marker.type || marker.type === 'js') {
             this.extractJsExpression(filename, src, startLine)
         } else if (marker.type === 'angular') {
@@ -351,34 +327,34 @@ export class PotExtractor {
         }
     }
 
-    extractJsExpression (filename, src, startLine = 1) {
+    extractJsExpression (filename: string, src: string, startLine: number = 1) {
         try {
             const ast = ts.createSourceFile(filename, `(${src})`, ts.ScriptTarget.Latest, true, ts.ScriptKind.JS)
             this.extractTsNode(filename, src, ast, startLine)
-        } catch (err) {
+        } catch (err: any) {
             log.warn('extractJsExpression', `error parsing '${src.split(/\n/g)[err.loc.line - 1].trim()}' (${filename}:${err.loc.line})`)
         }
     }
 
-    extractJsIdentifier (filename, src, startLine = 1) {
+    extractJsIdentifier (filename: string, src: string, startLine: number = 1) {
         try {
             const ast = ts.createSourceFile(filename, `(${src})`, ts.ScriptTarget.Latest, true, ts.ScriptKind.JS)
             this.extractJsIdentifierNode(filename, src, ast, startLine)
-        } catch (err) {
+        } catch (err: any) {
             log.warn('extractJsIdentifier', `error parsing '${src.split(/\n/g)[err.loc.line - 1].trim()}' (${filename}:${err.loc.line})`)
         }
     }
 
-    extractJsObjectPaths (filename, src, paths, startLine = 1) {
+    extractJsObjectPaths (filename: string, src: string, paths: string[], startLine: number = 1) {
         try {
             const ast = ts.createSourceFile(filename, `(${src})`, ts.ScriptTarget.Latest, true, ts.ScriptKind.JS)
             this.extractJsObjectNode(filename, src, ast, paths, startLine)
-        } catch (err) {
+        } catch (err: any) {
             log.warn('extractJsObjectPaths', `error parsing '${src.split(/\n/g)[err.loc.line - 1].trim()}' (${filename}:${err.loc.line})`)
         }
     }
 
-    extractAngularExpression (filename, src, startLine = 1) {
+    extractAngularExpression (filename: string, src: string, startLine: number = 1) {
         for (const filterExpr of this.filterExprs) {
             const match = filterExpr.exec(src)
             if (match == null) {
@@ -389,23 +365,23 @@ export class PotExtractor {
             try {
                 const ast = ts.createSourceFile(filename, contentExpr, ts.ScriptTarget.Latest, true, ts.ScriptKind.JS)
                 this.extractJsIdentifierNode(filename, contentExpr, ast, startLine)
-            } catch (err) {
+            } catch (err: any) {
                 log.warn('extractAngularExpression', `error parsing '${src.split(/\n/g)[err.loc.line - 1].trim()}' (${filename}:${err.loc.line})`)
             }
         }
     }
 
-    _evaluateTsArgumentValues (node, path = '') {
-        if (node.kind === ts.SyntaxKind.ParenthesizedExpression) {
+    _evaluateTsArgumentValues (node: ts.Expression, path = ''): string[] {
+        if (ts.isParenthesizedExpression(node)) {
             return this._evaluateTsArgumentValues(node.expression, path)
         }
         if (path) {
-            if (node.kind === ts.SyntaxKind.ObjectLiteralExpression) {
+            if (ts.isObjectLiteralExpression(node)) {
                 for (const prop of node.properties) {
-                    if (prop.kind !== ts.SyntaxKind.PropertyAssignment) {
+                    if (!ts.isPropertyAssignment(prop)) {
                         continue
                     }
-                    if (prop.name.kind !== ts.SyntaxKind.Identifier) {
+                    if (!ts.isIdentifier(prop.name)) {
                         continue
                     }
                     if (prop.name.escapedText !== path) {
@@ -413,17 +389,18 @@ export class PotExtractor {
                     }
                     return this._evaluateTsArgumentValues(prop.initializer)
                 }
+                throw new Error(`cannot extract translations from '${node.kind}' node, no ${path} property`)
             } else {
                 throw new Error(`cannot extract translations from '${node.kind}' node, use string literal directly`)
             }
         } else {
-            if (node.kind === ts.SyntaxKind.StringLiteral) {
+            if (ts.isStringLiteral(node)) {
                 return [node.text]
-            } else if (node.kind === ts.SyntaxKind.Identifier) {
+            } else if (ts.isIdentifier(node)) {
                 throw new Error('cannot extract translations from variable, use string literal directly')
-            } else if (node.kind === ts.SyntaxKind.PropertyAccessExpression) {
+            } else if (ts.isPropertyAccessExpression(node)) {
                 throw new Error('cannot extract translations from variable, use string literal directly')
-            } else if (node.kind === ts.SyntaxKind.BinaryExpression && node.operatorToken.kind === ts.SyntaxKind.PlusToken) {
+            } else if (ts.isBinaryExpression(node) && ts.isPlusToken(node.operatorToken)) {
                 const values = []
                 for (const leftValue of this._evaluateTsArgumentValues(node.left)) {
                     for (const rightValue of this._evaluateTsArgumentValues(node.right)) {
@@ -431,7 +408,7 @@ export class PotExtractor {
                     }
                 }
                 return values
-            } else if (node.kind === ts.SyntaxKind.ConditionalExpression) {
+            } else if (ts.isConditionalExpression(node)) {
                 return this._evaluateTsArgumentValues(node.whenTrue)
                     .concat(this._evaluateTsArgumentValues(node.whenFalse))
             } else {
@@ -440,8 +417,8 @@ export class PotExtractor {
         }
     }
 
-    _getTsCalleeName(node) {
-        if (node.kind === ts.SyntaxKind.Identifier) {
+    _getTsCalleeName(node: ts.Node): string | null {
+        if (ts.isIdentifier(node)) {
             return node.text
         }
 
@@ -449,7 +426,7 @@ export class PotExtractor {
             return 'this'
         }
 
-        if (node.kind === ts.SyntaxKind.PropertyAccessExpression) {
+        if (ts.isPropertyAccessExpression(node)) {
             const obj = this._getTsCalleeName(node.expression)
             const prop = this._getTsCalleeName(node.name)
             if (obj == null || prop == null) {
@@ -461,9 +438,9 @@ export class PotExtractor {
         return null
     }
 
-    extractTsNode (filename, src, ast, startLine = 1) {
-        const visit = node => {
-            if (node.kind === ts.SyntaxKind.CallExpression) {
+    extractTsNode (filename: string, src: string, ast: ts.SourceFile, startLine: number = 1) {
+        const visit = (node: ts.Node) => {
+            if (ts.isCallExpression(node)) {
                 const pos = findNonSpace(src, node.pos)
                 const calleeName = this._getTsCalleeName(node.expression)
                 if (calleeName != null && this.keywordMap.hasOwnProperty(calleeName)) {
@@ -473,16 +450,16 @@ export class PotExtractor {
                         for (const id of ids) {
                             this.addMessage({filename, line: getLineTo(src, pos, startLine)}, id)
                         }
-                    } catch (err) {
+                    } catch (err: any) {
                         log.warn('extractTsNode', err.message)
                         log.warn('extractTsNode', `'${src.substring(pos, node.end)}': (${filename}:${getLineTo(src, pos, startLine)})`)
                     }
                 }
-            } else if (node.kind === ts.SyntaxKind.ObjectLiteralExpression) {
+            } else if (ts.isObjectLiteralExpression(node)) {
                 for (const prop of node.properties) {
-                    if (prop.kind === ts.SyntaxKind.PropertyAssignment && prop.name.text === 'template') {
+                    if (ts.isPropertyAssignment(prop) && ts.isIdentifier(prop.name) && prop.name.text === 'template') {
                         const template = prop.initializer
-                        if (template.kind === ts.SyntaxKind.NoSubstitutionTemplateLiteral) {
+                        if (ts.isNoSubstitutionTemplateLiteral(template)) {
                             this.extractTemplate(filename, template.text, getLineTo(src, template.pos, startLine))
                         }
                     }
@@ -493,19 +470,19 @@ export class PotExtractor {
         visit(ast)
     }
 
-    extractTsModule (filename, src, startLine = 1) {
+    extractTsModule (filename: string, src: string, startLine: number = 1) {
         try {
             const ast = ts.createSourceFile(filename, src, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS)
             this.extractTsNode(filename, src, ast, startLine)
-        } catch (err) {
+        } catch (err: any) {
             log.warn('extractTsModule', `error parsing '${src.split(/\n/g)[err.loc.line - 1].trim()}' (${filename}:${err.loc.line})`)
         }
     }
 
-    extractCocosAsset (filename, src) {
-        const objs = JSON.parse(src)
+    extractCocosAsset (filename: string, src: string) {
+        const objs: any[] = JSON.parse(src)
         for (const obj of objs) {
-            if (!obj.hasOwnProperty('__type__')) {
+            if (!obj['__type__']) {
                 return
             }
 
@@ -521,16 +498,16 @@ export class PotExtractor {
         }
     }
 
-    _evaluatePhpArgumentValues (node) {
-        if (node.kind === 'string') {
+    _evaluatePhpArgumentValues (node: php.Node): string[] {
+        if (node instanceof php.String) {
             return [node.value]
-        } else if (node.kind === 'encapsed') {
+        } else if (node instanceof php.Encapsed) {
             throw new Error('cannot extract translations from interpolated string, use sprintf for formatting')
-        } else if (node.kind === 'variable') {
+        } else if (node instanceof php.Variable) {
             throw new Error('cannot extract translations from variable, use string literal directly')
-        } else if (node.kind === 'propertylookup') {
+        } else if (node instanceof php.PropertyLookup) {
             throw new Error('cannot extract translations from variable, use string literal directly')
-        } else if (node.kind === 'bin' && node.type === '+') {
+        } else if (node instanceof php.Bin && node.type === '+') {
             const values = []
             for (const leftValue of this._evaluatePhpArgumentValues(node.left)) {
                 for (const rightValue of this._evaluatePhpArgumentValues(node.right)) {
@@ -538,7 +515,7 @@ export class PotExtractor {
                 }
             }
             return values
-        } else if (node.kind === 'retif') {
+        } else if (node instanceof php.RetIf) {
             return this._evaluatePhpArgumentValues(node.trueExpr)
                 .concat(this._evaluatePhpArgumentValues(node.falseExpr))
         } else {
@@ -546,21 +523,21 @@ export class PotExtractor {
         }
     }
 
-    extractPhpNode (filename, src, Node, ast, startLine = 1) {
-        const visit = node => {
-            if (node.kind === 'call') {
+    extractPhpNode (filename: string, src: string, ast: php.Program) {
+        const visit = (node: php.Node) => {
+            if (node instanceof php.Call) {
                 for (const {propName, position} of this.keywordDefs) {
                     if (node.what.kind === 'classreference') {
                         if (node.what.name === propName) {
-                            const startOffset = src.substr(0, node.loc.start.offset).lastIndexOf(propName)
+                            const startOffset = src.substr(0, node.loc!.start.offset).lastIndexOf(propName)
                             try {
                                 const ids = this._evaluatePhpArgumentValues(node.arguments[position])
                                 for (const id of ids) {
-                                    this.addMessage({filename, line: node.loc.start.line}, id)
+                                    this.addMessage({filename, line: node.loc!.start.line}, id)
                                 }
-                            } catch (err) {
+                            } catch (err: any) {
                                 log.warn('extractPhpNode', err.message)
-                                log.warn('extractPhpNode', `'${src.substring(startOffset, node.loc.end.offset)}': (${filename}:${node.loc.start.line})`)
+                                log.warn('extractPhpNode', `'${src.substring(startOffset, node.loc!.end.offset)}': (${filename}:${node.loc!.start.line})`)
                             }
                         }
                     }
@@ -569,14 +546,15 @@ export class PotExtractor {
 
             for (const key in node) {
                 // noinspection JSUnfilteredForInLoop
+                // @ts-ignore
                 const value = node[key]
                 if (Array.isArray(value)) {
                     for (const child of value) {
-                        if (child instanceof Node) {
+                        if (child instanceof php.Node) {
                             visit(child)
                         }
                     }
-                } else if (value instanceof Node) {
+                } else if (value instanceof php.Node) {
                     visit(value)
                 }
             }
@@ -584,8 +562,8 @@ export class PotExtractor {
         visit(ast)
     }
 
-    extractPhpCode (filename, src, startLine = 1) {
-        const parser = new Engine({
+    extractPhpCode (filename: string, src: string, startLine: number = 1) {
+        const parser = new php.Engine({
             parser: {
                 extractDoc: true,
                 locations: true,
@@ -597,15 +575,16 @@ export class PotExtractor {
         })
 
         try {
-            const ast = parser.parseCode(src)
-            const Node = require("php-parser/src/ast/node")
-            this.extractPhpNode(filename, src, Node, ast, startLine)
-        } catch (err) {
+            const ast = parser.parseCode(src, filename)
+            this.extractPhpNode(filename, src, ast)
+        } catch (err: any) {
             log.warn('extractPhpCode', `error parsing '${src.split(/\n/g)[err.loc.line - 1].trim()}' (${filename}:${err.loc.line})`)
         }
     }
 
-    addMessage ({filename, line}, id, {plural = null, comment = null, context = null, allowSpaceInId = false} = {}) {
+    addMessage ({filename, line}: {filename: string, line: number | string}, id: string,
+                options?: { plural?: string | null, comment?: string | null, context?: string | null, allowSpaceInId?: boolean }) {
+        const {plural = null, comment = null, context = null, allowSpaceInId = false} = options ?? {}
         const poEntry = findPoEntry(this.po, context, id)
         const builder = poEntry ? PoEntryBuilder.fromPoEntry(poEntry) : new PoEntryBuilder(context, id, {allowSpaceInId})
 
@@ -620,12 +599,12 @@ export class PotExtractor {
         setPoEntry(this.po, builder.toPoEntry())
     }
 
-    getPo () {
+    getPo (): GetTextTranslations {
         return this.po
     }
 
-    toString () {
-        function compareMsgctxt(left, right) {
+    toString (): Buffer {
+        function compareMsgctxt(left: string | undefined, right: string | undefined) {
             if (left && right) {
                 if (left < right)
                     return -1
@@ -641,7 +620,7 @@ export class PotExtractor {
             }
         }
 
-        function compareMsgid(left, right) {
+        function compareMsgid(left: string, right: string) {
             if (left < right)
                 return -1
             if (left > right)
@@ -649,7 +628,7 @@ export class PotExtractor {
             return 0
         }
 
-        function sort(left, right) {
+        function sort(left: GetTextTranslation, right: GetTextTranslation) {
             const order = compareMsgid(left.msgid, right.msgid)
             if (order !== 0)
                 return order
@@ -660,7 +639,7 @@ export class PotExtractor {
     }
 }
 
-function parseKeyword(keyword) {
+function parseKeyword(keyword: string): KeywordDef {
     const [name, _pos] = keyword.split(':')
     const position = _pos ? Number.parseInt(_pos) : 0
     const [name1, name2] = name.split('.')
@@ -679,8 +658,8 @@ function parseKeyword(keyword) {
     }
 }
 
-function buildKeywordMap(keywords) {
-    const keywordMap = {}
+function buildKeywordMap(keywords: string[]): {[keyword: string]: number} {
+    const keywordMap: {[keyword: string]: number} = {}
     for (const keyword of keywords) {
         const [name, pos] = keyword.split(':')
         keywordMap[name] = pos ? Number.parseInt(pos) : 0
@@ -688,7 +667,7 @@ function buildKeywordMap(keywords) {
     return keywordMap
 }
 
-function findNonSpace(src, index) {
+function findNonSpace(src: string, index: number): number {
     const match = /^(\s*)\S/.exec(src.substring(index))
     if (match) {
         return index + match[1].length
@@ -697,7 +676,7 @@ function findNonSpace(src, index) {
     }
 }
 
-function getCocosNodePath (nodes, obj) {
+function getCocosNodePath (nodes: any[], obj: any): string {
     if (obj.hasOwnProperty('node')) {
         const node = nodes[obj['node']['__id__']]
         return getCocosNodePath(nodes, node)
@@ -719,10 +698,14 @@ function getCocosNodePath (nodes, obj) {
     }
 }
 
-export function getLineTo(src, index, startLine = 1) {
+export function getLineTo(src: string, index: number, startLine: number = 1): number {
     const matches = src.substr(0, index).match(/\n/g)
     if (!matches) {
         return startLine
     }
     return startLine + matches.length
+}
+
+function isTagElement(elem: cheerio.Element): elem is cheerio.TagElement {
+    return ['tag', 'script', 'style'].includes(elem.type)
 }

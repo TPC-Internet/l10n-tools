@@ -22,7 +22,7 @@ export default async function (domainName: string, config: Config, potPath: stri
         objectAttrs: {'v-t': ['', 'path']},
         exprAttrs: [/^:/, /^v-bind:/, /^v-html$/],
         markers: [{start: '{{', end: '}}'}],
-        keywords: keywords
+        keywords: [...keywords]
     })
     log.info('extractPot', 'extracting from .vue, .js, .ts files')
     for (const srcPath of srcPaths) {

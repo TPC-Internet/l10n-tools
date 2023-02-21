@@ -6,10 +6,11 @@ import * as path from 'path'
 import * as shell from 'shelljs'
 import {getPoEntries, findPoEntry, getPoEntryFlag, setPoEntryFlag, readPoFile, writePoFile} from './po'
 import {execWithLog, requireCmd} from './utils'
+import {Config} from './config'
 
-export async function getSrcPaths (config, exts) {
-    const srcDirs = config.get('src-dirs', [])
-    const srcPatterns = config.get('src-patterns', [])
+export async function getSrcPaths (config: Config, exts: string[]): Promise<string[]> {
+    const srcDirs = config.get<string[]>('src-dirs', [])
+    const srcPatterns = config.get<string[]>('src-patterns', [])
     if (srcDirs.length === 0 && srcPatterns.length === 0) {
         throw new Error(`config '${config.appendPrefix('src-dirs')}' or '${config.appendPrefix('src-patterns')}' is required`)
     }
@@ -20,14 +21,14 @@ export async function getSrcPaths (config, exts) {
         }
     }
 
-    const srcPaths = []
+    const srcPaths: string[] = []
     for (const srcPattern of srcPatterns) {
         srcPaths.push(...await glob.promise(srcPattern))
     }
     return srcPaths
 }
 
-export async function xgettext (domainName, language, keywords, potPath, srcPaths, merge) {
+export async function xgettext (domainName: string, language: string, keywords: string[], potPath: string, srcPaths: string[], merge: boolean) {
     await requireCmd.brew('xgettext', 'gettext', true)
     log.info('xgettext', `from ${language} source`)
     await execWithLog(
@@ -40,7 +41,7 @@ export async function xgettext (domainName, language, keywords, potPath, srcPath
             ${srcPaths.join(' ')}`, 'xgettext')
 }
 
-export function updatePo (potPath, fromPoDir, poDir, locales) {
+export function updatePo (potPath: string, fromPoDir: string, poDir: string, locales: string[]) {
     shell.mkdir('-p', poDir)
     const potInput = fs.readFileSync(potPath)
     for (const locale of locales) {
@@ -52,7 +53,7 @@ export function updatePo (potPath, fromPoDir, poDir, locales) {
         if (fs.existsSync(fromPoPath)) {
             const fromPo = readPoFile(fromPoPath)
             for (const potEntry of getPoEntries(pot)) {
-                const fromPoEntry = findPoEntry(fromPo, potEntry.msgctxt, potEntry.msgid)
+                const fromPoEntry = findPoEntry(fromPo, potEntry.msgctxt || null, potEntry.msgid)
                 if (fromPoEntry != null) {
                     potEntry.msgstr = fromPoEntry.msgstr.map(value => value === '$$no translation$$' ? '' : value)
                     const flag = getPoEntryFlag(fromPoEntry)
@@ -69,7 +70,7 @@ export function updatePo (potPath, fromPoDir, poDir, locales) {
     }
 }
 
-export async function mergeFallbackLocale(domainName, poDir, fallbackLocale, mergedPoDir) {
+export async function mergeFallbackLocale(domainName: string, poDir: string, fallbackLocale: string, mergedPoDir: string): Promise<void> {
     shell.mkdir('-p', mergedPoDir)
     const fallbackPo = readPoFile(path.join(poDir, fallbackLocale + '.po'))
 
@@ -80,7 +81,7 @@ export async function mergeFallbackLocale(domainName, poDir, fallbackLocale, mer
         if (locale !== fallbackLocale) {
             for (const poEntry of getPoEntries(po)) {
                 if (!poEntry.msgstr[0]) {
-                    const fallbackPoEntry = findPoEntry(fallbackPo, poEntry.msgctxt, poEntry.msgid)
+                    const fallbackPoEntry = findPoEntry(fallbackPo, poEntry.msgctxt || null, poEntry.msgid)
                     if (fallbackPoEntry != null && fallbackPoEntry.msgstr[0]) {
                         poEntry.msgstr = fallbackPoEntry.msgstr
                     }
@@ -93,10 +94,10 @@ export async function mergeFallbackLocale(domainName, poDir, fallbackLocale, mer
     }
 }
 
-export function cleanupPot (potPath) {
+export function cleanupPot (potPath: string) {
     // POT-Creation-Date 항목이 자꾸 바뀌어서 diff 생기는 것 방지
     // 빈 주석, fuzzy 마크 지우기
-    const input = fs.readFileSync(potPath, {encoding: 'UTF-8'})
+    const input = fs.readFileSync(potPath, {encoding: 'utf-8'})
     let output = input
         .replace(/^"POT-Creation-Date:.*\n/mg, '')
         .replace(/^# *\n/mg, '')
@@ -104,16 +105,16 @@ export function cleanupPot (potPath) {
         .replace(/^(#.*), fuzzy(.*)/mg, '$1$2')
     if (!output.endsWith('\n'))
         output += '\n'
-    fs.writeFileSync(potPath, output, {encoding: 'UTF-8'})
+    fs.writeFileSync(potPath, output, {encoding: 'utf-8'})
 }
 
-export function cleanupPo (poPath) {
+export function cleanupPo (poPath: string) {
     // POT-Creation-Date 항목 제가 (쓸데없는 diff 방지)
     // 빈 주석, fuzzy 마크 지우기
     // source 주석 제거 (쓸데없는 diff 방지)
     // Language 항목 제대로 설정
     const language = path.basename(poPath, '.po')
-    const input = fs.readFileSync(poPath, {encoding: 'UTF-8'})
+    const input = fs.readFileSync(poPath, {encoding: 'utf-8'})
     let output = input
         .replace(/^"POT-Creation-Date:.*\n/mg, '')
         .replace(/^# *\n/mg, '')
@@ -124,10 +125,16 @@ export function cleanupPo (poPath) {
         .replace(/^"Language: \\n"/mg, `"Language: ${language}\\n"`)
     if (!output.endsWith('\n'))
         output += '\n'
-    fs.writeFileSync(poPath, output, {encoding: 'UTF-8'})
+    fs.writeFileSync(poPath, output, {encoding: 'utf-8'})
 }
 
-export function handleMarker(src, srcIndex, marker, fn) {
+export type TemplateMarker = {
+    start: string
+    end: string
+    type?: string
+}
+
+export function handleMarker(src: string, srcIndex: number, marker: TemplateMarker, fn: (inMarker: boolean, content: string) => void) {
     while (true) {
         let startOffset = src.indexOf(marker.start, srcIndex)
         if (startOffset === -1)

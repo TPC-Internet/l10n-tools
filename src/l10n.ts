@@ -120,7 +120,7 @@ async function run () {
         .action(async (opts, cmd) => {
             await runSubCommand(cmd.name(), async (domainName, config, domainConfig) => {
                 const i18nDir = domainConfig.get<string>('i18n-dir')
-                const locales = domainConfig.get('locales')
+                const locales = domainConfig.get<string[]>('locales', [])
                 const fallbackLocale = domainConfig.get('fallback-locale', null)
                 const tag = domainConfig.get('tag')
 

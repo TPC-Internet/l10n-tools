@@ -43,9 +43,9 @@ describe('PotExtractor', () => {
             const extractor = PotExtractor.create('testDomain', {tagNames: ['i18n']})
             extractor.extractVue('test-file', module)
             expect(extractor.po.translations).toHaveProperty(['', 'key-vue-i18n-path', 'comments', 'reference'])
-            expect(extractor.po.translations['']['key-vue-i18n-path']['comments']['reference']).toEqual('test-file:4')
+            expect(extractor.po.translations['']['key-vue-i18n-path']?.comments?.reference).toEqual('test-file:4')
             expect(extractor.po.translations).toHaveProperty(['', 'key-vue-i18n-path-exp', 'comments', 'reference'])
-            expect(extractor.po.translations['']['key-vue-i18n-path-exp']['comments']['reference']).toEqual('test-file:5')
+            expect(extractor.po.translations['']['key-vue-i18n-path-exp']?.comments?.reference).toEqual('test-file:5')
         })
 
         it('v-t attrs', () => {
@@ -58,9 +58,9 @@ describe('PotExtractor', () => {
             const extractor = PotExtractor.create('testDomain', {objectAttrs: {'v-t': ['', 'path']}})
             extractor.extractVue('test-file', module)
             expect(extractor.po.translations).toHaveProperty(['', 'key-v-t', 'comments', 'reference'])
-            expect(extractor.po.translations['']['key-v-t']['comments']['reference']).toEqual('test-file:3')
+            expect(extractor.po.translations['']['key-v-t']?.comments?.reference).toEqual('test-file:3')
             expect(extractor.po.translations).toHaveProperty(['', 'key-v-t-path', 'comments', 'reference'])
-            expect(extractor.po.translations['']['key-v-t-path']['comments']['reference']).toEqual('test-file:4')
+            expect(extractor.po.translations['']['key-v-t-path']?.comments?.reference).toEqual('test-file:4')
         })
     })
 
@@ -86,9 +86,9 @@ describe('PotExtractor', () => {
             const extractor = PotExtractor.create('testDomain', {keywords: ['this.$t']})
             extractor.extractVue('test-file', module)
             expect(extractor.po.translations).toHaveProperty(['', 'key-js', 'comments', 'reference'])
-            expect(extractor.po.translations['']['key-js']['comments']['reference']).toEqual('test-file:6')
+            expect(extractor.po.translations['']['key-js']?.comments?.reference).toEqual('test-file:6')
             expect(extractor.po.translations).toHaveProperty(['', 'key-ts', 'comments', 'reference'])
-            expect(extractor.po.translations['']['key-ts']['comments']['reference']).toEqual('test-file:13')
+            expect(extractor.po.translations['']['key-ts']?.comments?.reference).toEqual('test-file:13')
         })
     })
 
@@ -121,7 +121,7 @@ describe('PotExtractor', () => {
             extractor.extractReactJsModule('test-file', module)
             const key = '{length}(mm) {width}(mm) {height}(mm)'
             expect(extractor.po.translations).toHaveProperty(['', key, 'comments', 'reference'])
-            expect(extractor.po.translations[''][key]['comments']['reference']).toEqual('test-file:12')
+            expect(extractor.po.translations[''][key]?.comments?.reference).toEqual('test-file:12')
         })
     })
 
@@ -138,7 +138,7 @@ describe('PotExtractor', () => {
             })
             extractor.extractTemplate('test-file', module)
             expect(extractor.po.translations).toHaveProperty(['', 'angular-translate-key', 'comments', 'reference'])
-            expect(extractor.po.translations['']['angular-translate-key']['comments']['reference']).toEqual('test-file:2')
+            expect(extractor.po.translations['']['angular-translate-key']?.comments?.reference).toEqual('test-file:2')
         })
     })
 })
