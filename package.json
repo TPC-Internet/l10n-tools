@@ -3,8 +3,8 @@
   "version": "2.3.1",
   "description": "Localization tools",
   "scripts": {
-    "build": "swc src -d dist",
-    "watch": "swc -w src -d dist",
+    "build": "swc src -d dist -s",
+    "watch": "swc -w src -d dist -s",
     "test": "jest",
     "prepare": "npm run build",
     "prepublishOnly": "npm test"
