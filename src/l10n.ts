@@ -4,7 +4,7 @@ import {Command} from 'commander'
 import log from 'npmlog'
 import {checkPoEntrySpecs, getPoEntriesFromFile, getPoEntryFlag} from './po'
 import {getTempDir} from './utils'
-import {mergeFallbackLocale, updatePo} from './common'
+import {mergeFallbackLocale, updatePo, ValidationConf} from './common'
 import * as shell from 'shelljs'
 import {syncPoToGoogleDocs} from './google-docs-syncer'
 import * as path from 'path'
@@ -23,8 +23,10 @@ async function run () {
     let cmd: commander.Command | null = null
     program.version(pkg.version)
         .description(pkg.description)
-        .option('-r, --rcfile [rcfile]', '설정 파일 지정, 기본값은 .l10nrc')
-        .option('-d, --domains [domains]', '적용할 도메인 지정, 없으면 설정 파일에 있는 모든 도메인 (콤마로 여러 도메인 나열 가능)', val => val.split(','))
+        .option('-r, --rcfile <rcfile>', '설정 파일 지정, 기본값은 .l10nrc')
+        .option('-d, --domains <domains>', '적용할 도메인 지정, 없으면 설정 파일에 있는 모든 도메인 (콤마로 여러 도메인 나열 가능)', val => val.split(','))
+        .option('-s, --skip-validation', 'Skip format validation')
+        .option('-b, --validation-base-locale <locale>', 'Use msgstr of locale as validation base, default to msgid')
         .option('-v, --verbose', 'log verbose')
         .option('-q, --quiet', '조용히')
         .on('--help', () => {
@@ -70,6 +72,9 @@ async function run () {
         .description('로컬 번역 업데이트')
         .action(async (opts, cmd) => {
             await runSubCommand(cmd.name(), async (domainName, config, domainConfig) => {
+                const skipValidation: boolean = program.opts().skipValidation || false
+                const validationBaseLocale: string | null = program.opts().validationBaseLocale || null
+                const validationConf: ValidationConf = {skip: skipValidation, baseLocale: validationBaseLocale}
                 const i18nDir = domainConfig.get<string>('i18n-dir')
                 const locales = domainConfig.get<string[]>('locales')
                 const fallbackLocale = domainConfig.get<string | null>('fallback-locale', null)
@@ -78,7 +83,7 @@ async function run () {
                 const poDir = path.join(i18nDir, domainName)
 
                 await extractPot(domainName, domainConfig, potPath)
-                updatePo(potPath, poDir, poDir, locales)
+                updatePo(potPath, poDir, poDir, locales, validationConf)
 
                 if (fallbackLocale != null) {
                     const tempDir = path.join(getTempDir(), domainName)
@@ -96,6 +101,8 @@ async function run () {
     program.command('upload')
         .description('로컬 소스 변경사항을 Google Docs 에 업로드 (로컬 번역 파일은 건드리지 않음)')
         .action(async (opts, cmd) => {
+            const skipValidation = program.opts().skipValidation || false
+            const validationBaseLocale: string | null = program.opts().validationBaseLocale || null
             await runSubCommand(cmd.name(), async (domainName, config, domainConfig) => {
                 const i18nDir = domainConfig.get<string>('i18n-dir')
                 const locales = domainConfig.get<string[]>('locales')
@@ -109,7 +116,7 @@ async function run () {
                 log.info('l10n', `temp dir: '${tempDir}'`)
                 shell.rm('-rf', tempDir)
                 await extractPot(domainName, domainConfig, potPath)
-                updatePo(potPath, fromPoDir, poDir, locales)
+                updatePo(potPath, fromPoDir, poDir, locales, {skip: skipValidation, baseLocale: validationBaseLocale})
                 await syncPoToGoogleDocs(config, domainConfig, tag, potPath, poDir)
                 shell.rm('-rf', tempDir)
             })
@@ -118,6 +125,8 @@ async function run () {
     program.command('sync')
         .description('로컬 소스와 Google Docs 간 싱크')
         .action(async (opts, cmd) => {
+            const skipValidation = program.opts().skipValidation || false
+            const validationBaseLocale: string | null = program.opts().validationBaseLocale || null
             await runSubCommand(cmd.name(), async (domainName, config, domainConfig) => {
                 const i18nDir = domainConfig.get<string>('i18n-dir')
                 const locales = domainConfig.get<string[]>('locales', [])
@@ -128,9 +137,9 @@ async function run () {
                 const poDir = path.join(i18nDir, domainName)
 
                 await extractPot(domainName, domainConfig, potPath)
-                updatePo(potPath, poDir, poDir, locales)
+                updatePo(potPath, poDir, poDir, locales, null)
                 await syncPoToGoogleDocs(config, domainConfig, tag, potPath, poDir)
-                updatePo(potPath, poDir, poDir, locales)
+                updatePo(potPath, poDir, poDir, locales, {skip: skipValidation, baseLocale: validationBaseLocale})
 
                 if (fallbackLocale != null) {
                     const tempDir = path.join(getTempDir(), domainName)
@@ -149,6 +158,8 @@ async function run () {
         .description('전체 번역 여부 검사')
         .option('-l, --locales [locales]', '검사한 로케일 (콤마로 나열 가능, 없으면 전체)')
         .action(async (opts, cmd) => {
+            const skipValidation = program.opts().skipValidation || false
+            const validationBaseLocale: string | null = program.opts().validationBaseLocale || null
             await runSubCommand(cmd.name(), async (domainName, config, domainConfig) => {
                 const i18nDir = domainConfig.get<string>('i18n-dir')
                 const locales = opts.locales ? opts.locales.split(',') : domainConfig.get('locales')
@@ -162,7 +173,7 @@ async function run () {
                 log.info('l10n', `temp dir: '${tempDir}'`)
                 shell.rm('-rf', tempDir)
                 await extractPot(domainName, domainConfig, potPath)
-                updatePo(potPath, fromPoDir, poDir, locales)
+                updatePo(potPath, fromPoDir, poDir, locales, {skip: skipValidation, baseLocale: validationBaseLocale})
 
                 for (const locale of locales) {
                     const poPath = path.join(poDir, locale + '.po')
@@ -207,6 +218,8 @@ async function run () {
         .option('--potdir [potdir]', '설정한 위치에 있는 pot 파일에서 추출')
         .option('--podir [podir]', '설정한 위치에 업데이트된 po 파일 저장')
         .action(async (opts, cmd) => {
+            const skipValidation = program.opts().skipValidation || false
+            const validationBaseLocale: string | null = program.opts().validationBaseLocale || null
             await runSubCommand(cmd.name(), async (domainName, config, domainConfig) => {
                 const i18nDir = domainConfig.get<string>('i18n-dir')
                 const locales = opts.locales ? opts.locales.split(',') : domainConfig.get<string[]>('locales')
@@ -215,7 +228,7 @@ async function run () {
                 const fromPoDir = path.join(i18nDir, domainName)
                 const poDir = path.join(opts.podir || i18nDir, domainName)
 
-                updatePo(potPath, fromPoDir, poDir, locales)
+                updatePo(potPath, fromPoDir, poDir, locales, {skip: skipValidation, baseLocale: validationBaseLocale})
             })
         })
 

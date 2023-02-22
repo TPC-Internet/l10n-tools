@@ -1,60 +1,94 @@
 import log from 'npmlog'
 
 export class ValidateError extends Error {}
+
 export class UnexpectedFormatError extends ValidateError {}
 export class FormatNotFoundError extends ValidateError {}
-export class NotEnoughFormatError extends ValidateError {}
-export class UnmatchedFormatError extends ValidateError {}
 export class TooManyFormatError extends ValidateError {}
 
 type FormatDef = {
-    name: string
     type: string
     regex: RegExp
 }
 
 const formatDefs: FormatDef[] = [
-    {name: 'C', type: 'c-format', regex: /%-?[0-9]*\.?[0-9]*(?:c|d|e|E|f|g|G|hi|hu|i|l|ld|li|lf|Lf|lu|lli|lld|llu|o|p|s|u|x|X|n|@)/g},
-    {name: 'Ordered C', type: 'c-format-ordered', regex: /%[1-9]+\$-?[0-9]*\.?[0-9]*(?:c|d|e|E|f|g|G|hi|hu|i|l|ld|li|lf|Lf|lu|lli|lld|llu|o|p|s|u|x|X|n|@)/g},
-    {name: 'Named', type: 'single-bracket-named', regex: /\{[A-Za-z_][A-Za-z0-9_]*}/g}
+    {type: 'c-format', regex: /%-?[0-9]*\.?[0-9]*(?:c|d|e|E|f|g|G|hi|hu|i|l|ld|li|lf|Lf|lu|lli|lld|llu|o|p|s|u|x|X|n|@)/g},
+    {type: 'c-format-ordered', regex: /%[1-9]+\$-?[0-9]*\.?[0-9]*(?:c|d|e|E|f|g|G|hi|hu|i|l|ld|li|lf|Lf|lu|lli|lld|llu|o|p|s|u|x|X|n|@)/g},
+    {type: 'single-brace-named', regex: /\{[A-Za-z_][A-Za-z0-9_]*}/g}
 ]
 
-export function validateMsgFormat(msgid: string, msgstr: string) {
-    if (!msgstr.trim()) {
+export function validateMsg(baseMsg: string, msg: string) {
+    if (!msg.trim()) {
         return
     }
-    log.verbose('validate', `|${msgid.replace('\n', '\\n')}| vs |${msgstr.replace('\n', '\\n')}|`)
+    log.verbose('validate', `|${baseMsg.replace('\n', '\\n')}| vs |${msg.replace('\n', '\\n')}|`)
     for (const def of formatDefs) {
-        validateFormat(msgid, msgstr, def)
+        validateFormat(baseMsg, msg, def)
+    }
+    validateMarkup(baseMsg, msg)
+}
+
+function validateFormat(baseMsg: string, msg: string, def: FormatDef) {
+    const baseFormats = baseMsg.match(def.regex)
+    const formats = msg.match(def.regex)
+    if (def.type === 'c-format' && baseFormats != null && baseFormats.length > 1) {
+        throw new TooManyFormatError(`Use order parameter in c-format for more then one formats in \`${baseMsg.replace('\n', '\\n')}'`)
+    }
+
+    const baseFormatSet = new Set(baseFormats)
+    const formatSet = new Set(formats)
+    for (const format of baseFormatSet) {
+        if (!formatSet.has(format)) {
+            throw new FormatNotFoundError(`Expected placeholder \`${format}' is not present in \`${msg.replace('\n', '\\n')}'`)
+        }
+        formatSet.delete(format)
+    }
+    for (const format of formatSet) {
+        throw new UnexpectedFormatError(`Placeholder \`${format}' is unexpected in \`${msg.replace('\n', '\\n')}'`)
     }
 }
 
-function validateFormat(msgid: string, msgstr: string, def: FormatDef) {
-    const expectedFormats = msgid.match(def.regex)
-    const formats = msgstr.match(def.regex)
-    if (expectedFormats == null) {
-        if (formats != null) {
-            throw new UnexpectedFormatError(`unexpected ${def.name} format found`)
-        }
-        return
-    }
-    if (formats == null) {
-        throw new FormatNotFoundError(`${def.name} format not found`)
-    }
+export class UnexpectedTagError extends ValidateError {}
+export class TagNotFoundError extends ValidateError {}
 
-    const uniqueExpectedFormats = [...new Set(expectedFormats)].sort()
-    const uniqueFormats = [...new Set(formats)].sort()
-    if (uniqueExpectedFormats.length != uniqueFormats.length) {
-        throw new NotEnoughFormatError(`${def.name} format count not matched`)
-    }
-    if (def.type === 'c-format') {
-        if (uniqueExpectedFormats.length > 1) {
-            throw new TooManyFormatError(`use order parameter in c-format to use more then one format`)
+const markupRegex = /<\/?[A-Za-z-]+(\s+[^>/]*)?\/?>/g
+
+function validateMarkup(baseMsg: string, msg: string) {
+    const baseTags = [...baseMsg.match(markupRegex) ?? []]
+        .map(tag => normalizeTag(tag))
+    const tags = [...msg.match(markupRegex) ?? []]
+        .map(tag => normalizeTag(tag))
+
+    const hasBrTag = baseTags.some(tag => isBrTag(tag))
+    for (const tag of baseTags) {
+        const index = tags.indexOf(tag)
+        if (index < 0) {
+            if (isBrTag(tag)) {
+                // omitting br tag is permitted
+                continue
+            }
+            throw new TagNotFoundError(`Expected tag \`${tag}' is not present in \`${msg.replace('\n', '\\n')}'`)
         }
+        tags.splice(index, 1)
     }
-    for (const [i, expectedFormat] of uniqueExpectedFormats.entries()) {
-        if (expectedFormat != uniqueFormats[i]) {
-            throw new UnmatchedFormatError(`unmatched ${def.name} format ${expectedFormat} - ${formats[i]}`)
+    for (const tag of tags) {
+        if (hasBrTag && isBrTag(tag)) {
+            // adding more br tag is permitted
+            continue
         }
+        throw new UnexpectedTagError(`Tag \`${tag}' is unexpected in \`${msg.replace('\n', '\\n')}'`)
     }
+}
+
+function isBrTag(tag: string): boolean {
+    return tag == '<br>' || tag == '<br/>'
+}
+
+function normalizeTag(tag: string): string {
+    return tag
+        .replace(/<\s+/g, '<')
+        .replace(/\s+>/g, '>')
+        .replace(/\s+=/g, '=')
+        .replace(/=\s+/g, '=')
+        .replace(/\s+\/>/g, '/>')
 }

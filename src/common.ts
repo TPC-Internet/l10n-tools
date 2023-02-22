@@ -7,7 +7,8 @@ import * as shell from 'shelljs'
 import {getPoEntries, findPoEntry, getPoEntryFlag, setPoEntryFlag, readPoFile, writePoFile} from './po'
 import {execWithLog, requireCmd} from './utils'
 import {Config} from './config'
-import {validateMsgFormat} from './validator'
+import {validateMsg} from './validator'
+import {GetTextTranslations} from 'gettext-parser'
 
 export async function getSrcPaths (config: Config, exts: string[]): Promise<string[]> {
     const srcDirs = config.get<string[]>('src-dirs', [])
@@ -42,9 +43,19 @@ export async function xgettext (domainName: string, language: string, keywords: 
             ${srcPaths.join(' ')}`, 'xgettext')
 }
 
-export function updatePo (potPath: string, fromPoDir: string, poDir: string, locales: string[]) {
+export type ValidationConf = {skip: boolean, baseLocale: string | null}
+
+export function updatePo (potPath: string, fromPoDir: string, poDir: string, locales: string[], validationConf: ValidationConf | null) {
     shell.mkdir('-p', poDir)
     const potInput = fs.readFileSync(potPath)
+    let basePo: GetTextTranslations | null = null
+    if (validationConf?.baseLocale != null) {
+        try {
+            basePo = readPoFile(path.join(fromPoDir, validationConf.baseLocale + '.po'))
+        } catch (err) {
+            log.warn('updatePo', 'Failed to read validation base locale file')
+        }
+    }
     for (const locale of locales) {
         const poFile = locale + '.po'
         const fromPoPath = path.join(fromPoDir, poFile)
@@ -57,7 +68,23 @@ export function updatePo (potPath: string, fromPoDir: string, poDir: string, loc
                 const fromPoEntry = findPoEntry(fromPo, potEntry.msgctxt || null, potEntry.msgid)
                 if (fromPoEntry != null) {
                     potEntry.msgstr = fromPoEntry.msgstr.map(value => value === '$$no translation$$' ? '' : value)
-                    validateMsgFormat(potEntry.msgid, potEntry.msgstr[0])
+                    if (validationConf != null && validationConf.baseLocale != locale) {
+                        try {
+                            let baseMsg: string
+                            if (basePo == null) {
+                                baseMsg = potEntry.msgid
+                            } else {
+                                const basePoEntry = findPoEntry(basePo, potEntry.msgctxt || null, potEntry.msgid)
+                                baseMsg = basePoEntry?.msgstr[0] ?? potEntry.msgid
+                            }
+                            validateMsg(baseMsg, potEntry.msgstr[0])
+                        } catch (err: any) {
+                            log.warn('validation', `[${locale}] ${err.constructor.name}: ${err.message}`)
+                            if (!validationConf.skip) {
+                                throw err
+                            }
+                        }
+                    }
                     const flag = getPoEntryFlag(fromPoEntry)
                     if (flag) {
                         setPoEntryFlag(potEntry, flag)
