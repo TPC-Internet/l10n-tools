@@ -13,14 +13,12 @@ import {extractPot} from './extractor'
 import {compileAll} from './compiler'
 import * as fs from 'fs'
 import {cosmiconfig} from 'cosmiconfig'
-import commander from 'commander'
 
 const program = new Command('l10n-tools')
 const explorer = cosmiconfig('l10n')
 
 async function run () {
     const pkg = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'package.json'), 'utf-8'))
-    let cmd: commander.Command | null = null
     program.version(pkg.version)
         .description(pkg.description)
         .option('-r, --rcfile <rcfile>', '설정 파일 지정, 기본값은 .l10nrc')
@@ -61,6 +59,10 @@ async function run () {
       - i18next: json-dir
       - vt, python: mo 
       
+    [validation]
+      validation.base-locale                   Use msgstr of locale as validation base, default to msgid
+      validation.skip                          If true, print warning instead of stop running
+    
     [구글 문서 동기화]
       google-docs.doc-name                     동기화에 사용할 구글 문서 이름
       google-docs.sheet-name                   동기화에 사용할 구글 문서 내 시트 이름
@@ -72,12 +74,10 @@ async function run () {
         .description('로컬 번역 업데이트')
         .action(async (opts, cmd) => {
             await runSubCommand(cmd.name(), async (domainName, config, domainConfig) => {
-                const skipValidation: boolean = program.opts().skipValidation || false
-                const validationBaseLocale: string | null = program.opts().validationBaseLocale || null
-                const validationConf: ValidationConf = {skip: skipValidation, baseLocale: validationBaseLocale}
                 const i18nDir = domainConfig.get<string>('i18n-dir')
                 const locales = domainConfig.get<string[]>('locales')
                 const fallbackLocale = domainConfig.get<string | null>('fallback-locale', null)
+                const validationConf = getValidationConf(program, config)
 
                 const potPath = path.join(i18nDir, domainName, 'template.pot')
                 const poDir = path.join(i18nDir, domainName)
@@ -101,12 +101,11 @@ async function run () {
     program.command('upload')
         .description('로컬 소스 변경사항을 Google Docs 에 업로드 (로컬 번역 파일은 건드리지 않음)')
         .action(async (opts, cmd) => {
-            const skipValidation = program.opts().skipValidation || false
-            const validationBaseLocale: string | null = program.opts().validationBaseLocale || null
             await runSubCommand(cmd.name(), async (domainName, config, domainConfig) => {
                 const i18nDir = domainConfig.get<string>('i18n-dir')
                 const locales = domainConfig.get<string[]>('locales')
                 const tag = domainConfig.get('tag')
+                const validationConf = getValidationConf(program, config)
 
                 const fromPoDir = path.join(i18nDir, domainName)
                 const tempDir = path.join(getTempDir(), domainName)
@@ -116,7 +115,7 @@ async function run () {
                 log.info('l10n', `temp dir: '${tempDir}'`)
                 shell.rm('-rf', tempDir)
                 await extractPot(domainName, domainConfig, potPath)
-                updatePo(potPath, fromPoDir, poDir, locales, {skip: skipValidation, baseLocale: validationBaseLocale})
+                updatePo(potPath, fromPoDir, poDir, locales, validationConf)
                 await syncPoToGoogleDocs(config, domainConfig, tag, potPath, poDir)
                 shell.rm('-rf', tempDir)
             })
@@ -125,13 +124,12 @@ async function run () {
     program.command('sync')
         .description('로컬 소스와 Google Docs 간 싱크')
         .action(async (opts, cmd) => {
-            const skipValidation = program.opts().skipValidation || false
-            const validationBaseLocale: string | null = program.opts().validationBaseLocale || null
             await runSubCommand(cmd.name(), async (domainName, config, domainConfig) => {
                 const i18nDir = domainConfig.get<string>('i18n-dir')
                 const locales = domainConfig.get<string[]>('locales', [])
                 const fallbackLocale = domainConfig.get('fallback-locale', null)
                 const tag = domainConfig.get('tag')
+                const validationConf = getValidationConf(program, config)
 
                 const potPath = path.join(i18nDir, domainName, 'template.pot')
                 const poDir = path.join(i18nDir, domainName)
@@ -139,7 +137,7 @@ async function run () {
                 await extractPot(domainName, domainConfig, potPath)
                 updatePo(potPath, poDir, poDir, locales, null)
                 await syncPoToGoogleDocs(config, domainConfig, tag, potPath, poDir)
-                updatePo(potPath, poDir, poDir, locales, {skip: skipValidation, baseLocale: validationBaseLocale})
+                updatePo(potPath, poDir, poDir, locales, validationConf)
 
                 if (fallbackLocale != null) {
                     const tempDir = path.join(getTempDir(), domainName)
@@ -158,11 +156,10 @@ async function run () {
         .description('전체 번역 여부 검사')
         .option('-l, --locales [locales]', '검사한 로케일 (콤마로 나열 가능, 없으면 전체)')
         .action(async (opts, cmd) => {
-            const skipValidation = program.opts().skipValidation || false
-            const validationBaseLocale: string | null = program.opts().validationBaseLocale || null
             await runSubCommand(cmd.name(), async (domainName, config, domainConfig) => {
                 const i18nDir = domainConfig.get<string>('i18n-dir')
                 const locales = opts.locales ? opts.locales.split(',') : domainConfig.get('locales')
+                const validationConf = getValidationConf(program, config)
 
                 const specs = ['untranslated']
                 const fromPoDir = path.join(i18nDir, domainName)
@@ -173,7 +170,7 @@ async function run () {
                 log.info('l10n', `temp dir: '${tempDir}'`)
                 shell.rm('-rf', tempDir)
                 await extractPot(domainName, domainConfig, potPath)
-                updatePo(potPath, fromPoDir, poDir, locales, {skip: skipValidation, baseLocale: validationBaseLocale})
+                updatePo(potPath, fromPoDir, poDir, locales, validationConf)
 
                 for (const locale of locales) {
                     const poPath = path.join(poDir, locale + '.po')
@@ -218,17 +215,16 @@ async function run () {
         .option('--potdir [potdir]', '설정한 위치에 있는 pot 파일에서 추출')
         .option('--podir [podir]', '설정한 위치에 업데이트된 po 파일 저장')
         .action(async (opts, cmd) => {
-            const skipValidation = program.opts().skipValidation || false
-            const validationBaseLocale: string | null = program.opts().validationBaseLocale || null
             await runSubCommand(cmd.name(), async (domainName, config, domainConfig) => {
                 const i18nDir = domainConfig.get<string>('i18n-dir')
                 const locales = opts.locales ? opts.locales.split(',') : domainConfig.get<string[]>('locales')
+                const validationConf = getValidationConf(program, config)
 
                 const potPath = path.join(opts.potdir || i18nDir, domainName, 'template.pot')
                 const fromPoDir = path.join(i18nDir, domainName)
                 const poDir = path.join(opts.podir || i18nDir, domainName)
 
-                updatePo(potPath, fromPoDir, poDir, locales, {skip: skipValidation, baseLocale: validationBaseLocale})
+                updatePo(potPath, fromPoDir, poDir, locales, validationConf)
             })
         })
 
@@ -331,6 +327,28 @@ async function run () {
         })
 
     program.parse(process.argv)
+}
+
+function getValidationConf(program: Command, config: Config): ValidationConf {
+    let conf: ValidationConf
+    const subConfig = config.getSubConfig('validation')
+    if (subConfig != null) {
+        conf = {
+            baseLocale: subConfig.get('base-locale', null),
+            skip: subConfig.get('skip', false)
+        }
+    } else {
+        conf = {baseLocale: null, skip: false}
+    }
+    const validationBaseLocale: string | undefined = program.opts().validationBaseLocale
+    if (validationBaseLocale != null) {
+        conf.baseLocale = validationBaseLocale
+    }
+    const skipValidation = program.opts().skipValidation
+    if (skipValidation) {
+        conf.skip = true
+    }
+    return conf
 }
 
 async function runSubCommand(cmdName: string, action: (domainName: string, config: Config, domainConfig: Config) => Promise<void>) {
