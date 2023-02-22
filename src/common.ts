@@ -80,6 +80,10 @@ export function updatePo (potPath: string, fromPoDir: string, poDir: string, loc
                             validateMsg(baseMsg, potEntry.msgstr[0])
                         } catch (err: any) {
                             log.warn('validation', `[${locale}] ${err.constructor.name}: ${err.message}`)
+                            if (potEntry.msgctxt) {
+                                log.warn('validation', `ctxt: \`${potEntry.msgctxt}'`)
+                            }
+                            log.warn('validation', `key: \`${potEntry.msgid}'`)
                             if (!validationConf.skip) {
                                 throw err
                             }
