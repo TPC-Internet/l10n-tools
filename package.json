@@ -1,6 +1,6 @@
 {
   "name": "l10n-tools",
-  "version": "2.4.2",
+  "version": "2.4.3",
   "description": "Localization tools",
   "scripts": {
     "build": "swc src -d dist -s",
