@@ -5,9 +5,10 @@ import * as path from "path"
 import {readPoFile} from "../po"
 import * as gettextParser from "gettext-parser"
 import fs from "fs"
+import {CompilerConfig} from '../config';
 
-export default async function (domainName, config, poDir) {
-    const targetDir = config.get('target-dir')
+export default async function (domainName: string, config: CompilerConfig, poDir: string) {
+    const targetDir = config.getTargetDir()
     log.info('compile', `generating mo files to '${targetDir}/{locale}/LC_MESSAGES/${domainName}.mo'`)
     shell.mkdir('-p', targetDir)
     const poPaths = await glob(`${poDir}/*.po`)

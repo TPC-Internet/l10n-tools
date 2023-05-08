@@ -225,9 +225,10 @@ export function checkPoEntrySpecs(poEntry: GetTextTranslation, specs: string[]):
     })
 }
 
-type PoJson = {[key: string]: string} | {[key: string]: PoJson}
+export type PoJson = {[key: string]: string} | {[key: string]: PoJson}
 
-export function exportPoToJson (poPath: string, {keySeparator = '.'} = {}): PoJson {
+export function exportPoToJson (poPath: string, opts?: {keySeparator?: string | null}): PoJson {
+    const {keySeparator = '.'} = opts ?? {}
     const json: PoJson = {}
     const po = readPoFile(poPath)
     for (const poEntry of getPoEntries(po)) {

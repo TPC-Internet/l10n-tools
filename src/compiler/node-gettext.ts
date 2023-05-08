@@ -4,9 +4,10 @@ import {glob} from 'glob'
 import * as path from "path"
 import jsonfile from 'jsonfile'
 import {readPoFile} from "../po"
+import {CompilerConfig} from '../config';
 
-export default async function (domainName, config, poDir) {
-    const targetDir = config.get('target-dir')
+export default async function (domainName: string, config: CompilerConfig, poDir: string) {
+    const targetDir = config.getTargetDir()
     log.info('compile', `generating json files to '${targetDir}/${domainName}/{locale}.json'`)
     shell.mkdir('-p', targetDir)
     const poPaths = await glob(`${poDir}/*.po`)

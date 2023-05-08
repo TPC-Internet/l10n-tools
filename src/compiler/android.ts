@@ -4,23 +4,18 @@ import log from 'npmlog'
 import * as shell from 'shelljs'
 import * as path from 'path'
 import * as xml2js from 'xml2js'
-import { Builder } from './xml-builder'
 import {findPoEntry, readPoFile} from '../po'
-import {promisify} from 'util'
+import {CompilerConfig} from '../config';
 
-if (!xml2js.parseStringAsync) {
-    xml2js.parseStringAsync = promisify(xml2js.parseString)
-}
-
-export default async function (domainName, config, poDir) {
-    const resDir = config.get('res-dir')
-    const defaultLocale = config.get('default-locale', null)
+export default async function (domainName: string, config: CompilerConfig, poDir: string) {
+    const resDir = config.getResDir()
+    const defaultLocale = config.getDefaultLocale()
     log.info('compile', `generating res files '${resDir}/values-{locale}/strings.xml'`)
 
     const srcPath = path.join(resDir, 'values', 'strings.xml')
-    const srcInput = fs.readFileSync(srcPath, {encoding: 'UTF-8'})
+    const srcInput = fs.readFileSync(srcPath, {encoding: 'utf-8'})
 
-    const builder = new Builder({
+    const builder = new xml2js.Builder({
         renderOpts: {pretty: true, indent: '    ', newline: '\n'},
         xmldec: {version: '1.0', encoding: 'utf-8'},
         cdata: true
@@ -31,13 +26,16 @@ export default async function (domainName, config, poDir) {
         const locale = path.basename(poPath, '.po')
         const po = readPoFile(poPath)
 
-        const srcXmlJson = await xml2js.parseStringAsync(srcInput)
+        const srcXmlJson = await xml2js.parseStringPromise(srcInput)
         const strings = []
         for (const string of srcXmlJson.resources.string) {
             if (string.$.translatable === 'false') {
                 continue
             }
             const poEntry = findPoEntry(po, string.$.name, null)
+            if (poEntry == null) {
+                continue
+            }
             let value = poEntry.msgstr[0]
             if (string.$.format === 'html') {
                 if (value) {
@@ -64,26 +62,26 @@ export default async function (domainName, config, poDir) {
 
         if (locale === defaultLocale) {
             shell.mkdir('-p', path.dirname(srcPath))
-            fs.writeFileSync(srcPath, builder.buildObject(srcXmlJson), {encoding: 'UTF-8'})
+            fs.writeFileSync(srcPath, builder.buildObject(srcXmlJson), {encoding: 'utf-8'})
         }
 
         const resLocale = locale.replace('_', '-r')
         const targetPath = path.join(resDir, 'values-' + resLocale, 'strings.xml')
 
-        const dstInput = fs.readFileSync(targetPath, {encoding: 'UTF-8'})
-        const dstXmlJson = await xml2js.parseStringAsync(dstInput)
+        const dstInput = fs.readFileSync(targetPath, {encoding: 'utf-8'})
+        const dstXmlJson = await xml2js.parseStringPromise(dstInput)
 
         dstXmlJson.resources.string = strings
 
         const xml = builder.buildObject(dstXmlJson)
 
         shell.mkdir('-p', path.dirname(targetPath))
-        fs.writeFileSync(targetPath, xml, {encoding: 'UTF-8'})
+        fs.writeFileSync(targetPath, xml, {encoding: 'utf-8'})
 
     }
 }
 
-function encodeAndroidStrings(value) {
+function encodeAndroidStrings(value: string): string {
     value = value.replace(/[\n'"@]/g, m => {
         switch (m) {
             case '"':

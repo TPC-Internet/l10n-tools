@@ -8,32 +8,23 @@ import url from 'url'
 import {cleanupPo} from './common'
 import {findPoEntry, getPoEntries, getPoEntryFlag, readPoFile, removePoEntryFlag, setPoEntryFlag, writePoFile} from './po'
 import fs from 'fs'
-import {google} from 'googleapis'
+import {drive_v3, google, sheets_v4} from 'googleapis'
 import {OAuth2Client} from 'google-auth-library'
 import jsonfile from 'jsonfile'
 import open from 'open'
 import * as shell from 'shelljs'
 import objectPath from 'object-path'
+import {DomainConfig, GoogleCredentials, L10nConfig} from './config';
+import {GetTextTranslations} from 'gettext-parser';
 
+// @ts-ignore
 httpShutdown.extend()
 
-function getGoogleDocsConfig (config, domainConfig, path, defaultValue = undefined) {
-    return domainConfig.get(['google-docs', path], null) || config.get(['google-docs', path], defaultValue)
-}
-
-export async function syncPoToGoogleDocs (config, domainConfig, tag, potPath, poDir) {
-    const docName = getGoogleDocsConfig(config, domainConfig, 'doc-name')
-    const sheetName = getGoogleDocsConfig(config, domainConfig, 'sheet-name')
-    const clientSecretPath = getGoogleDocsConfig(config, domainConfig, 'client-secret-path', null)
-    let credentials
-    if (clientSecretPath) {
-        credentials = jsonfile.readFileSync(clientSecretPath)['installed']
-    } else {
-        credentials = {
-            client_id: getGoogleDocsConfig(config, domainConfig, 'client-id'),
-            client_secret: getGoogleDocsConfig(config, domainConfig, 'client-secret')
-        }
-    }
+export async function syncPoToGoogleDocs (config: L10nConfig, domainConfig: DomainConfig, tag: string, potPath: string, poDir: string) {
+    const googleDocsConfig = config.getGoogleDocsConfig()
+    const docName = googleDocsConfig.getDocName()
+    const sheetName = googleDocsConfig.getSheetName()
+    const credentials = googleDocsConfig.getCredentials()
 
     const drive = google.drive('v3')
     const sheets = google.sheets('v4')
@@ -58,9 +49,9 @@ export async function syncPoToGoogleDocs (config, domainConfig, tag, potPath, po
     writePoFiles(poDir, poData)
 }
 
-async function authorize(sheetName, credentials) {
-    const clientSecret = credentials.client_secret
-    const clientId = credentials.client_id
+async function authorize(sheetName: string, credentials: GoogleCredentials) {
+    const clientSecret = credentials.clientSecret
+    const clientId = credentials.clientId
     const redirectUrl = 'http://localhost:8106/oauth2callback'
     const oauth2Client = new OAuth2Client(clientId, clientSecret, redirectUrl)
 
@@ -69,8 +60,12 @@ async function authorize(sheetName, credentials) {
     return oauth2Client
 }
 
-async function getToken(oauth2Client) {
-    const tokenPath = path.join(process.env.HOME || process.env.HOMEPATH || process.env.USERPROFILE, '.credentials', 'google-docs-syncer.json')
+async function getToken(oauth2Client: OAuth2Client) {
+    const tokenDir = process.env.HOME || process.env.HOMEPATH || process.env.USERPROFILE
+    if (tokenDir == null) {
+        throw new Error('cannot find home')
+    }
+    const tokenPath = path.join(tokenDir, '.credentials', 'google-docs-syncer.json')
 
     // Check if we have previously stored a token.
     try {
@@ -86,7 +81,7 @@ async function getToken(oauth2Client) {
     }
 }
 
-function readAuthCode(oauth2Client) {
+function readAuthCode(oauth2Client: OAuth2Client): Promise<string> {
     return new Promise(resolve => {
         const authUrl = oauth2Client.generateAuthUrl({
             access_type: 'offline',
@@ -97,12 +92,13 @@ function readAuthCode(oauth2Client) {
         })
 
         const server = http.createServer((req, res) => {
-            if (req.url.indexOf('/oauth2callback') >= 0) {
-                const qs = querystring.parse(url.parse(req.url).query)
+            if (req.url!.indexOf('/oauth2callback') >= 0) {
+                const qs = querystring.parse(url.parse(req.url!).query as string)
                 res.end('Authentication successful! Please return to the console.')
                 server.shutdown()
-                resolve(qs.code)
+                resolve(qs.code as string)
             }
+            // @ts-ignore
         }).withShutdown()
 
         server.listen(8106, () => {
@@ -111,15 +107,18 @@ function readAuthCode(oauth2Client) {
     })
 }
 
-const documentIdCache = {}
+const documentIdCache: {[docName: string]: string} = {}
 
-async function findDocumentId(drive, auth, docName) {
+async function findDocumentId(drive: drive_v3.Drive, auth: OAuth2Client, docName: string): Promise<string> {
     if (!documentIdCache.hasOwnProperty(docName)) {
         const {files} = await drive.files.list({
             auth,
             q: `name = '${docName}' and trashed = false`,
             spaces: 'drive'
         }).then(r => r.data)
+        if (files == null) {
+            throw new Error(`no document named ${docName}, check this out`)
+        }
         const docIds = files
             .filter(f => f.mimeType === 'application/vnd.google-apps.spreadsheet')
             .map(f => f.id)
@@ -132,15 +131,15 @@ async function findDocumentId(drive, auth, docName) {
             throw new Error(`one or more document named ${docName}, check this out`)
         }
 
-        documentIdCache[docName] = docIds[0]
+        documentIdCache[docName] = docIds[0]!
     }
     return documentIdCache[docName]
 }
 
-async function readPoFiles(poDir) {
+async function readPoFiles(poDir: string): Promise<{[locale: string]: GetTextTranslations}> {
     const poPaths = await glob(`${poDir}/*.po`)
 
-    const poData = {}
+    const poData: {[locale: string]: GetTextTranslations} = {}
     for (const poPath of poPaths) {
         const locale = path.basename(poPath, '.po')
         poData[locale] = readPoFile(poPath)
@@ -149,7 +148,7 @@ async function readPoFiles(poDir) {
     return poData
 }
 
-function writePoFiles(poDir, poData) {
+function writePoFiles(poDir: string, poData: {[locale: string]: GetTextTranslations}) {
     // console.log('po data to write', JSON.stringify(poData, null, 2))
     for (const [locale, po] of Object.entries(poData)) {
         const poPath = path.join(poDir, locale + '.po')
@@ -158,13 +157,16 @@ function writePoFiles(poDir, poData) {
     }
 }
 
-async function readSheet(sheets, sheetName, auth, docId) {
+async function readSheet(sheets: sheets_v4.Sheets, sheetName: string, auth: OAuth2Client, docId: string): Promise<string[][]> {
     log.info('readSheet', 'loading sheet')
     const {values: rows} = await sheets.spreadsheets.values.get({
         auth,
         spreadsheetId: docId,
         range: sheetName
     }).then(r => r.data)
+    if (rows == null) {
+        throw new Error(`no rows in sheet ${sheetName}`)
+    }
     log.notice('readSheet', `... ${rows.length} rows`)
     if (rows.length === 0) {
         throw new Error(`no header row in sheet ${sheetName}`)
@@ -172,38 +174,52 @@ async function readSheet(sheets, sheetName, auth, docId) {
     return rows
 }
 
-function getColumnMap(headerRow) {
-    const columnMap = {
-        targets: {},
-        size: headerRow.length
-    }
+type L10nColumnMap = {
+    keys: number | null
+    source: number
+    tag: number
+    ref: number | null
+    targets: {[locale: string]: number}
+    size: number
+}
+
+function getColumnMap(headerRow: string[]): L10nColumnMap {
+    const columns: {[key: string]: number | null} = {}
+    const targets: {[locale: string]: number} = {}
     for (const [index, columnName] of headerRow.entries()) {
         if (columnName === 'keys') {
-            columnMap.keys = index
+            columns.keys = index
         } else if (columnName === 'source') {
-            columnMap.source = index
+            columns.source = index
         } else if (columnName === 'tag') {
-            columnMap.tag = index
+            columns.tag = index
         } else if (columnName === 'ref') {
-            columnMap.ref = index
+            columns.ref = index
         } else if (columnName.startsWith('target-')) {
-            columnMap.targets[columnName.substr(7)] = index
+            targets[columnName.substring(7)] = index
         }
     }
 
-    if (!columnMap.hasOwnProperty('source')) {
+    if (columns.source == null || columns.tag == null) {
         throw new Error(`no 'source' row in header of the sheet`)
     }
 
-    if (Object.keys(columnMap.targets).length === 0) {
+    if (Object.keys(targets).length === 0) {
         throw new Error(`no 'target-' row in header of the sheet`)
     }
 
-    return columnMap
+    return {
+        keys: columns.keys,
+        source: columns.source,
+        tag: columns.tag,
+        ref: columns.ref,
+        targets: targets,
+        size: headerRow.length
+    }
 }
 
-function createSheetData(tag, rows, columnMap) {
-    const sheetData = {}
+function createSheetData(tag: string, rows: string[][], columnMap: L10nColumnMap): {[source: string]: L10nDataEntry} {
+    const sheetData: {[source: string]: L10nDataEntry} = {}
     for (const [index, dataRow] of rows.slice(1).entries()) {
         const entry = readDataRow(dataRow, columnMap)
         if (!entry.source) {
@@ -224,15 +240,23 @@ function createSheetData(tag, rows, columnMap) {
     return sheetData
 }
 
-function readDataRow(dataRow, columnMap) {
-    const targets = {}
+type L10nDataEntry = {
+    keys: string[]
+    source: string
+    targets: {[locale: string]: string}
+    tags: Set<string>
+    refs: string[]
+}
+
+function readDataRow(dataRow: string[], columnMap: L10nColumnMap): L10nDataEntry {
+    const targets: {[locale: string]: string} = {}
     for (const [locale, localeColumn] of Object.entries(columnMap.targets)) {
         targets[locale] = decodeSheetText(dataRow[localeColumn])
     }
 
-    let keys
-    if (columnMap.hasOwnProperty('keys')) {
-        keys = decodeSheetText(dataRow[columnMap.keys]).split('\n').filter(key => key)
+    let keys: string[]
+    if (columnMap.keys != null) {
+        keys = decodeSheetText(dataRow[columnMap.keys]).split('\n').filter(key => !!key)
     } else {
         keys = []
     }
@@ -242,14 +266,14 @@ function readDataRow(dataRow, columnMap) {
         source: decodeSheetText(dataRow[columnMap.source]),
         targets: targets,
         tags: new Set(decodeSheetText(dataRow[columnMap.tag]).split(',')),
-        refs: decodeSheetText(columnMap.hasOwnProperty('ref') ? dataRow[columnMap.ref] : '').split('\n').filter(ref => ref)
+        refs: decodeSheetText(columnMap.ref ? dataRow[columnMap.ref] : '').split('\n').filter(ref => ref)
     }
 }
 
-function updateSheetData(tag, pot, poData, sheetData) {
+function updateSheetData(tag: string, pot: GetTextTranslations, poData: {[locale: string]: GetTextTranslations}, sheetData: {[source: string]: L10nDataEntry}) {
     for (const potEntry of getPoEntries(pot)) {
         const entryId = potEntry.msgid
-        if (!sheetData.hasOwnProperty(entryId)) {
+        if (!sheetData[entryId]) {
             sheetData[entryId] = {
                 keys: [],
                 source: potEntry.msgid,
@@ -278,13 +302,13 @@ function updateSheetData(tag, pot, poData, sheetData) {
             // console.log('matched entry (locale)', locale)
             // console.log('po entry', poEntry)
 
-            if (!sheetData.hasOwnProperty(entryId)) {
+            if (!sheetData[entryId]) {
                 sheetData[entryId] = {
                     keys: [],
                     source: poEntry.msgid,
                     targets: {},
                     tags: new Set(),
-                    ref: ''
+                    refs: []
                 }
             }
 
@@ -309,7 +333,7 @@ function updateSheetData(tag, pot, poData, sheetData) {
     // console.log('updated sheet data', sheetData)
 }
 
-function updatePoData(tag, pot, poData, sheetData) {
+function updatePoData(tag: string, pot: GetTextTranslations, poData: {[locale: string]: GetTextTranslations}, sheetData: {[source: string]: L10nDataEntry}) {
     for (const sheetEntry of Object.values(sheetData)) {
         for (const [locale, target] of Object.entries(sheetEntry.targets)) {
             if (poData.hasOwnProperty(locale)) {
@@ -364,8 +388,22 @@ function updatePoData(tag, pot, poData, sheetData) {
     // console.log('updated po data', JSON.stringify(poData, null, 2))
 }
 
-async function updateSheet(tag, rows, columnMap, sheetData) {
-    const docActions = []
+type L10nDocUpdateCellAction = {
+    type: 'update-cell'
+    row: number
+    column: number
+    data: string
+}
+
+type L10nDocAppendRowAction = {
+    type: 'append-row',
+    data: string[]
+}
+
+type L10nDocAction = L10nDocUpdateCellAction | L10nDocAppendRowAction
+
+async function updateSheet(tag:string, rows: string[][], columnMap: L10nColumnMap, sheetData: {[source: string]: L10nDataEntry}) {
+    const docActions: L10nDocAction[] = []
     for (const [index, dataRow] of rows.slice(1).entries()) {
         const rowEntry = readDataRow(dataRow, columnMap)
         const entryId = rowEntry.source
@@ -375,7 +413,7 @@ async function updateSheet(tag, rows, columnMap, sheetData) {
 
         const sheetEntry = sheetData[entryId]
         if (sheetEntry != null) {
-            if (columnMap.hasOwnProperty('keys')) {
+            if (columnMap.keys) {
                 const otherKeys = rowEntry.keys.filter(key => !key.startsWith(`${tag}:`))
                 const thisKeys = sheetEntry.keys.filter(key => key.startsWith(`${tag}:`))
                 const newKeys = [...otherKeys, ...thisKeys].sort().join('\n')
@@ -416,7 +454,7 @@ async function updateSheet(tag, rows, columnMap, sheetData) {
                 }
             }
 
-            if (columnMap.hasOwnProperty('ref')) {
+            if (columnMap.ref) {
                 const otherRefs = rowEntry.refs.filter(ref => !ref.startsWith(`${tag}:`))
                 const thisRefs = sheetEntry.refs.filter(ref => ref.startsWith(`${tag}:`))
                 const newRef = [...otherRefs, ...thisRefs].sort().join('\n')
@@ -437,13 +475,13 @@ async function updateSheet(tag, rows, columnMap, sheetData) {
     }
 
     for (const [entryId, sheetEntry] of Object.entries(sheetData)) {
-        if (sheetEntry.keys.length > 0 && !columnMap.hasOwnProperty('keys')) {
-            log.warn('updateSheet', `ignoring ${sheetEntry.key}: no keys column`)
+        if (sheetEntry.keys.length > 0 && !columnMap.keys) {
+            log.warn('updateSheet', `ignoring ${sheetEntry.keys}: no keys column`)
             continue
         }
 
-        const row = new Array(columnMap.size).fill('')
-        if (columnMap.hasOwnProperty('keys')) {
+        const row = new Array<string>(columnMap.size).fill('')
+        if (columnMap.keys) {
             row[columnMap.keys] = encodeSheetText([...new Set(sheetEntry.keys)].sort().join('\n'))
         }
         row[columnMap.source] = encodeSheetText(sheetEntry.source)
@@ -457,7 +495,7 @@ async function updateSheet(tag, rows, columnMap, sheetData) {
             row[columnMap.targets[locale]] = encodeSheetText(value)
         }
 
-        if (columnMap.hasOwnProperty('ref')) {
+        if (columnMap.ref) {
             row[columnMap.ref] = encodeSheetText(sheetEntry.refs.sort().join('\n'))
         }
 
@@ -472,9 +510,9 @@ async function updateSheet(tag, rows, columnMap, sheetData) {
     return docActions
 }
 
-async function applyDocumentActions(sheetName, sheets, auth, docId, docActions) {
-    const updateData = []
-    const newRows = []
+async function applyDocumentActions(sheetName: string, sheets: sheets_v4.Sheets, auth: OAuth2Client, docId: string, docActions: L10nDocAction[]) {
+    const updateData: {range: string, values: string[][]}[] = []
+    const newRows: string[][] = []
 
     for (const action of docActions) {
         if (action.type === 'append-row') {
@@ -492,7 +530,7 @@ async function applyDocumentActions(sheetName, sheets, auth, docId, docActions) 
         await sheets.spreadsheets.values.batchUpdate({
             auth,
             spreadsheetId: docId,
-            resource: {
+            requestBody: {
                 valueInputOption: 'RAW',
                 data: updateData
             }
@@ -506,14 +544,14 @@ async function applyDocumentActions(sheetName, sheets, auth, docId, docActions) 
             spreadsheetId: docId,
             range: sheetName,
             valueInputOption: 'RAW',
-            resource: {
+            requestBody: {
                 values: newRows
             }
         }).then(r => r.data)
     }
 }
 
-function toColumnName(column) {
+function toColumnName(column: number): string {
     column += 1
     let name = ''
     while (column > 0) {
@@ -525,21 +563,21 @@ function toColumnName(column) {
     return name;
 }
 
-function toRowName(row) {
+function toRowName(row: number): string {
     return (row + 1).toString()
 }
 
-function toCellName(row, column) {
+function toCellName(row: number, column: number): string {
     return toColumnName(column) + toRowName(row)
 }
 
-function encodeSheetText(text) {
+function encodeSheetText(text: string | null): string {
     if (text == null)
         return ''
     return text
 }
 
-function decodeSheetText(sheetText) {
+function decodeSheetText(sheetText: string | null): string {
     if (sheetText == null)
         return ''
     return sheetText.replace(/\r\n/g, '\n')

@@ -3,9 +3,10 @@ import {glob} from 'glob'
 import log from 'npmlog'
 import * as shell from 'shelljs'
 import * as path from 'path'
-import i18nStringsFiles from 'i18n-strings-files'
+import i18nStringsFiles, {CommentedI18nStringsMsg, I18nStringsMsg} from 'i18n-strings-files'
 import {findPoEntry, readPoFile} from '../po'
 import {execWithLog, getTempDir} from "../utils"
+import {CompilerConfig} from '../config';
 
 const infoPlistKeys = [
     'NSCameraUsageDescription',
@@ -15,10 +16,10 @@ const infoPlistKeys = [
     'NSUserTrackingUsageDescription'
 ]
 
-export default async function (domainName, config, poDir) {
+export default async function (domainName: string, config: CompilerConfig, poDir: string) {
     const tempDir = path.join(getTempDir(), 'compiler')
     shell.mkdir('-p', tempDir)
-    const srcDir = config.get('src-dir')
+    const srcDir = config.getSrcDir()
 
     log.info('compile', `generating .strings files`)
 
@@ -33,7 +34,7 @@ export default async function (domainName, config, poDir) {
             log.info('compile', stringsPath)
             const stringsName = path.basename(stringsPath, '.strings')
             if (stringsName === 'InfoPlist') {
-                const strings = {}
+                const strings: CommentedI18nStringsMsg = {}
                 for (const key of infoPlistKeys) {
                     const poEntry = findPoEntry(po, key)
                     if (poEntry && poEntry.msgstr[0]) {
@@ -46,10 +47,10 @@ export default async function (domainName, config, poDir) {
                 }
 
                 const output = compileStringsFile(strings)
-                fs.writeFileSync(stringsPath, output, {encoding: 'UTF-8'})
+                fs.writeFileSync(stringsPath, output, {encoding: 'utf-8'})
             } else if (stringsName === 'Localizable') {
                 await execWithLog(`find "${srcDir}" -name "*.swift" -print0 | xargs -0 genstrings -q -u -SwiftUI -o "${tempDir}"`)
-                const strings = i18nStringsFiles.readFileSync(path.join(tempDir, 'Localizable.strings'), {encoding: 'UTF-16LE', wantsComments: true})
+                const strings = i18nStringsFiles.readFileSync(path.join(tempDir, 'Localizable.strings'), {encoding: 'utf16le', wantsComments: true})
                 for (const key of Object.keys(strings)) {
                     const poEntry = findPoEntry(po, null, key)
                     if (poEntry && poEntry.msgstr[0]) {
@@ -60,7 +61,7 @@ export default async function (domainName, config, poDir) {
                 }
 
                 const output = compileStringsFile(strings)
-                fs.writeFileSync(stringsPath, output, {encoding: 'UTF-8'})
+                fs.writeFileSync(stringsPath, output, {encoding: 'utf-8'})
             } else {
                 const basePath = path.dirname(path.dirname(stringsPath))
                 for (const extName of ['.xib', '.storyboard']) {
@@ -68,7 +69,7 @@ export default async function (domainName, config, poDir) {
                     if (fs.existsSync(xibPath)) {
                         const tempStringsPath = path.join(tempDir, stringsName + '.strings')
                         await execWithLog(`ibtool --export-strings-file "${tempStringsPath}" "${xibPath}"`)
-                        const strings = i18nStringsFiles.readFileSync(tempStringsPath, {encoding: 'UTF-16LE', wantsComments: true})
+                        const strings = i18nStringsFiles.readFileSync(tempStringsPath, {encoding: 'utf16le', wantsComments: true})
                         for (const key of Object.keys(strings)) {
                             const poEntry = findPoEntry(po, key)
                             if (poEntry && poEntry.msgstr[0]) {
@@ -79,7 +80,7 @@ export default async function (domainName, config, poDir) {
                         }
 
                         const output = compileStringsFile(strings)
-                        fs.writeFileSync(stringsPath, output, {encoding: 'UTF-8'})
+                        fs.writeFileSync(stringsPath, output, {encoding: 'utf-8'})
                         break
                     }
                 }
@@ -89,12 +90,12 @@ export default async function (domainName, config, poDir) {
     shell.rm('-rf', tempDir)
 }
 
-async function getStringsPaths(srcDir, locale) {
+async function getStringsPaths(srcDir: string, locale: string): Promise<string[]> {
     const srcPattern = path.join(srcDir, '**', `${locale}.lproj`, '*.strings')
     return await glob(srcPattern)
 }
 
-function compileStringsFile(data) {
+function compileStringsFile(data: I18nStringsMsg | CommentedI18nStringsMsg) {
     let output = "";
     for (let msgid of Object.keys(data)) {
         const val = data[msgid];

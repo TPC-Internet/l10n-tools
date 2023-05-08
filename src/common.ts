@@ -6,14 +6,14 @@ import * as path from 'path'
 import * as shell from 'shelljs'
 import {getPoEntries, findPoEntry, getPoEntryFlag, setPoEntryFlag, readPoFile, writePoFile} from './po'
 import {execWithLog, requireCmd} from './utils'
-import {Config} from './config'
+import {DomainConfig, ValidationConfig} from './config'
 import {validateMsg} from './validator'
 
-export async function getSrcPaths (config: Config, exts: string[]): Promise<string[]> {
-    const srcDirs = config.get<string[]>('src-dirs', [])
-    const srcPatterns = config.get<string[]>('src-patterns', [])
+export async function getSrcPaths (config: DomainConfig, exts: string[]): Promise<string[]> {
+    const srcDirs = config.getSrcDirs()
+    const srcPatterns = config.getSrcPatterns()
     if (srcDirs.length === 0 && srcPatterns.length === 0) {
-        throw new Error(`config '${config.appendPrefix('src-dirs')}' or '${config.appendPrefix('src-patterns')}' is required`)
+        throw new Error('domain config has no src-dirs nor src-patterns')
     }
 
     for (const srcDir of srcDirs) {
@@ -42,15 +42,15 @@ export async function xgettext (domainName: string, language: string, keywords: 
             ${srcPaths.join(' ')}`, 'xgettext')
 }
 
-export type ValidationConf = {skip: boolean, baseLocale: string | null}
-
-export function updatePo (potPath: string, fromPoDir: string, poDir: string, locales: string[], validationConf: ValidationConf | null) {
+export function updatePo (potPath: string, fromPoDir: string, poDir: string, locales: string[], validationConfig: ValidationConfig | null) {
     shell.mkdir('-p', poDir)
     const potInput = fs.readFileSync(potPath)
     let basePo: GetTextTranslations | null = null
-    if (validationConf?.baseLocale != null) {
+    const baseLocale = validationConfig?.getBaseLocale() ?? null
+    const skip = validationConfig?.getSkip() ?? false
+    if (baseLocale != null) {
         try {
-            basePo = readPoFile(path.join(fromPoDir, validationConf.baseLocale + '.po'))
+            basePo = readPoFile(path.join(fromPoDir, baseLocale + '.po'))
         } catch (err) {
             log.warn('updatePo', 'Failed to read validation base locale file')
         }
@@ -67,7 +67,7 @@ export function updatePo (potPath: string, fromPoDir: string, poDir: string, loc
                 const fromPoEntry = findPoEntry(fromPo, potEntry.msgctxt || null, potEntry.msgid)
                 if (fromPoEntry != null) {
                     potEntry.msgstr = fromPoEntry.msgstr.map(value => value === '$$no translation$$' ? '' : value)
-                    if (validationConf != null && validationConf.baseLocale != locale) {
+                    if (baseLocale != locale) {
                         try {
                             let baseMsg: string
                             if (basePo == null) {
@@ -83,7 +83,7 @@ export function updatePo (potPath: string, fromPoDir: string, poDir: string, loc
                                 log.warn('validation', `ctxt: \`${potEntry.msgctxt}'`)
                             }
                             log.warn('validation', `key: \`${potEntry.msgid}'`)
-                            if (!validationConf.skip) {
+                            if (!skip) {
                                 throw err
                             }
                         }

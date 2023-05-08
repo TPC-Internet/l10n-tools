@@ -7,6 +7,7 @@ import plist from 'plist'
 import {glob} from 'glob'
 import {execWithLog, getTempDir} from "../utils"
 import * as shell from "shelljs"
+import {DomainConfig} from '../config';
 
 const infoPlistKeys = [
     'NSCameraUsageDescription',
@@ -16,30 +17,31 @@ const infoPlistKeys = [
     'NSUserTrackingUsageDescription'
 ]
 
-export default async function (domainName, config, potPath) {
+export default async function (domainName: string, config: DomainConfig, potPath: string) {
     const tempDir = path.join(getTempDir(), 'extractor')
     shell.mkdir('-p', tempDir)
 
-    const extractor = PotExtractor.create(domainName)
+    const extractor = PotExtractor.create(domainName, {})
 
     log.info('extractPot', 'extracting from .swift files')
-    const srcDir = config.get('src-dir')
+    const srcDir = config.getSrcDir()
     await execWithLog(`find "${srcDir}" -name "*.swift" -print0 | xargs -0 genstrings -q -u -SwiftUI -o "${tempDir}"`)
     const stringsPath = path.join(tempDir, 'Localizable.strings')
-    const input = fs.readFileSync(stringsPath, {encoding: 'UTF-16LE'})
+    const input = fs.readFileSync(stringsPath, {encoding: 'utf16le'})
     extractIosStrings(extractor, 'code', input)
 
     log.info('extractPot', 'extracting from info.plist')
     const infoPlistPath = await getInfoPlistPath(srcDir)
-    const infoPlist = plist.parse(fs.readFileSync(infoPlistPath, {encoding: 'UTF-8'}))
+    const infoPlist = plist.parse(fs.readFileSync(infoPlistPath, {encoding: 'utf-8'}))
     for (const key of infoPlistKeys) {
         if (infoPlist.hasOwnProperty(key)) {
+            // @ts-ignore
             extractor.addMessage({filename: 'info.plist', line: key}, infoPlist[key], {context: key})
         }
     }
 
     log.info('extractPot', 'extracting from .xib, .storyboard files')
-    const xibPaths = await getXibPaths(config.get('src-dir'))
+    const xibPaths = await getXibPaths(srcDir)
 
     for (const xibPath of xibPaths) {
         log.verbose('extractPot', `processing '${xibPath}'`)
@@ -48,7 +50,7 @@ export default async function (domainName, config, potPath) {
         const stringsPath = path.join(tempDir, `${baseName}.strings`)
 
         await execWithLog(`ibtool --export-strings-file "${stringsPath}" "${xibPath}"`)
-        const input = fs.readFileSync(stringsPath, {encoding: 'UTF-16LE'})
+        const input = fs.readFileSync(stringsPath, {encoding: 'utf16le'})
         const xibName = path.basename(xibPath)
         extractIosStrings(extractor, xibName, input)
     }
@@ -57,13 +59,13 @@ export default async function (domainName, config, potPath) {
     shell.rm('-rf', tempDir)
 }
 
-async function getInfoPlistPath(srcDir) {
+async function getInfoPlistPath(srcDir: string) {
     const srcPattern = path.join(srcDir, '**', 'Info.plist')
     const paths = await glob(srcPattern)
     return paths[0]
 }
 
-async function getXibPaths(srcDir) {
+async function getXibPaths(srcDir: string) {
     const xibPattern = path.join(srcDir, '**', 'Base.lproj', '*.xib')
     const storyboardPattern = path.join(srcDir, '**', 'Base.lproj', '*.storyboard')
     const baseXibPaths = []
@@ -73,7 +75,7 @@ async function getXibPaths(srcDir) {
     return baseXibPaths
 }
 
-function extractIosStrings(extractor, filename, src, startLine = 1) {
+function extractIosStrings(extractor: PotExtractor, filename: string, src: string, startLine: number = 1) {
     const data = i18nStringsFiles.parse(src, true)
     for (const [key, value] of Object.entries(data)) {
         const {defaultValue, ignore} = parseComment(key, value.comment)
@@ -93,29 +95,16 @@ function extractIosStrings(extractor, filename, src, startLine = 1) {
     }
 }
 
-function extractSwiftEntries(extractor, srcDir, swiftEntries) {
-    for (const entry of swiftEntries) {
-        const {context, id, comment, file, line} = entry
-        let filename
-        if (file && file.startsWith(srcDir)) {
-            filename = file.substr(srcDir.length + 1)
-        } else {
-            filename = null
-        }
-        extractor.addMessage({filename, line}, id, {comment, context})
-    }
-}
-
-function parseComment(key, commentText) {
-    let defaultValue = null
+function parseComment(key: string, commentText: string | undefined) {
+    let defaultValue: string | null = null
     let ignore = false
 
     const [, field] = key.split('.')
-    if (!field) {
+    if (!commentText || !field) {
         return {defaultValue, ignore}
     }
 
-    const commentData = {}
+    const commentData: {[key: string]: string} = {}
     const re = /\s*([^ ]+)\s*=\s*(".*?");/gmsui
     let match = null
     while (match = re.exec(commentText)) {

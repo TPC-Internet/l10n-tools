@@ -10,7 +10,7 @@ import {GetTextTranslation, GetTextTranslations} from 'gettext-parser'
 import {TemplateMarker} from './common'
 
 export type PotExtractorOptions = {
-    keywords: string[]
+    keywords: string[] | Set<string>
     tagNames: string[]
     attrNames: string[]
     valueAttrNames: string[]
@@ -658,7 +658,7 @@ function parseKeyword(keyword: string): KeywordDef {
     }
 }
 
-function buildKeywordMap(keywords: string[]): {[keyword: string]: number} {
+function buildKeywordMap(keywords: string[] | Set<string>): {[keyword: string]: number} {
     const keywordMap: {[keyword: string]: number} = {}
     for (const keyword of keywords) {
         const [name, pos] = keyword.split(':')
@@ -706,6 +706,6 @@ export function getLineTo(src: string, index: number, startLine: number = 1): nu
     return startLine + matches.length
 }
 
-function isTagElement(elem: cheerio.Element): elem is cheerio.TagElement {
+export function isTagElement(elem: cheerio.Element): elem is cheerio.TagElement {
     return ['tag', 'script', 'style'].includes(elem.type)
 }

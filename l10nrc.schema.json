@@ -1,0 +1,201 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "additionalProperties": false,
+    "definitions": {
+        "CompilerType": {
+            "description": "json (vue-gettext): Single JSON all locales merged\njson-dir (i18next): JSON file per locale\npo-json: JSON PO file per locale\nmo (python): MO file per locale\nnode-gettext: PO file per locale\nandroid: Generate Android strings.xml\nios: Merge into iOS strings file",
+            "enum": [
+                "android",
+                "i18next",
+                "ios",
+                "json",
+                "json-dir",
+                "mo",
+                "node-gettext",
+                "po-json",
+                "python",
+                "vue-gettext"
+            ],
+            "type": "string"
+        },
+        "DomainType": {
+            "description": "vue-gettext: Extract from $gettext like function, translate tag, and v-translate attrs\nvue-i18n: Extract from $t like function, i18n, i18n-t tag, v-t attrs and more\ntypescript (javascript, react, i18next): Extract from .js, .ts, .jsx file with keyword definitions\npython: Extract from python gettext functions\nandroid: Extract from android strings.xml res files\nios: Extract from iOS swift files, storyboard, and xib files\nphp-gettext: Extract from php gettext functions",
+            "enum": [
+                "android",
+                "i18next",
+                "ios",
+                "javascript",
+                "php-gettext",
+                "python",
+                "react",
+                "typescript",
+                "vue-gettext",
+                "vue-i18n"
+            ],
+            "type": "string"
+        }
+    },
+    "properties": {
+        "$schema": {
+            "type": "string"
+        },
+        "domains": {
+            "additionalProperties": {
+                "additionalProperties": false,
+                "properties": {
+                    "fallback-locale": {
+                        "description": "Fill translations from fallback locale if not exists",
+                        "type": "string"
+                    },
+                    "i18n-dir": {
+                        "description": "Location to save po files",
+                        "type": "string"
+                    },
+                    "keywords": {
+                        "description": "Extracting function name and index of key argument list",
+                        "examples": [
+                            "translate:1",
+                            "translateAll:0"
+                        ],
+                        "items": {
+                            "type": "string"
+                        },
+                        "type": "array"
+                    },
+                    "locales": {
+                        "description": "Locales to translate",
+                        "items": {
+                            "type": "string"
+                        },
+                        "type": "array"
+                    },
+                    "outputs": {
+                        "description": "List of output formats",
+                        "items": {
+                            "additionalProperties": false,
+                            "properties": {
+                                "default-locale": {
+                                    "type": "string"
+                                },
+                                "key-separator": {
+                                    "description": "If specified, split key to object with separator (json-dir)",
+                                    "type": "string"
+                                },
+                                "res-dir": {
+                                    "description": "Location of res (android)",
+                                    "type": "string"
+                                },
+                                "src-dir": {
+                                    "description": "Location of source root (ios)",
+                                    "type": "string"
+                                },
+                                "target-dir": {
+                                    "description": "Location of JSON files to be saved (json-dir, po-json, mo, node-gettext)",
+                                    "type": "string"
+                                },
+                                "target-path": {
+                                    "description": "Path of JSON file to be saved (json)",
+                                    "type": "string"
+                                },
+                                "type": {
+                                    "$ref": "#/definitions/CompilerType"
+                                },
+                                "use-locale-key": {
+                                    "description": "Use locale as root key of json file if true (json-dir)",
+                                    "type": "boolean"
+                                }
+                            },
+                            "required": [
+                                "type"
+                            ],
+                            "type": "object"
+                        },
+                        "type": "array"
+                    },
+                    "res-dir": {
+                        "description": "Location of res (android only)",
+                        "type": "string"
+                    },
+                    "src-dir": {
+                        "description": "Location of source root (ios only)",
+                        "type": "string"
+                    },
+                    "src-dirs": {
+                        "description": "List of location of source root.\nUsed with src-patterns",
+                        "items": {
+                            "type": "string"
+                        },
+                        "type": "array"
+                    },
+                    "src-patterns": {
+                        "description": "List of glob patterns of location of source root\nUsed with src-dirs",
+                        "items": {
+                            "type": "string"
+                        },
+                        "type": "array"
+                    },
+                    "tag": {
+                        "description": "Tag name for upload and download",
+                        "type": "string"
+                    },
+                    "type": {
+                        "$ref": "#/definitions/DomainType"
+                    }
+                },
+                "required": [
+                    "i18n-dir",
+                    "locales",
+                    "outputs",
+                    "tag",
+                    "type"
+                ],
+                "type": "object"
+            },
+            "type": "object"
+        },
+        "google-docs": {
+            "additionalProperties": false,
+            "properties": {
+                "client-id": {
+                    "type": "string"
+                },
+                "client-secret": {
+                    "type": "string"
+                },
+                "doc-name": {
+                    "type": "string"
+                },
+                "sheet-name": {
+                    "type": "string"
+                }
+            },
+            "required": [
+                "client-id",
+                "client-secret",
+                "doc-name",
+                "sheet-name"
+            ],
+            "type": "object"
+        },
+        "validation": {
+            "additionalProperties": false,
+            "description": "Validation Config",
+            "properties": {
+                "base-locale": {
+                    "description": "Which locale is base text for validation (use key if not specified)",
+                    "type": "string"
+                },
+                "skip": {
+                    "description": "If true, do not stop script on error occurs",
+                    "type": "boolean"
+                }
+            },
+            "type": "object"
+        }
+    },
+    "required": [
+        "domains"
+    ],
+    "type": "object"
+}
+

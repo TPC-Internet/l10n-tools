@@ -4,11 +4,11 @@ import {Command} from 'commander'
 import log from 'npmlog'
 import {checkPoEntrySpecs, getPoEntriesFromFile, getPoEntryFlag} from './po'
 import {getTempDir} from './utils'
-import {mergeFallbackLocale, updatePo, ValidationConf} from './common'
+import {mergeFallbackLocale, updatePo} from './common'
 import * as shell from 'shelljs'
 import {syncPoToGoogleDocs} from './google-docs-syncer'
 import * as path from 'path'
-import {Config} from './config'
+import {DomainConfig, L10nConfig} from './config'
 import {extractPot} from './extractor'
 import {compileAll} from './compiler'
 import * as fs from 'fs'
@@ -28,62 +28,23 @@ async function run () {
         .option('-v, --verbose', 'log verbose')
         .option('-q, --quiet', '조용히')
         .on('--help', () => {
-            console.info(`
-
-  설정 파일 항목:
-
-    [도메인]
-      domains.[domain]                  번역 파일을 생성하는 단위
-      domains.[domain].tag              구글 시트 동기화시 tag 항목으로 들어갈 값
-      domains.[domain].locales          번역할 로케일 목록
-      domains.[domain].fallback-locale  번역이 없을 경우 참조할 로케일 (옵션)
-      domains.[domain].i18n-dir         pot 파일과 po 파일을 저장할 위치
-      domains.[domain].src-dirs         번역을 추출할 소스 디렉토리 목록
-      domains.[domain].src-patterns     번역을 추출할 소스의 glob 패턴 목록
-      
-    [extractor]
-      domains.[domain].type      extractor 종류 (vue-gettext, i18next, vt, python, angular-gettext, cordova)
-      domains.[domain].keywords  번역에 사용하는 함수 이름 목록 (i18next, vt, python)
-
-    [compiler]
-      domains.[domain].outputs[n].type         compiler 종류 (mo, json, json-dir, angular-gettext, cordova)
-      domains.[domain].outputs[n].target-path  번역 결과를 저장할 파일 이름 (json)
-      domains.[domain].outputs[n].target-dir   번역 결과를 로케일 별 파일로 저장할 위치 (mo, json-dir, angular-gettext, cordova)
-      domains.[domain].outputs[n].use-locale-key  결과에 locale 키를 사용할지 결정 (json-dir)
-      domains.[domain].outputs[n].base-locale  번역 id로 사용할 로케일 (cordova)
-      
-      domains.[domain].outputs 가 없을 경우 domains.[domain] 영역에서 compiler 설정 가져옴
-      이 경우 extractor type에 따른 기본 compiler type:
-      
-      - vue-gettext: json
-      - i18next: json-dir
-      - vt, python: mo 
-      
-    [validation]
-      validation.base-locale                   Use msgstr of locale as validation base, default to msgid
-      validation.skip                          If true, print warning instead of stop running
-    
-    [구글 문서 동기화]
-      google-docs.doc-name                     동기화에 사용할 구글 문서 이름
-      google-docs.sheet-name                   동기화에 사용할 구글 문서 내 시트 이름
-      domains.[domain].google-docs.sheet-name  도메인 별로 동기화에 사용할 구글 문서 내 시트 이름
-      google-docs.client-secret-path           구글 문서 동기화 API 호출시 사용할 secret 파일 위치`)
+            console.info('\nRCFile:\n  Refer [L10nConf] type or see \'l10nrc.schema.json\'')
         })
 
     program.command('update')
         .description('로컬 번역 업데이트')
         .action(async (opts, cmd) => {
             await runSubCommand(cmd.name(), async (domainName, config, domainConfig) => {
-                const i18nDir = domainConfig.get<string>('i18n-dir')
-                const locales = domainConfig.get<string[]>('locales')
-                const fallbackLocale = domainConfig.get<string | null>('fallback-locale', null)
-                const validationConf = getValidationConf(program, config)
+                const i18nDir = domainConfig.getI18nDir()
+                const locales = domainConfig.getLocales()
+                const fallbackLocale = domainConfig.getFallbackLocale()
+                const validationConfig = config.getValidationConfig(program)
 
                 const potPath = path.join(i18nDir, domainName, 'template.pot')
                 const poDir = path.join(i18nDir, domainName)
 
                 await extractPot(domainName, domainConfig, potPath)
-                updatePo(potPath, poDir, poDir, locales, validationConf)
+                updatePo(potPath, poDir, poDir, locales, validationConfig)
 
                 if (fallbackLocale != null) {
                     const tempDir = path.join(getTempDir(), domainName)
@@ -102,10 +63,10 @@ async function run () {
         .description('로컬 소스 변경사항을 Google Docs 에 업로드 (로컬 번역 파일은 건드리지 않음)')
         .action(async (opts, cmd) => {
             await runSubCommand(cmd.name(), async (domainName, config, domainConfig) => {
-                const i18nDir = domainConfig.get<string>('i18n-dir')
-                const locales = domainConfig.get<string[]>('locales')
-                const tag = domainConfig.get('tag')
-                const validationConf = getValidationConf(program, config)
+                const i18nDir = domainConfig.getI18nDir()
+                const locales = domainConfig.getLocales()
+                const tag = domainConfig.getTag()
+                const validationConfig = config.getValidationConfig(program)
 
                 const fromPoDir = path.join(i18nDir, domainName)
                 const tempDir = path.join(getTempDir(), domainName)
@@ -115,7 +76,7 @@ async function run () {
                 log.info('l10n', `temp dir: '${tempDir}'`)
                 shell.rm('-rf', tempDir)
                 await extractPot(domainName, domainConfig, potPath)
-                updatePo(potPath, fromPoDir, poDir, locales, validationConf)
+                updatePo(potPath, fromPoDir, poDir, locales, validationConfig)
                 await syncPoToGoogleDocs(config, domainConfig, tag, potPath, poDir)
                 shell.rm('-rf', tempDir)
             })
@@ -125,11 +86,11 @@ async function run () {
         .description('로컬 소스와 Google Docs 간 싱크')
         .action(async (opts, cmd) => {
             await runSubCommand(cmd.name(), async (domainName, config, domainConfig) => {
-                const i18nDir = domainConfig.get<string>('i18n-dir')
-                const locales = domainConfig.get<string[]>('locales', [])
-                const fallbackLocale = domainConfig.get('fallback-locale', null)
-                const tag = domainConfig.get('tag')
-                const validationConf = getValidationConf(program, config)
+                const i18nDir = domainConfig.getI18nDir()
+                const locales = domainConfig.getLocales()
+                const fallbackLocale = domainConfig.getFallbackLocale()
+                const tag = domainConfig.getTag()
+                const validationConfig = config.getValidationConfig(program)
 
                 const potPath = path.join(i18nDir, domainName, 'template.pot')
                 const poDir = path.join(i18nDir, domainName)
@@ -137,7 +98,7 @@ async function run () {
                 await extractPot(domainName, domainConfig, potPath)
                 updatePo(potPath, poDir, poDir, locales, null)
                 await syncPoToGoogleDocs(config, domainConfig, tag, potPath, poDir)
-                updatePo(potPath, poDir, poDir, locales, validationConf)
+                updatePo(potPath, poDir, poDir, locales, validationConfig)
 
                 if (fallbackLocale != null) {
                     const tempDir = path.join(getTempDir(), domainName)
@@ -157,9 +118,9 @@ async function run () {
         .option('-l, --locales [locales]', '검사한 로케일 (콤마로 나열 가능, 없으면 전체)')
         .action(async (opts, cmd) => {
             await runSubCommand(cmd.name(), async (domainName, config, domainConfig) => {
-                const i18nDir = domainConfig.get<string>('i18n-dir')
-                const locales = opts.locales ? opts.locales.split(',') : domainConfig.get('locales')
-                const validationConf = getValidationConf(program, config)
+                const i18nDir = domainConfig.getI18nDir()
+                const locales = opts.locales ? opts.locales.split(',') : domainConfig.getLocales()
+                const validationConfig = config.getValidationConfig(program)
 
                 const specs = ['untranslated']
                 const fromPoDir = path.join(i18nDir, domainName)
@@ -170,7 +131,7 @@ async function run () {
                 log.info('l10n', `temp dir: '${tempDir}'`)
                 shell.rm('-rf', tempDir)
                 await extractPot(domainName, domainConfig, potPath)
-                updatePo(potPath, fromPoDir, poDir, locales, validationConf)
+                updatePo(potPath, fromPoDir, poDir, locales, validationConfig)
 
                 for (const locale of locales) {
                     const poPath = path.join(poDir, locale + '.po')
@@ -202,7 +163,7 @@ async function run () {
         .option('--potdir [potdir]', '설정한 위치에 pot 파일 추출')
         .action(async (opts, cmd) => {
             await runSubCommand(cmd.name(), async (domainName, config, domainConfig) => {
-                const i18nDir = opts.potdir || domainConfig.get('i18n-dir')
+                const i18nDir = opts.potdir || domainConfig.getI18nDir()
                 const potPath = path.join(i18nDir, domainName, 'template.pot')
 
                 await extractPot(domainName, domainConfig, potPath)
@@ -216,15 +177,16 @@ async function run () {
         .option('--podir [podir]', '설정한 위치에 업데이트된 po 파일 저장')
         .action(async (opts, cmd) => {
             await runSubCommand(cmd.name(), async (domainName, config, domainConfig) => {
-                const i18nDir = domainConfig.get<string>('i18n-dir')
-                const locales = opts.locales ? opts.locales.split(',') : domainConfig.get<string[]>('locales')
-                const validationConf = getValidationConf(program, config)
+                const i18nDir = domainConfig.getI18nDir()
+                const locales = opts.locales ? opts.locales.split(',') : domainConfig.getLocales()
+                config.getValidationConfig(program)
+                const validationConfig = config.getValidationConfig(program)
 
                 const potPath = path.join(opts.potdir || i18nDir, domainName, 'template.pot')
                 const fromPoDir = path.join(i18nDir, domainName)
                 const poDir = path.join(opts.podir || i18nDir, domainName)
 
-                updatePo(potPath, fromPoDir, poDir, locales, validationConf)
+                updatePo(potPath, fromPoDir, poDir, locales, validationConfig)
             })
         })
 
@@ -235,8 +197,8 @@ async function run () {
         .option('-s, --spec [spec]', '어떤 것을 셀지 지정 (필수, 콤마로 나열하면 모든 조건 체크, !로 시작하면 반대) 지원: total,translated,untranslated,<flag>')
         .action(async (opts, cmd) => {
             await runSubCommand(cmd.name(), async (domainName, config, domainConfig) => {
-                const i18nDir = domainConfig.get('i18n-dir')
-                const locales: string[] = opts.locales ? opts.locales.split(',') : domainConfig.get('locales')
+                const i18nDir = domainConfig.getI18nDir()
+                const locales: string[] = opts.locales ? opts.locales.split(',') : domainConfig.getLocales()
                 const specs = opts.spec ? opts.spec.split(',') : ['total']
 
                 const poDir = path.join(opts.podir || i18nDir, domainName)
@@ -265,7 +227,7 @@ async function run () {
                     cmd.help()
                 }
 
-                const i18nDir = domainConfig.get('i18n-dir')
+                const i18nDir = domainConfig.getI18nDir()
                 const locale = opts.locale
                 const specs = opts.spec ? opts.spec.split(',') : ['total']
 
@@ -294,8 +256,8 @@ async function run () {
         .description('[고급] PO 파일에서 번역 에셋 작성')
         .action(async (opts, cmd) => {
             await runSubCommand(cmd.name(), async (domainName, config, domainConfig) => {
-                const i18nDir = domainConfig.get<string>('i18n-dir')
-                const fallbackLocale = domainConfig.get<string | null>('fallback-locale', null)
+                const i18nDir = domainConfig.getI18nDir()
+                const fallbackLocale = domainConfig.getFallbackLocale()
 
                 const poDir = path.join(i18nDir, domainName)
 
@@ -316,8 +278,8 @@ async function run () {
         .description('[고급] PO 파일 Google Docs 싱크')
         .action(async (opts, cmd) => {
             await runSubCommand(cmd.name(), async (domainName, config, domainConfig) => {
-                const tag = domainConfig.get('tag')
-                const i18nDir = domainConfig.get<string>('i18n-dir')
+                const tag = domainConfig.getTag()
+                const i18nDir = domainConfig.getI18nDir()
 
                 const poDir = path.join(i18nDir, domainName)
                 const potPath = path.join(i18nDir, domainName, 'template.pot')
@@ -329,29 +291,7 @@ async function run () {
     program.parse(process.argv)
 }
 
-function getValidationConf(program: Command, config: Config): ValidationConf {
-    let conf: ValidationConf
-    const subConfig = config.getSubConfig('validation')
-    if (subConfig != null) {
-        conf = {
-            baseLocale: subConfig.get('base-locale', null),
-            skip: subConfig.get('skip', false)
-        }
-    } else {
-        conf = {baseLocale: null, skip: false}
-    }
-    const validationBaseLocale: string | undefined = program.opts().validationBaseLocale
-    if (validationBaseLocale != null) {
-        conf.baseLocale = validationBaseLocale
-    }
-    const skipValidation = program.opts().skipValidation
-    if (skipValidation) {
-        conf.skip = true
-    }
-    return conf
-}
-
-async function runSubCommand(cmdName: string, action: (domainName: string, config: Config, domainConfig: Config) => Promise<void>) {
+async function runSubCommand(cmdName: string, action: (domainName: string, config: L10nConfig, domainConfig: DomainConfig) => Promise<void>) {
     log.heading = cmdName
 
     const globalOpts = program.opts()
@@ -362,11 +302,11 @@ async function runSubCommand(cmdName: string, action: (domainName: string, confi
     }
 
     const rc = await explorer.load(globalOpts.rcfile || '.l10nrc')
-    const config = new Config(rc?.config)
-    const domainNames = globalOpts.domains || Object.keys(config.get('domains'))
+    const config = new L10nConfig(rc?.config)
+    const domainNames = globalOpts.domains || Object.keys(config.getDomainNames())
 
     for (const domainName of domainNames) {
-        const domainConfig = config.getSubConfig(['domains', domainName])
+        const domainConfig = config.getDomainConfig(domainName)
         if (domainConfig == null) {
             log.error(cmdName, `no config found for domain ${domainName}`)
             process.exit(1)

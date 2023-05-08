@@ -1,13 +1,13 @@
-import type {Config} from '../config'
+import type {DomainConfig} from '../config'
 import * as fs from 'fs'
 import log from 'npmlog'
 import * as path from 'path'
 import {getSrcPaths} from '../common'
 import {PotExtractor} from '../pot-extractor'
 
-export default async function (domainName: string, config: Config, potPath: string) {
+export default async function (domainName: string, config: DomainConfig, potPath: string) {
     const srcPaths = await getSrcPaths(config, ['.vue', '.js', '.ts'])
-    const keywords = new Set(config.get<string[]>('keywords', []))
+    const keywords = new Set(config.getKeywords())
     keywords.add('$t')
     keywords.add('vm.$t')
     keywords.add('this.$t')

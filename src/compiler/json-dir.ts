@@ -4,11 +4,12 @@ import log from 'npmlog'
 import * as shell from 'shelljs'
 import * as path from 'path'
 import {exportPoToJson} from '../po'
+import {CompilerConfig} from '../config';
 
-export default async function (domainName, config, poDir) {
-    const targetDir = config.get('target-dir')
-    const useLocaleKey = config.get('use-locale-key', false)
-    const keySeparator = config.get('key-separator', false)
+export default async function (domainName: string, config: CompilerConfig, poDir: string) {
+    const targetDir = config.getTargetDir()
+    const useLocaleKey = config.useLocaleKey()
+    const keySeparator = config.getKeySeparator()
     log.info('compile', `generating json files '${targetDir}/{locale}.json' (locale key: ${useLocaleKey})`)
 
     shell.mkdir('-p', targetDir)
