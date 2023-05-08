@@ -4,10 +4,9 @@ import * as fs from 'fs'
 import * as path from 'path'
 import i18nStringsFiles from 'i18n-strings-files'
 import plist from 'plist'
-import glob from "glob-promise"
+import {glob} from 'glob'
 import {execWithLog, getTempDir} from "../utils"
 import * as shell from "shelljs"
-import jsonfile from "jsonfile"
 
 const infoPlistKeys = [
     'NSCameraUsageDescription',
@@ -60,7 +59,7 @@ export default async function (domainName, config, potPath) {
 
 async function getInfoPlistPath(srcDir) {
     const srcPattern = path.join(srcDir, '**', 'Info.plist')
-    const paths = await glob.promise(srcPattern)
+    const paths = await glob(srcPattern)
     return paths[0]
 }
 
@@ -69,7 +68,7 @@ async function getXibPaths(srcDir) {
     const storyboardPattern = path.join(srcDir, '**', 'Base.lproj', '*.storyboard')
     const baseXibPaths = []
     for (const srcPattern of [xibPattern, storyboardPattern]) {
-        baseXibPaths.push(...await glob.promise(srcPattern))
+        baseXibPaths.push(...await glob(srcPattern))
     }
     return baseXibPaths
 }

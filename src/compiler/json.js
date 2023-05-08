@@ -1,4 +1,4 @@
-import glob from 'glob-promise'
+import {glob} from 'glob'
 import log from 'npmlog'
 import * as path from 'path'
 import jsonfile from 'jsonfile'
@@ -9,7 +9,7 @@ export default async function (domainName, config, poDir) {
     log.info('compile', `generating json file to '${targetPath}'`)
 
     const translations = {}
-    const poPaths = await glob.promise(`${poDir}/*.po`)
+    const poPaths = await glob(`${poDir}/*.po`)
     for (const poPath of poPaths) {
         const locale = path.basename(poPath, '.po')
         translations[locale] = exportPoToJson(poPath, {keySeparator: false})

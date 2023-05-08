@@ -1,4 +1,4 @@
-import glob from 'glob-promise'
+import {glob} from 'glob'
 import http from 'http'
 import httpShutdown from 'http-shutdown'
 import log from 'npmlog'
@@ -138,7 +138,7 @@ async function findDocumentId(drive, auth, docName) {
 }
 
 async function readPoFiles(poDir) {
-    const poPaths = await glob.promise(`${poDir}/*.po`)
+    const poPaths = await glob(`${poDir}/*.po`)
 
     const poData = {}
     for (const poPath of poPaths) {

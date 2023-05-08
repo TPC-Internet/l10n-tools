@@ -1,5 +1,5 @@
 import fs from 'fs'
-import glob from 'glob-promise'
+import {glob} from 'glob'
 import log from 'npmlog'
 import * as shell from 'shelljs'
 import * as path from 'path'
@@ -22,7 +22,7 @@ export default async function (domainName, config, poDir) {
 
     log.info('compile', `generating .strings files`)
 
-    const poPaths = await glob.promise(`${poDir}/*.po`)
+    const poPaths = await glob(`${poDir}/*.po`)
     for (const poPath of poPaths) {
         const locale = path.basename(poPath, '.po')
 
@@ -91,7 +91,7 @@ export default async function (domainName, config, poDir) {
 
 async function getStringsPaths(srcDir, locale) {
     const srcPattern = path.join(srcDir, '**', `${locale}.lproj`, '*.strings')
-    return await glob.promise(srcPattern)
+    return await glob(srcPattern)
 }
 
 function compileStringsFile(data) {

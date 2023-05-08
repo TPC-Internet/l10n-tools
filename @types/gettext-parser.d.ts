@@ -7,6 +7,7 @@
 
 declare module 'gettext-parser' {
     import {Transform} from "readable-stream";
+    import {TransformOptions} from 'stream';
 
     export interface GetTextComment {
         translator?: string;
@@ -30,15 +31,25 @@ declare module 'gettext-parser' {
         translations: { [msgctxt: string]: { [msgId: string]: GetTextTranslation } };
     }
 
+    export type PoParseOptions = {
+        defaultCharset?: string;
+        validation?: boolean;
+    }
+    export type PoCompileOptions = {
+        foldLength?: number;
+        escapeCharacters?: boolean;
+        sort?: boolean | ((left: GetTextTranslation, right: GetTextTranslation) => -1 | 0 | 1);
+        eol?: string
+    }
     export interface PoParser {
-        parse: (buffer: Buffer | string, defaultCharset?: string) => GetTextTranslations;
-        compile: (table: GetTextTranslations, options?: any) => Buffer;
-        createParseStream: (buffer: any, defaultCharset?: string) => Transform;
+        parse: (buffer: Buffer | string, options: PoParseOptions = {}) => GetTextTranslations;
+        compile: (table: GetTextTranslations, options?: PoCompileOptions = {}) => Buffer;
+        createParseStream: (buffer: Buffer | string, options: PoParseOptions = {}, transformOptions?: TransformOptions) => Transform;
     }
 
     export interface MoParser {
-        parse: (buffer: Buffer | string, defaultCharset?: string) => GetTextTranslations;
-        compile: (table: GetTextTranslations, options?: any) => Buffer;
+        parse: (buffer: Buffer | string, options: PoParseOptions = {}) => GetTextTranslations;
+        compile: (table: GetTextTranslations, options?: PoCompileOptions = {}) => Buffer;
     }
 
     export const po: PoParser;

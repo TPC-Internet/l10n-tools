@@ -6,6 +6,7 @@ import {
     UnexpectedTagError,
     validateMsg
 } from './validator'
+import exp from 'constants'
 
 describe('validate message', () => {
     it('C string format', () => {
@@ -59,4 +60,12 @@ describe('validate message', () => {
         expect(() => validateMsg('Hello <b>{name}, <br><i>{desc}</i></b>', '안녕 <b>{name}, <i>{desc}</i></b>')).not.toThrow()
         expect(() => validateMsg('Hello <b>{name}, <br><i>{desc}</i></b>', '안녕 <b>{name}, <br><i>{desc}</i><br></b>')).not.toThrow()
     })
+
+    it('other cases', () => {
+        expect(() => validateMsg(
+            '헬로 \n{name}({certifiedName}, {phone})님이 {timestamp}어쩌고\n저쩌고 {name}님입니다.',
+            'Hello\n\n{name}({certifiedName}, {phone}) has {timestamp}.\n {name} can be'
+        )).not.toThrow()
+    })
 })
+

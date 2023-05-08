@@ -1,5 +1,5 @@
 import fs from 'fs'
-import glob from 'glob-promise'
+import {glob} from 'glob'
 import log from 'npmlog'
 import * as path from 'path'
 import {Compiler} from 'angular-gettext-tools'
@@ -8,7 +8,7 @@ export default async function (domainName, config, poDir) {
     const targetDir = config.get('target-dir')
     log.info('compile', `generating js files to '${targetDir}/{locale}.js'`)
     const gettextCompiler = new Compiler({format: 'javascript'})
-    const poPaths = await glob.promise(`${poDir}/*.po`)
+    const poPaths = await glob(`${poDir}/*.po`)
     for (const poPath of poPaths) {
         const locale = path.basename(poPath, '.po')
         const input = fs.readFileSync(poPath, {encoding: 'UTF-8'})

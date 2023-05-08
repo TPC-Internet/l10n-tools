@@ -171,7 +171,7 @@ export function setPoEntry(po: GetTextTranslations, poEntry: GetTextTranslation)
 
 export function readPoFile (poPath: string): GetTextTranslations {
     const poInput = fs.readFileSync(poPath)
-    return gettextParser.po.parse(poInput, 'UTF-8')
+    return gettextParser.po.parse(poInput, {defaultCharset: 'UTF-8'})
 }
 
 export function writePoFile (poPath: string, po: GetTextTranslations) {

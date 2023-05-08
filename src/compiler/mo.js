@@ -1,6 +1,6 @@
 import log from 'npmlog'
 import * as shell from "shelljs"
-import glob from "glob-promise"
+import {glob} from 'glob'
 import * as path from "path"
 import {readPoFile} from "../po"
 import * as gettextParser from "gettext-parser"
@@ -10,7 +10,7 @@ export default async function (domainName, config, poDir) {
     const targetDir = config.get('target-dir')
     log.info('compile', `generating mo files to '${targetDir}/{locale}/LC_MESSAGES/${domainName}.mo'`)
     shell.mkdir('-p', targetDir)
-    const poPaths = await glob.promise(`${poDir}/*.po`)
+    const poPaths = await glob(`${poDir}/*.po`)
     for (const poPath of poPaths) {
         const locale = path.basename(poPath, '.po')
         const moDir = path.join(targetDir, locale, 'LC_MESSAGES')

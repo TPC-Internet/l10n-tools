@@ -1,6 +1,6 @@
 import fs from 'fs'
-import * as gettextParser from 'gettext-parser'
-import glob from 'glob-promise'
+import {po as gettextPo, type GetTextTranslations} from 'gettext-parser'
+import {glob} from 'glob'
 import log from 'npmlog'
 import * as path from 'path'
 import * as shell from 'shelljs'
@@ -8,7 +8,6 @@ import {getPoEntries, findPoEntry, getPoEntryFlag, setPoEntryFlag, readPoFile, w
 import {execWithLog, requireCmd} from './utils'
 import {Config} from './config'
 import {validateMsg} from './validator'
-import {GetTextTranslations} from 'gettext-parser'
 
 export async function getSrcPaths (config: Config, exts: string[]): Promise<string[]> {
     const srcDirs = config.get<string[]>('src-dirs', [])
@@ -25,7 +24,7 @@ export async function getSrcPaths (config: Config, exts: string[]): Promise<stri
 
     const srcPaths: string[] = []
     for (const srcPattern of srcPatterns) {
-        srcPaths.push(...await glob.promise(srcPattern))
+        srcPaths.push(...await glob(srcPattern))
     }
     return srcPaths
 }
@@ -60,7 +59,7 @@ export function updatePo (potPath: string, fromPoDir: string, poDir: string, loc
         const poFile = locale + '.po'
         const fromPoPath = path.join(fromPoDir, poFile)
 
-        const pot = gettextParser.po.parse(potInput, 'UTF-8')
+        const pot = gettextPo.parse(potInput, {defaultCharset: 'UTF-8'})
         pot.headers['language'] = locale
         if (fs.existsSync(fromPoPath)) {
             const fromPo = readPoFile(fromPoPath)
@@ -107,7 +106,7 @@ export async function mergeFallbackLocale(domainName: string, poDir: string, fal
     shell.mkdir('-p', mergedPoDir)
     const fallbackPo = readPoFile(path.join(poDir, fallbackLocale + '.po'))
 
-    const poPaths = await glob.promise(`${poDir}/*.po`)
+    const poPaths = await glob(`${poDir}/*.po`)
     for (const poPath of poPaths) {
         const locale = path.basename(poPath, '.po')
         const po = readPoFile(poPath)
