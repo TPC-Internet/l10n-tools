@@ -1,10 +1,10 @@
 import log from 'npmlog'
-import {getLineTo, isTagElement, PotExtractor} from '../pot-extractor'
+import {getLineTo, isTagElement, PotExtractor} from '../pot-extractor.js'
 import * as fs from 'fs'
 import * as path from 'path'
 import cheerio from "cheerio"
 import * as htmlEntities from 'html-entities'
-import {DomainConfig} from '../config';
+import {type DomainConfig} from '../config.js'
 
 export default async function (domainName: string, config: DomainConfig, potPath: string) {
     const resDir = config.getResDir()

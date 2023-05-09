@@ -2,23 +2,25 @@
 
 import {Command} from 'commander'
 import log from 'npmlog'
-import {checkPoEntrySpecs, getPoEntriesFromFile, getPoEntryFlag} from './po'
-import {getTempDir} from './utils'
-import {mergeFallbackLocale, updatePo} from './common'
+import {checkPoEntrySpecs, getPoEntriesFromFile, getPoEntryFlag} from './po.js'
+import {getTempDir} from './utils.js'
+import {mergeFallbackLocale, updatePo} from './common.js'
 import * as shell from 'shelljs'
-import {syncPoToGoogleDocs} from './google-docs-syncer'
+import {syncPoToGoogleDocs} from './google-docs-syncer.js'
 import * as path from 'path'
-import {DomainConfig, L10nConfig} from './config'
-import {extractPot} from './extractor'
-import {compileAll} from './compiler'
+import {DomainConfig, L10nConfig} from './config.js'
+import {extractPot} from './extractor/index.js'
+import {compileAll} from './compiler/index.js'
 import * as fs from 'fs'
 import {cosmiconfig} from 'cosmiconfig'
+import {fileURLToPath} from 'url';
 
 const program = new Command('l10n-tools')
 const explorer = cosmiconfig('l10n')
 
 async function run () {
-    const pkg = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'package.json'), 'utf-8'))
+    const dirname = path.dirname(fileURLToPath(import.meta.url))
+    const pkg = JSON.parse(fs.readFileSync(path.join(dirname, '..', 'package.json'), 'utf-8'))
     program.version(pkg.version)
         .description(pkg.description)
         .option('-r, --rcfile <rcfile>', '설정 파일 지정, 기본값은 .l10nrc')
@@ -28,7 +30,7 @@ async function run () {
         .option('-v, --verbose', 'log verbose')
         .option('-q, --quiet', '조용히')
         .on('--help', () => {
-            console.info('\nRCFile:\n  Refer [L10nConf] type or see \'l10nrc.schema.json\'')
+            console.info('\nRC file:\n  Refer [L10nConf] type or see \'l10nrc.schema.json\'')
         })
 
     program.command('update')
@@ -316,9 +318,9 @@ async function runSubCommand(cmdName: string, action: (domainName: string, confi
     }
 }
 
-run().catch(err => {
-    if (err) {
-        log.error('l10n', err)
-    }
+try {
+    await run()
+} catch (err) {
+    log.error('l10n', 'run failed', err)
     process.exit(1)
-})
+}

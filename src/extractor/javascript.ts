@@ -1,9 +1,9 @@
 import log from 'npmlog'
-import {getSrcPaths} from '../common'
-import {PotExtractor} from '../pot-extractor'
+import {getSrcPaths} from '../common.js'
+import {PotExtractor} from '../pot-extractor.js'
 import fs from 'fs'
 import * as path from "path"
-import {DomainConfig} from '../config';
+import {type DomainConfig} from '../config.js'
 
 export default async function (domainName: string, config: DomainConfig, potPath: string) {
     const srcPaths = await getSrcPaths(config, ['.js', '.ts', '.jsx'])

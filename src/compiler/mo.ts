@@ -2,10 +2,10 @@ import log from 'npmlog'
 import * as shell from "shelljs"
 import {glob} from 'glob'
 import * as path from "path"
-import {readPoFile} from "../po"
+import {readPoFile} from '../po.js'
 import * as gettextParser from "gettext-parser"
 import fs from "fs"
-import {CompilerConfig} from '../config';
+import {type CompilerConfig} from '../config.js'
 
 export default async function (domainName: string, config: CompilerConfig, poDir: string) {
     const targetDir = config.getTargetDir()

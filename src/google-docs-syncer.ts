@@ -5,8 +5,8 @@ import log from 'npmlog'
 import * as path from 'path'
 import querystring from 'querystring'
 import url from 'url'
-import {cleanupPo} from './common'
-import {findPoEntry, getPoEntries, getPoEntryFlag, readPoFile, removePoEntryFlag, setPoEntryFlag, writePoFile} from './po'
+import {cleanupPo} from './common.js'
+import {findPoEntry, getPoEntries, getPoEntryFlag, readPoFile, removePoEntryFlag, setPoEntryFlag, writePoFile} from './po.js'
 import fs from 'fs'
 import {drive_v3, google, sheets_v4} from 'googleapis'
 import {OAuth2Client} from 'google-auth-library'
@@ -14,8 +14,8 @@ import jsonfile from 'jsonfile'
 import open from 'open'
 import * as shell from 'shelljs'
 import objectPath from 'object-path'
-import {DomainConfig, GoogleCredentials, L10nConfig} from './config';
-import {GetTextTranslations} from 'gettext-parser';
+import {type DomainConfig, type GoogleCredentials, type L10nConfig} from './config.js'
+import {type GetTextTranslations} from 'gettext-parser';
 
 // @ts-ignore
 httpShutdown.extend()

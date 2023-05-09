@@ -1,7 +1,7 @@
 import fs from 'fs'
 import * as gettextParser from 'gettext-parser'
-import {sortSet} from './utils'
-import {GetTextTranslation, GetTextTranslations} from 'gettext-parser'
+import {sortSet} from './utils.js'
+import {type GetTextTranslation, type GetTextTranslations} from 'gettext-parser'
 
 export class PoEntryBuilder {
     public msgctxt: string | null

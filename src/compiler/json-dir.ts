@@ -3,8 +3,8 @@ import {glob} from 'glob'
 import log from 'npmlog'
 import * as shell from 'shelljs'
 import * as path from 'path'
-import {exportPoToJson} from '../po'
-import {CompilerConfig} from '../config';
+import {exportPoToJson} from '../po.js'
+import {type CompilerConfig} from '../config.js'
 
 export default async function (domainName: string, config: CompilerConfig, poDir: string) {
     const targetDir = config.getTargetDir()

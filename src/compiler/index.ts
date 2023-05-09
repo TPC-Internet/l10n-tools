@@ -1,4 +1,4 @@
-import {CompilerConfig, CompilerType, DomainConfig} from '../config';
+import {type CompilerConfig, type CompilerType, type DomainConfig} from '../config.js'
 
 export type CompilerFunc = (domainName: string, config: CompilerConfig, poDir: string) => Promise<void>
 
@@ -15,21 +15,21 @@ async function loadCompiler (type: CompilerType): Promise<CompilerFunc> {
     switch (type) {
         case 'json':
         case 'vue-gettext':
-            return (await import('./json')).default
+            return (await import('./json.js')).default
         case 'json-dir':
         case 'i18next':
-            return (await import('./json-dir')).default
+            return (await import('./json-dir.js')).default
         case 'po-json':
-            return (await import('./po-json')).default
+            return (await import('./po-json.js')).default
         case 'mo':
         case 'python':
-            return (await import('./mo')).default
+            return (await import('./mo.js')).default
         case 'node-gettext':
-            return (await import('./node-gettext')).default
+            return (await import('./node-gettext.js')).default
         case 'android':
-            return (await import('./android')).default
+            return (await import('./android.js')).default
         case 'ios':
-            return (await import('./ios')).default
+            return (await import('./ios.js')).default
     }
     throw new Error(`unknown compiler type: ${type}`)
 }

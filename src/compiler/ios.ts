@@ -3,10 +3,10 @@ import {glob} from 'glob'
 import log from 'npmlog'
 import * as shell from 'shelljs'
 import * as path from 'path'
-import i18nStringsFiles, {CommentedI18nStringsMsg, I18nStringsMsg} from 'i18n-strings-files'
-import {findPoEntry, readPoFile} from '../po'
-import {execWithLog, getTempDir} from "../utils"
-import {CompilerConfig} from '../config';
+import i18nStringsFiles, {type CommentedI18nStringsMsg, type I18nStringsMsg} from 'i18n-strings-files'
+import {findPoEntry, readPoFile} from '../po.js'
+import {execWithLog, getTempDir} from '../utils.js'
+import {type CompilerConfig} from '../config.js'
 
 const infoPlistKeys = [
     'NSCameraUsageDescription',

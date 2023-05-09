@@ -1,4 +1,4 @@
-import {Command} from 'commander';
+import {type Command} from 'commander';
 import jsonfile from 'jsonfile';
 
 type L10nConf = {

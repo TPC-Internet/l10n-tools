@@ -1,13 +1,13 @@
 import log from 'npmlog'
-import { PotExtractor} from '../pot-extractor'
+import { PotExtractor} from '../pot-extractor.js'
 import * as fs from 'fs'
 import * as path from 'path'
 import i18nStringsFiles from 'i18n-strings-files'
 import plist from 'plist'
 import {glob} from 'glob'
-import {execWithLog, getTempDir} from "../utils"
+import {execWithLog, getTempDir} from '../utils.js'
 import * as shell from "shelljs"
-import {DomainConfig} from '../config';
+import {type DomainConfig} from '../config.js'
 
 const infoPlistKeys = [
     'NSCameraUsageDescription',

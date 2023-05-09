@@ -4,10 +4,10 @@ import {glob} from 'glob'
 import log from 'npmlog'
 import * as path from 'path'
 import * as shell from 'shelljs'
-import {getPoEntries, findPoEntry, getPoEntryFlag, setPoEntryFlag, readPoFile, writePoFile} from './po'
-import {execWithLog, requireCmd} from './utils'
-import {DomainConfig, ValidationConfig} from './config'
-import {validateMsg} from './validator'
+import {getPoEntries, findPoEntry, getPoEntryFlag, setPoEntryFlag, readPoFile, writePoFile} from './po.js'
+import {execWithLog, requireCmd} from './utils.js'
+import {type DomainConfig, ValidationConfig} from './config.js'
+import {validateMsg} from './validator.js'
 
 export async function getSrcPaths (config: DomainConfig, exts: string[]): Promise<string[]> {
     const srcDirs = config.getSrcDirs()

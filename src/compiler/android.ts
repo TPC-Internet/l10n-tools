@@ -4,8 +4,8 @@ import log from 'npmlog'
 import * as shell from 'shelljs'
 import * as path from 'path'
 import * as xml2js from 'xml2js'
-import {findPoEntry, readPoFile} from '../po'
-import {CompilerConfig} from '../config';
+import {findPoEntry, readPoFile} from '../po.js'
+import {type CompilerConfig} from '../config.js';
 
 export default async function (domainName: string, config: CompilerConfig, poDir: string) {
     const resDir = config.getResDir()

@@ -1,13 +1,14 @@
 import cheerio from 'cheerio'
 import log from 'npmlog'
-import {findPoEntry, PoEntryBuilder, setPoEntry} from './po'
+import {findPoEntry, PoEntryBuilder, setPoEntry} from './po.js'
 import * as gettextParser from 'gettext-parser'
 import * as ts from 'typescript'
 import php from 'php-parser'
 import fs from 'fs'
 import path from 'path'
-import {GetTextTranslation, GetTextTranslations} from 'gettext-parser'
-import {TemplateMarker} from './common'
+import {type GetTextTranslation, type GetTextTranslations} from 'gettext-parser'
+import {type TemplateMarker} from './common.js'
+import {fileURLToPath} from 'url';
 
 export type PotExtractorOptions = {
     keywords: string[] | Set<string>
@@ -57,7 +58,8 @@ export class PotExtractor {
     }
 
     static create (domainName: string, options: Partial<PotExtractorOptions>) {
-        const pkg = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'package.json'), 'utf-8'))
+        const dirname = path.dirname(fileURLToPath(import.meta.url))
+        const pkg = JSON.parse(fs.readFileSync(path.join(dirname, '..', 'package.json'), 'utf-8'))
         return new PotExtractor({
             charset: 'utf-8',
             headers: {

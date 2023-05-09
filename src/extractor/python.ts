@@ -1,6 +1,6 @@
 import log from 'npmlog'
-import {getSrcPaths, xgettext} from '../common'
-import {DomainConfig} from '../config';
+import {getSrcPaths, xgettext} from '../common.js';
+import {type DomainConfig} from '../config.js';
 
 export default async function (domainName: string, config: DomainConfig, potPath: string) {
     const srcPaths = await getSrcPaths(config, ['.py'])

@@ -5,7 +5,7 @@ import {
     UnexpectedFormatError,
     UnexpectedTagError,
     validateMsg
-} from './validator'
+} from './validator.js'
 import exp from 'constants'
 
 describe('validate message', () => {

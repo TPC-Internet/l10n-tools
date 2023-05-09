@@ -1,4 +1,4 @@
-import {PotExtractor} from './pot-extractor'
+import {PotExtractor} from './pot-extractor.js'
 
 describe('PotExtractor', () => {
     describe('vue-i18n keywords', () => {
