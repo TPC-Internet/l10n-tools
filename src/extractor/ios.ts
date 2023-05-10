@@ -6,7 +6,7 @@ import i18nStringsFiles from 'i18n-strings-files'
 import plist from 'plist'
 import {glob} from 'glob'
 import {execWithLog, getTempDir} from '../utils.js'
-import * as shell from "shelljs"
+import shell from "shelljs"
 import {type DomainConfig} from '../config.js'
 
 const infoPlistKeys = [

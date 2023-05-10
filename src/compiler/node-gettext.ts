@@ -1,5 +1,5 @@
 import log from 'npmlog'
-import * as shell from "shelljs"
+import shell from "shelljs"
 import {glob} from 'glob'
 import * as path from "path"
 import jsonfile from 'jsonfile'
