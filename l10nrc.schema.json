@@ -69,6 +69,16 @@
                         },
                         "type": "array"
                     },
+                    "lokalise-platform": {
+                        "description": "Lokalise platform to use",
+                        "enum": [
+                            "android",
+                            "ios",
+                            "other",
+                            "web"
+                        ],
+                        "type": "string"
+                    },
                     "outputs": {
                         "description": "List of output formats",
                         "items": {
@@ -162,6 +172,9 @@
                 "client-secret": {
                     "type": "string"
                 },
+                "client-secret-path": {
+                    "type": "string"
+                },
                 "doc-name": {
                     "type": "string"
                 },
@@ -170,12 +183,33 @@
                 }
             },
             "required": [
-                "client-id",
-                "client-secret",
                 "doc-name",
                 "sheet-name"
             ],
             "type": "object"
+        },
+        "lokalise": {
+            "additionalProperties": false,
+            "properties": {
+                "projectId": {
+                    "type": "string"
+                },
+                "token": {
+                    "type": "string"
+                }
+            },
+            "required": [
+                "projectId",
+                "token"
+            ],
+            "type": "object"
+        },
+        "sync-target": {
+            "enum": [
+                "google-docs",
+                "lokalise"
+            ],
+            "type": "string"
         },
         "validation": {
             "additionalProperties": false,

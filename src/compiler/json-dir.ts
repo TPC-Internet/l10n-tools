@@ -1,7 +1,7 @@
 import fs from 'fs'
 import {glob} from 'glob'
 import log from 'npmlog'
-import * as shell from 'shelljs'
+import shell from 'shelljs'
 import * as path from 'path'
 import {exportPoToJson} from '../po.js'
 import {type CompilerConfig} from '../config.js'

@@ -5,8 +5,8 @@ import log from 'npmlog'
 import {checkPoEntrySpecs, getPoEntriesFromFile, getPoEntryFlag} from './po.js'
 import {getTempDir} from './utils.js'
 import {mergeFallbackLocale, updatePo} from './common.js'
-import * as shell from 'shelljs'
-import {syncPoToGoogleDocs} from './google-docs-syncer.js'
+import shell from 'shelljs'
+import {syncPoToTarget} from './syncer/index.js';
 import * as path from 'path'
 import {DomainConfig, L10nConfig} from './config.js'
 import {extractPot} from './extractor/index.js'
@@ -79,7 +79,7 @@ async function run () {
                 shell.rm('-rf', tempDir)
                 await extractPot(domainName, domainConfig, potPath)
                 updatePo(potPath, fromPoDir, poDir, locales, validationConfig)
-                await syncPoToGoogleDocs(config, domainConfig, tag, potPath, poDir)
+                await syncPoToTarget(config, domainConfig, tag, potPath, poDir)
                 shell.rm('-rf', tempDir)
             })
         })
@@ -99,7 +99,7 @@ async function run () {
 
                 await extractPot(domainName, domainConfig, potPath)
                 updatePo(potPath, poDir, poDir, locales, null)
-                await syncPoToGoogleDocs(config, domainConfig, tag, potPath, poDir)
+                await syncPoToTarget(config, domainConfig, tag, potPath, poDir)
                 updatePo(potPath, poDir, poDir, locales, validationConfig)
 
                 if (fallbackLocale != null) {
@@ -286,7 +286,7 @@ async function run () {
                 const poDir = path.join(i18nDir, domainName)
                 const potPath = path.join(i18nDir, domainName, 'template.pot')
 
-                await syncPoToGoogleDocs(config, domainConfig, tag, potPath, poDir)
+                await syncPoToTarget(config, domainConfig, tag, potPath, poDir)
             })
         })
 
@@ -305,7 +305,7 @@ async function runSubCommand(cmdName: string, action: (domainName: string, confi
 
     const rc = await explorer.load(globalOpts.rcfile || '.l10nrc')
     const config = new L10nConfig(rc?.config)
-    const domainNames = globalOpts.domains || Object.keys(config.getDomainNames())
+    const domainNames = globalOpts.domains || config.getDomainNames()
 
     for (const domainName of domainNames) {
         const domainConfig = config.getDomainConfig(domainName)

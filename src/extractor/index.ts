@@ -1,6 +1,6 @@
 import {cleanupPot} from '../common.js'
 import * as path from 'path'
-import * as shell from 'shelljs'
+import shell from 'shelljs'
 import {type DomainConfig, type DomainType} from '../config.js'
 
 export type ExtractorFunc = (domainName: string, domainConfig: DomainConfig, potPath: string) => Promise<void>

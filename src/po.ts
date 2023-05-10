@@ -2,6 +2,9 @@ import fs from 'fs'
 import * as gettextParser from 'gettext-parser'
 import {sortSet} from './utils.js'
 import {type GetTextTranslation, type GetTextTranslations} from 'gettext-parser'
+import {glob} from 'glob';
+import path from 'path';
+import {cleanupPo} from './common.js';
 
 export class PoEntryBuilder {
     public msgctxt: string | null
@@ -174,9 +177,30 @@ export function readPoFile (poPath: string): GetTextTranslations {
     return gettextParser.po.parse(poInput, {defaultCharset: 'UTF-8'})
 }
 
+export async function readPoFiles(poDir: string): Promise<{[locale: string]: GetTextTranslations}> {
+    const poPaths = await glob(`${poDir}/*.po`)
+
+    const poData: {[locale: string]: GetTextTranslations} = {}
+    for (const poPath of poPaths) {
+        const locale = path.basename(poPath, '.po')
+        poData[locale] = readPoFile(poPath)
+    }
+    // console.log('po data read', JSON.stringify(poData, null, 2))
+    return poData
+}
+
 export function writePoFile (poPath: string, po: GetTextTranslations) {
     const output = gettextParser.po.compile(po)
     fs.writeFileSync(poPath, output)
+}
+
+export function writePoFiles(poDir: string, poData: {[locale: string]: GetTextTranslations}) {
+    // console.log('po data to write', JSON.stringify(poData, null, 2))
+    for (const [locale, po] of Object.entries(poData)) {
+        const poPath = path.join(poDir, locale + '.po')
+        writePoFile(poPath, po)
+        cleanupPo(poPath)
+    }
 }
 
 export function* getPoEntries(po: GetTextTranslations): Generator<GetTextTranslation, void> {

@@ -1,13 +1,18 @@
 import {type Command} from 'commander';
 import jsonfile from 'jsonfile';
+import {type SupportedPlatforms} from '@lokalise/node-api';
 
 type L10nConf = {
     $schema?: string,
     domains: {[name: string]: DomainConf}
     /** Validation Config */
     validation?: ValidationConf
+    'sync-target'?: SyncTarget
     'google-docs'?: GoogleDocsConf
+    lokalise?: LokaliseConf
 }
+
+export type SyncTarget = 'google-docs' | 'lokalise'
 
 /**
  * vue-gettext: Extract from $gettext like function, translate tag, and v-translate attrs
@@ -59,6 +64,8 @@ type DomainConf =  {
     'src-patterns'?: string[]
     /** Location of res (android only) */
     'res-dir'?: string
+    /** Lokalise platform to use */
+    'lokalise-platform'?: SupportedPlatforms
     /** List of output formats */
     outputs: CompilerConf[]
 }
@@ -89,12 +96,24 @@ export class L10nConfig {
         return new ValidationConfig(this.rc.validation, opts)
     }
 
+    getSyncTarget(): SyncTarget {
+        return this.rc['sync-target'] ?? 'google-docs'
+    }
+
     getGoogleDocsConfig(): GoogleDocsConfig {
         const gdc = this.rc['google-docs']
         if (gdc == null) {
             throw new Error('no google-docs in rc')
         }
         return new GoogleDocsConfig(gdc)
+    }
+
+    getLokaliseConfig(): LokaliseConfig {
+        const lc = this.rc['lokalise']
+        if (lc == null) {
+            throw new Error('no lokalise in rc')
+        }
+        return new LokaliseConfig(lc)
     }
 }
 
@@ -152,6 +171,14 @@ export class DomainConfig {
             throw new Error('res-dir is required for this output')
         }
         return resDir
+    }
+
+    getLokalisePlatform(): SupportedPlatforms {
+        const platform = this.dc['lokalise-platform']
+        if (platform == null) {
+            throw new Error('lokalise-platform is required')
+        }
+        return platform
     }
 
     getCompilerConfigs(): CompilerConfig[] {
@@ -315,5 +342,25 @@ export class GoogleDocsConfig {
             return {clientId, clientSecret}
         }
         throw new Error('no client-secret for google-docs')
+    }
+}
+
+type LokaliseConf = {
+    token: string
+    projectId: string
+}
+
+export class LokaliseConfig {
+    private readonly lc: LokaliseConf
+    constructor(lc: LokaliseConf) {
+        this.lc = lc
+    }
+
+    getToken(): string {
+        return this.lc['token']
+    }
+
+    getProjectId(): string {
+        return this.lc['projectId']
     }
 }

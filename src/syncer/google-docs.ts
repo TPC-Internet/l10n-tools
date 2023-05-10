@@ -1,26 +1,24 @@
-import {glob} from 'glob'
 import http from 'http'
 import httpShutdown from 'http-shutdown'
 import log from 'npmlog'
 import * as path from 'path'
 import querystring from 'querystring'
 import url from 'url'
-import {cleanupPo} from './common.js'
-import {findPoEntry, getPoEntries, getPoEntryFlag, readPoFile, removePoEntryFlag, setPoEntryFlag, writePoFile} from './po.js'
+import {findPoEntry, getPoEntries, getPoEntryFlag, removePoEntryFlag, setPoEntryFlag} from '../po.js'
 import fs from 'fs'
 import {drive_v3, google, sheets_v4} from 'googleapis'
 import {OAuth2Client} from 'google-auth-library'
 import jsonfile from 'jsonfile'
 import open from 'open'
-import * as shell from 'shelljs'
+import shell from 'shelljs'
 import objectPath from 'object-path'
-import {type DomainConfig, type GoogleCredentials, type L10nConfig} from './config.js'
+import {type DomainConfig, type GoogleCredentials, type L10nConfig} from '../config.js'
 import {type GetTextTranslations} from 'gettext-parser';
 
 // @ts-ignore
 httpShutdown.extend()
 
-export async function syncPoToGoogleDocs (config: L10nConfig, domainConfig: DomainConfig, tag: string, potPath: string, poDir: string) {
+export async function syncPoToGoogleDocs (config: L10nConfig, domainConfig: DomainConfig, tag: string, pot: GetTextTranslations, poData: {[locale: string]: GetTextTranslations}) {
     const googleDocsConfig = config.getGoogleDocsConfig()
     const docName = googleDocsConfig.getDocName()
     const sheetName = googleDocsConfig.getSheetName()
@@ -35,8 +33,6 @@ export async function syncPoToGoogleDocs (config: L10nConfig, domainConfig: Doma
     const docId = await findDocumentId(drive, auth, docName)
     log.notice('syncPoToGoogleDocs', `docId: ${docId}`)
 
-    const pot = await readPoFile(potPath)
-    const poData = await readPoFiles(poDir)
     const rows = await readSheet(sheets, sheetName, auth, docId)
     const columnMap = getColumnMap(rows[0])
     const sheetData = createSheetData(tag, rows, columnMap)
@@ -45,8 +41,6 @@ export async function syncPoToGoogleDocs (config: L10nConfig, domainConfig: Doma
 
     const docActions = await updateSheet(tag, rows, columnMap, sheetData)
     await applyDocumentActions(sheetName, sheets, auth, docId, docActions)
-    writePoFile(potPath, pot)
-    writePoFiles(poDir, poData)
 }
 
 async function authorize(sheetName: string, credentials: GoogleCredentials) {
@@ -134,27 +128,6 @@ async function findDocumentId(drive: drive_v3.Drive, auth: OAuth2Client, docName
         documentIdCache[docName] = docIds[0]!
     }
     return documentIdCache[docName]
-}
-
-async function readPoFiles(poDir: string): Promise<{[locale: string]: GetTextTranslations}> {
-    const poPaths = await glob(`${poDir}/*.po`)
-
-    const poData: {[locale: string]: GetTextTranslations} = {}
-    for (const poPath of poPaths) {
-        const locale = path.basename(poPath, '.po')
-        poData[locale] = readPoFile(poPath)
-    }
-    // console.log('po data read', JSON.stringify(poData, null, 2))
-    return poData
-}
-
-function writePoFiles(poDir: string, poData: {[locale: string]: GetTextTranslations}) {
-    // console.log('po data to write', JSON.stringify(poData, null, 2))
-    for (const [locale, po] of Object.entries(poData)) {
-        const poPath = path.join(poDir, locale + '.po')
-        writePoFile(poPath, po)
-        cleanupPo(poPath)
-    }
 }
 
 async function readSheet(sheets: sheets_v4.Sheets, sheetName: string, auth: OAuth2Client, docId: string): Promise<string[][]> {

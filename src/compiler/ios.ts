@@ -1,7 +1,7 @@
 import fs from 'fs'
 import {glob} from 'glob'
 import log from 'npmlog'
-import * as shell from 'shelljs'
+import shell from 'shelljs'
 import * as path from 'path'
 import i18nStringsFiles, {type CommentedI18nStringsMsg, type I18nStringsMsg} from 'i18n-strings-files'
 import {findPoEntry, readPoFile} from '../po.js'
