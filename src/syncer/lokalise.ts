@@ -42,10 +42,8 @@ async function listLokaliseKeys(lokaliseApi: LokaliseApi, projectId: string) {
             include_translations: 1,
             limit: 500,
             page: page
-            // filter_platforms: 'web'
-            // filter_tags: tag,
         })
-        log.info('listLokaliseKeys', 'paged keys', pagedKeys)
+        log.verbose('listLokaliseKeys', 'paged keys', pagedKeys)
         keys.push(...pagedKeys.items)
         if (!pagedKeys.hasNextPage()) {
             break
@@ -115,7 +113,7 @@ function updateKeyData(
     const updatingKeyMap: {[keyName: string]: UpdateKeyDataWithId} = {}
 
     for (const potEntry of getPoEntries(pot)) {
-        // 로컬에서 추출한 pot 에서 (pot에는 번역은 없고 msgid만 있음)
+        // 로컬에서 추출한 pot 에서 (pot 에는 번역은 없고 msgid 만 있음)
         const entryId = potEntry.msgid
         const key = listedKeyMap[entryId]
         if (key != null) {
@@ -133,7 +131,7 @@ function updateKeyData(
     for (const [locale, po] of Object.entries(poData)) {
         // console.log('update sheet locale', locale)
         for (const poEntry of getPoEntries(po)) {
-            // 로케일별 po 에서 (po에는 번역도 있음)
+            // 로케일별 po 에서 (po 에는 번역도 있음)
             const entryId = poEntry.msgid
             // console.log('update sheet entry id', entryId)
             // console.log('matched entry (locale)', locale)

@@ -47,7 +47,6 @@ export function updatePo (potPath: string, fromPoDir: string, poDir: string, loc
     const potInput = fs.readFileSync(potPath)
     let basePo: GetTextTranslations | null = null
     const baseLocale = validationConfig?.getBaseLocale() ?? null
-    const skip = validationConfig?.getSkip() ?? false
     if (baseLocale != null) {
         try {
             basePo = readPoFile(path.join(fromPoDir, baseLocale + '.po'))
@@ -67,7 +66,7 @@ export function updatePo (potPath: string, fromPoDir: string, poDir: string, loc
                 const fromPoEntry = findPoEntry(fromPo, potEntry.msgctxt || null, potEntry.msgid)
                 if (fromPoEntry != null) {
                     potEntry.msgstr = fromPoEntry.msgstr.map(value => value === '$$no translation$$' ? '' : value)
-                    if (baseLocale != locale) {
+                    if (validationConfig != null && baseLocale != locale) {
                         try {
                             let baseMsg: string
                             if (basePo == null) {
@@ -83,7 +82,7 @@ export function updatePo (potPath: string, fromPoDir: string, poDir: string, loc
                                 log.warn('validation', `ctxt: \`${potEntry.msgctxt}'`)
                             }
                             log.warn('validation', `key: \`${potEntry.msgid}'`)
-                            if (!skip) {
+                            if (!validationConfig.getSkip()) {
                                 throw err
                             }
                         }

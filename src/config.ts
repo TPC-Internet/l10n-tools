@@ -275,8 +275,8 @@ export class CompilerConfig {
         return this.cc['use-locale-key'] ?? false
     }
 
-    getKeySeparator(): string | undefined {
-        return this.cc['key-separator']
+    getKeySeparator(): string | null {
+        return this.cc['key-separator'] ?? null
     }
 }
 
