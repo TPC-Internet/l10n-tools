@@ -10,6 +10,7 @@ import {
     type TranslationData,
     type UpdateKeyDataWithId
 } from '@lokalise/node-api'
+import {chunk} from 'lodash-es'
 
 export async function syncPoToLokalise (config: L10nConfig, domainConfig: DomainConfig, tag: string, pot: GetTextTranslations, poData: {[locale: string]: GetTextTranslations}) {
     const lokaliseConfig = config.getLokaliseConfig()
@@ -44,21 +45,22 @@ async function listLokaliseKeys(lokaliseApi: LokaliseApi, projectId: string) {
             // filter_platforms: 'web'
             // filter_tags: tag,
         })
-        console.log('page', pagedKeys)
+        log.info('listLokaliseKeys', 'paged keys', pagedKeys)
         keys.push(...pagedKeys.items)
         if (!pagedKeys.hasNextPage()) {
             break
         }
         page += 1
     }
-    console.log('key count', keys.length)
+    log.info('listLokaliseKeys', 'total listed key count', keys.length)
     return keys
 }
 
 function createUpdateKeyData(platform: SupportedPlatforms, tag: string, key: Key, potEntry: GetTextTranslation): UpdateKeyDataWithId {
     return {
         key_id: key.key_id,
-        key_name: {[platform]: potEntry.msgid},
+        key_name: potEntry.msgid,
+        platforms: [...new Set([...key.platforms, platform])],
         tags: [tag],
         merge_tags: true,
         context: potEntry.msgctxt
@@ -228,14 +230,21 @@ async function uploadToLokalise(
     creatingKeyMap: {[keyName: string]: CreateKeyData},
     updatingKeyMap: {[keyName: string]: UpdateKeyDataWithId}
 ) {
-    await lokaliseApi.keys().create({
-        keys: Object.values(creatingKeyMap)
-    }, {
-        project_id: projectId
-    })
-    await lokaliseApi.keys().bulk_update({
-        keys: Object.values(updatingKeyMap)
-    }, {
-        project_id: projectId
-    })
+    for (const keys of chunk(Object.values(creatingKeyMap), 500)) {
+        await lokaliseApi.keys().create({
+            keys: keys
+        }, {
+            project_id: projectId
+        })
+        log.info('listLokaliseKeys', 'created key count', keys.length)
+    }
+
+    for (const keys of chunk(Object.values(updatingKeyMap), 500)) {
+        await lokaliseApi.keys().bulk_update({
+            keys: keys
+        }, {
+            project_id: projectId
+        })
+        log.info('listLokaliseKeys', 'updated key count', keys.length)
+    }
 }
