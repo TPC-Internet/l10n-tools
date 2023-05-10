@@ -175,6 +175,9 @@
                 "client-secret-path": {
                     "type": "string"
                 },
+                "doc-id": {
+                    "type": "string"
+                },
                 "doc-name": {
                     "type": "string"
                 },
@@ -183,7 +186,6 @@
                 }
             },
             "required": [
-                "doc-name",
                 "sheet-name"
             ],
             "type": "object"

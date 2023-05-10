@@ -12,7 +12,7 @@ import jsonfile from 'jsonfile'
 import open from 'open'
 import shell from 'shelljs'
 import objectPath from 'object-path'
-import {type DomainConfig, type GoogleCredentials, type L10nConfig} from '../config.js'
+import {type DomainConfig, type GoogleCredentials, GoogleDocsConfig, type L10nConfig} from '../config.js'
 import {type GetTextTranslations} from 'gettext-parser';
 
 // @ts-ignore
@@ -20,7 +20,6 @@ httpShutdown.extend()
 
 export async function syncPoToGoogleDocs (config: L10nConfig, domainConfig: DomainConfig, tag: string, pot: GetTextTranslations, poData: {[locale: string]: GetTextTranslations}) {
     const googleDocsConfig = config.getGoogleDocsConfig()
-    const docName = googleDocsConfig.getDocName()
     const sheetName = googleDocsConfig.getSheetName()
     const credentials = googleDocsConfig.getCredentials()
 
@@ -29,8 +28,7 @@ export async function syncPoToGoogleDocs (config: L10nConfig, domainConfig: Doma
 
     const auth = await authorize(sheetName, credentials)
 
-    log.info('syncPoToGoogleDocs', `finding doc by named ${docName}...`)
-    const docId = await findDocumentId(drive, auth, docName)
+    const docId = await findDocumentId(drive, auth, googleDocsConfig)
     log.notice('syncPoToGoogleDocs', `docId: ${docId}`)
 
     const rows = await readSheet(sheets, sheetName, auth, docId)
@@ -103,7 +101,16 @@ function readAuthCode(oauth2Client: OAuth2Client): Promise<string> {
 
 const documentIdCache: {[docName: string]: string} = {}
 
-async function findDocumentId(drive: drive_v3.Drive, auth: OAuth2Client, docName: string): Promise<string> {
+async function findDocumentId(drive: drive_v3.Drive, auth: OAuth2Client, config: GoogleDocsConfig): Promise<string> {
+    const docId = config.getDocId()
+    if (docId != null) {
+        return docId
+    }
+    const docName = config.getDocName()
+    if (docName == null) {
+        throw new Error('doc-id or doc-name is required')
+    }
+    log.info('syncPoToGoogleDocs', `finding doc by named ${docName}...`)
     if (!documentIdCache.hasOwnProperty(docName)) {
         const {files} = await drive.files.list({
             auth,

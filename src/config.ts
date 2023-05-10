@@ -305,7 +305,8 @@ export class ValidationConfig {
 }
 
 type GoogleDocsConf = {
-    'doc-name': string
+    'doc-id'?: string
+    'doc-name'?: string
     'sheet-name': string
     'client-secret-path'?: string
     'client-id'?: string
@@ -323,7 +324,11 @@ export class GoogleDocsConfig {
         this.gdc = gdc
     }
 
-    getDocName(): string {
+    getDocId(): string | undefined {
+        return this.gdc['doc-id']
+    }
+
+    getDocName(): string | undefined {
         return this.gdc['doc-name']
     }
 
