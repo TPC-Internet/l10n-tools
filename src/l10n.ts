@@ -13,13 +13,13 @@ import {extractPot} from './extractor/index.js'
 import {compileAll} from './compiler/index.js'
 import * as fs from 'fs'
 import {cosmiconfig} from 'cosmiconfig'
-import {fileURLToPath} from 'url';
+import {fileURLToPath} from 'url'
+import Ajv from 'ajv'
 
 const program = new Command('l10n-tools')
-const explorer = cosmiconfig('l10n')
+const dirname = path.dirname(fileURLToPath(import.meta.url))
 
 async function run () {
-    const dirname = path.dirname(fileURLToPath(import.meta.url))
     const pkg = JSON.parse(fs.readFileSync(path.join(dirname, '..', 'package.json'), 'utf-8'))
     program.version(pkg.version)
         .description(pkg.description)
@@ -303,8 +303,7 @@ async function runSubCommand(cmdName: string, action: (domainName: string, confi
         log.level = 'warn'
     }
 
-    const rc = await explorer.load(globalOpts.rcfile || '.l10nrc')
-    const config = new L10nConfig(rc?.config)
+    const config = await loadConfig(globalOpts.rcfile || '.l10nrc')
     const domainNames = globalOpts.domains || config.getDomainNames()
 
     for (const domainName of domainNames) {
@@ -316,6 +315,20 @@ async function runSubCommand(cmdName: string, action: (domainName: string, confi
         log.heading = `[${domainName}] ${cmdName}`
         await action(domainName, config, domainConfig)
     }
+}
+
+async function loadConfig(rcPath: string): Promise<L10nConfig> {
+    const explorer = cosmiconfig('l10n')
+    const rc = await explorer.load(rcPath)
+    const ajv = new Ajv.default()
+    const schema = JSON.parse(fs.readFileSync(path.join(dirname, '..', 'l10nrc.schema.json'), 'utf-8'))
+    const validate = ajv.compile(schema)
+    const valid = validate(rc?.config)
+    if (!valid) {
+        log.error('l10n', 'rc file error', validate.errors)
+        throw new Error('rc file is not valid')
+    }
+    return new L10nConfig(rc?.config)
 }
 
 try {
