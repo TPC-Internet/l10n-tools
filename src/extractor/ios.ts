@@ -8,6 +8,8 @@ import {glob} from 'glob'
 import {execWithLog, getTempDir} from '../utils.js'
 import shell from "shelljs"
 import {type DomainConfig} from '../config.js'
+import PQueue from 'p-queue';
+import os from 'os';
 
 const infoPlistKeys = [
     'NSCameraUsageDescription',
@@ -41,9 +43,8 @@ export default async function (domainName: string, config: DomainConfig, potPath
     }
 
     log.info('extractPot', 'extracting from .xib, .storyboard files')
-    const xibPaths = await getXibPaths(srcDir)
-
-    for (const xibPath of xibPaths) {
+    const queue = new PQueue({concurrency: os.cpus().length})
+    async function extract(xibPath: string): Promise<{input: string, xibName: string}> {
         log.verbose('extractPot', `processing '${xibPath}'`)
         const extName = path.extname(xibPath)
         const baseName = path.basename(xibPath, extName)
@@ -52,6 +53,12 @@ export default async function (domainName: string, config: DomainConfig, potPath
         await execWithLog(`ibtool --export-strings-file "${stringsPath}" "${xibPath}"`)
         const input = fs.readFileSync(stringsPath, {encoding: 'utf16le'})
         const xibName = path.basename(xibPath)
+        return {input, xibName}
+    }
+    const xibPaths = await getXibPaths(srcDir)
+    const extracted = await queue.addAll(xibPaths.map(xibPath => () => extract(xibPath)), {throwOnTimeout: true})
+
+    for (const {input, xibName} of extracted) {
         extractIosStrings(extractor, xibName, input)
     }
 

@@ -89,7 +89,7 @@ export default async function (domainName: string, config: CompilerConfig, poDir
             }
         }
         const stringsPaths = await getStringsPaths(srcDir, locale)
-        await queue.addAll(stringsPaths.map(stringsPath => () => compile(stringsPath)))
+        await queue.addAll(stringsPaths.map(stringsPath => () => compile(stringsPath)), {throwOnTimeout: true})
     }
     shell.rm('-rf', tempDir)
 }
