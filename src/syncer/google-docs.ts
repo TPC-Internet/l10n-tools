@@ -11,7 +11,6 @@ import {OAuth2Client} from 'google-auth-library'
 import jsonfile from 'jsonfile'
 import open from 'open'
 import shell from 'shelljs'
-import objectPath from 'object-path'
 import {type DomainConfig, type GoogleCredentials, GoogleDocsConfig, type L10nConfig} from '../config.js'
 import {type GetTextTranslations} from 'gettext-parser';
 
@@ -268,7 +267,7 @@ function updateSheetData(tag: string, pot: GetTextTranslations, poData: {[locale
             sheetEntry.keys.push(`${tag}:${potEntry.msgctxt}`)
         }
 
-        const thisRefs = objectPath.get(potEntry, 'comments.reference', '').split('\n').filter(ref => ref)
+        const thisRefs = (potEntry.comments?.reference ?? '').split('\n').filter(ref => ref)
             .map(ref => `${tag}:${ref}`)
         const otherRefs = sheetEntry.refs.filter(ref => !ref.startsWith(`${tag}:`))
         sheetEntry.refs = [...otherRefs, ...thisRefs]
@@ -302,7 +301,7 @@ function updateSheetData(tag: string, pot: GetTextTranslations, poData: {[locale
                 }
             }
 
-            const thisRefs = objectPath.get(poEntry, 'comments.reference', '').split('\n').filter(ref => ref)
+            const thisRefs = (poEntry.comments?.reference ?? '').split('\n').filter(ref => ref)
                 .map(ref => `${tag}:${ref}`)
             if (thisRefs.length > 0) {
                 const otherRefs = sheetEntry.refs.filter(ref => !ref.startsWith(`${tag}:`))

@@ -162,7 +162,7 @@ export function cleanupPo (poPath: string) {
 export type TemplateMarker = {
     start: string
     end: string
-    type?: string
+    type?: 'js'
 }
 
 export function handleMarker(src: string, srcIndex: number, marker: TemplateMarker, fn: (inMarker: boolean, content: string) => void) {

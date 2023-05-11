@@ -124,21 +124,4 @@ describe('PotExtractor', () => {
             expect(extractor.po.translations[''][key]?.comments?.reference).toEqual('test-file:12')
         })
     })
-
-    describe('angular-gettext files', () => {
-        it('translate attr', () => {
-            const module = `
-                <input placeholder="{{'angular-translate-key' | translate}}">
-            `
-            const extractor = PotExtractor.create('testDomain', {
-                tagNames: ['translate'],
-                attrNames: ['translate'],
-                filterNames: ['translate'],
-                markers: [{start: '{{', end: '}}', type: 'angular'}]
-            })
-            extractor.extractTemplate('test-file', module)
-            expect(extractor.po.translations).toHaveProperty(['', 'angular-translate-key', 'comments', 'reference'])
-            expect(extractor.po.translations['']['angular-translate-key']?.comments?.reference).toEqual('test-file:2')
-        })
-    })
 })

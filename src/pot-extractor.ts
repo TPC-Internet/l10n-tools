@@ -19,7 +19,6 @@ export type PotExtractorOptions = {
     filterNames: string[]
     markers: TemplateMarker[]
     exprAttrs: RegExp[]
-    cocosKeywords: {[name: string]: string}
 }
 
 type KeywordDef = {
@@ -31,7 +30,6 @@ type KeywordDef = {
 export class PotExtractor {
     public readonly po: GetTextTranslations
     private options: PotExtractorOptions
-    private readonly filterExprs: RegExp[]
     private readonly keywordDefs: KeywordDef[]
     private readonly keywordMap: {[keyword: string]: number}
 
@@ -46,12 +44,7 @@ export class PotExtractor {
             filterNames: [],
             markers: [],
             exprAttrs: [],
-            cocosKeywords: {},
         }, options)
-
-        this.filterExprs = this.options.filterNames.map(filterName => {
-            return new RegExp('^(.*)\\|\\s*' + filterName)
-        })
 
         this.keywordDefs = [...this.options.keywords].map(keyword => parseKeyword(keyword))
         this.keywordMap = buildKeywordMap(this.options.keywords)
@@ -324,8 +317,6 @@ export class PotExtractor {
     extractMarkerExpression (filename: string, src: string, marker: TemplateMarker, startLine = 1) {
         if (!marker.type || marker.type === 'js') {
             this.extractJsExpression(filename, src, startLine)
-        } else if (marker.type === 'angular') {
-            this.extractAngularExpression(filename, src, startLine)
         }
     }
 
@@ -353,23 +344,6 @@ export class PotExtractor {
             this.extractJsObjectNode(filename, src, ast, paths, startLine)
         } catch (err: any) {
             log.warn('extractJsObjectPaths', `error parsing '${src.split(/\n/g)[err.loc.line - 1].trim()}' (${filename}:${err.loc.line})`)
-        }
-    }
-
-    extractAngularExpression (filename: string, src: string, startLine: number = 1) {
-        for (const filterExpr of this.filterExprs) {
-            const match = filterExpr.exec(src)
-            if (match == null) {
-                continue
-            }
-
-            const contentExpr = match[1]
-            try {
-                const ast = ts.createSourceFile(filename, contentExpr, ts.ScriptTarget.Latest, true, ts.ScriptKind.JS)
-                this.extractJsIdentifierNode(filename, contentExpr, ast, startLine)
-            } catch (err: any) {
-                log.warn('extractAngularExpression', `error parsing '${src.split(/\n/g)[err.loc.line - 1].trim()}' (${filename}:${err.loc.line})`)
-            }
         }
     }
 
@@ -481,25 +455,6 @@ export class PotExtractor {
         }
     }
 
-    extractCocosAsset (filename: string, src: string) {
-        const objs: any[] = JSON.parse(src)
-        for (const obj of objs) {
-            if (!obj['__type__']) {
-                return
-            }
-
-            const type = obj['__type__']
-            if (this.options.cocosKeywords.hasOwnProperty(type)) {
-                const name = this.options.cocosKeywords[type]
-                const id = obj[name]
-                if (id) {
-                    const path = getCocosNodePath(objs, obj)
-                    this.addMessage({filename, line: path}, id)
-                }
-            }
-        }
-    }
-
     _evaluatePhpArgumentValues (node: php.Node): string[] {
         if (node instanceof php.String) {
             return [node.value]
@@ -601,10 +556,6 @@ export class PotExtractor {
         setPoEntry(this.po, builder.toPoEntry())
     }
 
-    getPo (): GetTextTranslations {
-        return this.po
-    }
-
     toString (): Buffer {
         function compareMsgctxt(left: string | undefined, right: string | undefined) {
             if (left && right) {
@@ -675,28 +626,6 @@ function findNonSpace(src: string, index: number): number {
         return index + match[1].length
     } else {
         return index
-    }
-}
-
-function getCocosNodePath (nodes: any[], obj: any): string {
-    if (obj.hasOwnProperty('node')) {
-        const node = nodes[obj['node']['__id__']]
-        return getCocosNodePath(nodes, node)
-    } else if (obj.hasOwnProperty('_parent')) {
-        if (obj['_parent']) {
-            const parent = nodes[obj['_parent']['__id__']]
-            const name = obj['_name']
-            const path = getCocosNodePath(nodes, parent)
-            if (path) {
-                return path + '.' + name
-            } else {
-                return name
-            }
-        } else {
-            return ''
-        }
-    } else {
-        throw new Error(`unknown cocos object: ${JSON.stringify(obj)}`)
     }
 }
 
