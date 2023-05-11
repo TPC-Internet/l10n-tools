@@ -11,6 +11,7 @@ import {
     type UpdateKeyDataWithId
 } from '@lokalise/node-api'
 import {chunk} from 'lodash-es'
+import PQueue from 'p-queue';
 
 export async function syncPoToLokalise (config: L10nConfig, domainConfig: DomainConfig, tag: string, pot: GetTextTranslations, poData: {[locale: string]: GetTextTranslations}) {
     const lokaliseConfig = config.getLokaliseConfig()
@@ -35,29 +36,46 @@ async function listLokaliseKeys(lokaliseApi: LokaliseApi, projectId: string, con
     log.info('lokaliseApi', 'listing keys')
     const invertedSyncMap = config.getLocaleSyncMap(true)
 
-    const keys: Key[] = []
-    let page = 1
-    while (true) {
-        try {
-            const pagedKeys = await lokaliseApi.keys().list({
-                project_id: projectId,
-                include_translations: 1,
-                limit: 500,
-                page: page
-            })
-            log.info('lokaliseApi', `fetched key count (page ${page})`, pagedKeys.items.length)
-            keys.push(...pagedKeys.items.map(key => reverseLocaleSyncMap(key, invertedSyncMap)))
-            if (!pagedKeys.hasNextPage()) {
-                break
+    const totalCount = await getTotalKeyCount(lokaliseApi, projectId)
+    const numPages = Math.ceil(totalCount / 500)
+
+    const queue = new PQueue({interval: 1000, intervalCap: 2})
+    const chunkPromises: Promise<Key[]>[] = []
+    for (let page = 1; page <= numPages; page++) {
+        chunkPromises.push(queue.add(async () => {
+            try {
+                log.info('lokaliseApi', `fetched key (page ${page}) started`)
+                const pagedKeys = await lokaliseApi.keys().list({
+                    project_id: projectId,
+                    include_translations: 1,
+                    limit: 500,
+                    page: page
+                })
+                log.info('lokaliseApi', `fetched key (page ${page}) done`, pagedKeys.items.length)
+                return pagedKeys.items.map(key => reverseLocaleSyncMap(key, invertedSyncMap))
+            } catch (err) {
+                log.error('lokaliseApi', 'fetching keys failed', err)
+                throw err
             }
-            page += 1
-        } catch (err) {
-            log.error('lokaliseApi', 'fetching keys failed', err)
-            throw err
-        }
+        }, {throwOnTimeout: true}))
     }
-    log.info('lokaliseApi', 'total listed key count', keys.length)
-    return keys
+    const chunks = await Promise.all(chunkPromises)
+    return chunks.flat()
+}
+
+async function getTotalKeyCount(lokaliseApi: LokaliseApi, projectId: string): Promise<number> {
+    try {
+        const pagedKeys = await lokaliseApi.keys().list({
+            project_id: projectId,
+            limit: 1,
+            page: 1
+        })
+        log.info('lokaliseApi', 'fetched key count', pagedKeys.totalResults)
+        return pagedKeys.totalResults
+    } catch (err) {
+        log.error('lokaliseApi', 'fetching key count failed', err)
+        throw err
+    }
 }
 
 function reverseLocaleSyncMap(key: Key, invertedSyncMap: {[locale: string]: string} | undefined): Key {
