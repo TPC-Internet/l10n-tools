@@ -1,6 +1,6 @@
 import log from 'npmlog'
 import {findPoEntry, getPoEntries, getPoEntryFlag, removePoEntryFlag, setPoEntryFlag} from '../po.js'
-import {type DomainConfig, type L10nConfig} from '../config.js'
+import {type DomainConfig, type L10nConfig, LokaliseConfig} from '../config.js'
 import {type GetTextTranslation, type GetTextTranslations} from 'gettext-parser'
 import {
     type CreateKeyData,
@@ -18,7 +18,7 @@ export async function syncPoToLokalise (config: L10nConfig, domainConfig: Domain
     const projectId = lokaliseConfig.getProjectId()
     const platform = domainConfig.getLokalisePlatform()
 
-    const listedKeys = await listLokaliseKeys(lokaliseApi, projectId)
+    const listedKeys = await listLokaliseKeys(lokaliseApi, projectId, lokaliseConfig)
     const listedKeyMap: {[keyName: string]: Key} = {}
     for (const key of listedKeys) {
         const keyPlatform = key.key_name[platform]
@@ -28,30 +28,49 @@ export async function syncPoToLokalise (config: L10nConfig, domainConfig: Domain
     }
     const {creatingKeyMap, updatingKeyMap} = updateKeyData(platform, tag, pot, poData, listedKeyMap)
     updatePoData(tag, pot, poData, listedKeyMap)
-    await uploadToLokalise(lokaliseApi, projectId, tag, creatingKeyMap, updatingKeyMap)
+    await uploadToLokalise(lokaliseApi, projectId, tag, lokaliseConfig, creatingKeyMap, updatingKeyMap)
 }
 
-async function listLokaliseKeys(lokaliseApi: LokaliseApi, projectId: string) {
-    log.info('listLokaliseKeys', 'listing keys')
+async function listLokaliseKeys(lokaliseApi: LokaliseApi, projectId: string, config: LokaliseConfig) {
+    log.info('lokaliseApi', 'listing keys')
+    const invertedSyncMap = config.getLocaleSyncMap(true)
 
     const keys: Key[] = []
     let page = 1
     while (true) {
-        const pagedKeys = await lokaliseApi.keys().list({
-            project_id: projectId,
-            include_translations: 1,
-            limit: 500,
-            page: page
-        })
-        log.verbose('listLokaliseKeys', 'paged keys', pagedKeys)
-        keys.push(...pagedKeys.items)
-        if (!pagedKeys.hasNextPage()) {
-            break
+        try {
+            const pagedKeys = await lokaliseApi.keys().list({
+                project_id: projectId,
+                include_translations: 1,
+                limit: 500,
+                page: page
+            })
+            log.info('lokaliseApi', `fetched key count (page ${page})`, pagedKeys.items.length)
+            keys.push(...pagedKeys.items.map(key => reverseLocaleSyncMap(key, invertedSyncMap)))
+            if (!pagedKeys.hasNextPage()) {
+                break
+            }
+            page += 1
+        } catch (err) {
+            log.error('lokaliseApi', 'fetching keys failed', err)
+            throw err
         }
-        page += 1
     }
-    log.info('listLokaliseKeys', 'total listed key count', keys.length)
+    log.info('lokaliseApi', 'total listed key count', keys.length)
     return keys
+}
+
+function reverseLocaleSyncMap(key: Key, invertedSyncMap: {[locale: string]: string} | undefined): Key {
+    if (invertedSyncMap == null) {
+        return key
+    }
+    return {
+        ...key,
+        translations: key.translations.map(tr => ({
+            ...tr,
+            language_iso: invertedSyncMap[tr.language_iso] ?? tr.language_iso
+        }))
+    }
 }
 
 function createUpdateKeyData(platform: SupportedPlatforms, tag: string, key: Key, potEntry: GetTextTranslation): UpdateKeyDataWithId {
@@ -225,24 +244,59 @@ async function uploadToLokalise(
     lokaliseApi: LokaliseApi,
     projectId: string,
     tag:string,
+    config: LokaliseConfig,
     creatingKeyMap: {[keyName: string]: CreateKeyData},
     updatingKeyMap: {[keyName: string]: UpdateKeyDataWithId}
 ) {
-    for (const keys of chunk(Object.values(creatingKeyMap), 500)) {
-        await lokaliseApi.keys().create({
-            keys: keys
-        }, {
-            project_id: projectId
-        })
-        log.info('listLokaliseKeys', 'created key count', keys.length)
+    const localeSyncMap = config.getLocaleSyncMap(false)
+    for (let keys of chunk(Object.values(creatingKeyMap), 500)) {
+        try {
+            keys = keys.map(key => applyLocaleSyncMap(key, localeSyncMap))
+            await lokaliseApi.keys().create({
+                keys: keys
+            }, {
+                project_id: projectId
+            })
+            log.info('lokaliseApi', 'created key count', keys.length)
+        } catch (err) {
+            log.error('lokaliseApi', 'creating keys failed', err)
+            throw err
+        }
     }
 
-    for (const keys of chunk(Object.values(updatingKeyMap), 500)) {
-        await lokaliseApi.keys().bulk_update({
-            keys: keys
-        }, {
-            project_id: projectId
+    for (let keys of chunk(Object.values(updatingKeyMap), 500)) {
+        try {
+            keys = keys.map(key => applyLocaleSyncMap(key, localeSyncMap))
+            await lokaliseApi.keys().bulk_update({
+                keys: keys
+            }, {
+                project_id: projectId
+            })
+            log.info('lokaliseApi', 'updated key count', keys.length)
+        } catch (err) {
+            log.error('lokaliseApi', 'updating keys failed', err)
+            throw err
+        }
+    }
+}
+
+function applyLocaleSyncMap<T extends CreateKeyData | UpdateKeyDataWithId>(
+    key: T,
+    localeSyncMap: {[locale: string]: string} | undefined
+): T {
+    if (key.translations == null || localeSyncMap == null) {
+        return key
+    }
+    return {
+        ...key,
+        translations: key.translations.map(tr => {
+            if (!tr.language_iso) {
+                return tr
+            }
+            return {
+                ...tr,
+                language_iso: localeSyncMap[tr.language_iso] ?? tr.language_iso
+            }
         })
-        log.info('listLokaliseKeys', 'updated key count', keys.length)
     }
 }

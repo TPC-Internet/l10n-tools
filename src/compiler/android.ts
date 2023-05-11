@@ -3,99 +3,168 @@ import {glob} from 'glob'
 import log from 'npmlog'
 import shell from 'shelljs'
 import * as path from 'path'
-import * as xml2js from 'xml2js'
 import {findPoEntry, readPoFile} from '../po.js'
 import {type CompilerConfig} from '../config.js';
+import {
+    buildAndroidXml,
+    containsAndroidXmlSpecialChars,
+    encodeAndroidStrings,
+    findFirstTagNode,
+    getAndroidXmlBuilder,
+    getAndroidXmlParser,
+    getAttrValue,
+    isCDataNode,
+    isTagNode,
+    isTextNode,
+    parseAndroidXml,
+    type XMLNode,
+} from './android-xml-utils.js';
+import type {XMLBuilder, XMLParser} from 'fast-xml-parser';
 
 export default async function (domainName: string, config: CompilerConfig, poDir: string) {
     const resDir = config.getResDir()
     const defaultLocale = config.getDefaultLocale()
     log.info('compile', `generating res files '${resDir}/values-{locale}/strings.xml'`)
 
-    const srcPath = path.join(resDir, 'values', 'strings.xml')
-    const srcInput = fs.readFileSync(srcPath, {encoding: 'utf-8'})
+    const parser = getAndroidXmlParser()
+    const builder = getAndroidXmlBuilder()
 
-    const builder = new xml2js.Builder({
-        renderOpts: {pretty: true, indent: '    ', newline: '\n'},
-        xmldec: {version: '1.0', encoding: 'utf-8'},
-        cdata: true
-    })
+    const srcXmlJson = await readXmlJson(parser, resDir, null)
+    const resNode = findFirstTagNode(srcXmlJson, 'resources')
+    if (resNode == null) {
+        throw new Error('no resources tag')
+    }
 
     const poPaths = await glob(`${poDir}/*.po`)
     for (const poPath of poPaths) {
         const locale = path.basename(poPath, '.po')
+        const dstXmlJson = await readXmlJson(parser, resDir, locale)
+        const dstResNode = findFirstTagNode(dstXmlJson, 'resources')
+        if (dstResNode == null) {
+            throw new Error('no resources tag')
+        }
+
         const po = readPoFile(poPath)
 
-        const srcXmlJson = await xml2js.parseStringPromise(srcInput)
-        const strings = []
-        for (const string of srcXmlJson.resources.string) {
-            if (string.$.translatable === 'false') {
-                continue
-            }
-            const poEntry = findPoEntry(po, string.$.name, null)
-            if (poEntry == null) {
-                continue
-            }
-            let value = poEntry.msgstr[0]
-            if (string.$.format === 'html') {
-                if (value) {
-                    for (let k in string) {
-                        if (k != '$') {
-                            delete string[k]
-                        }
-                    }
-                    string['#raw'] = value
-                    strings.push(string)
+        const dstResources: XMLNode[] = []
+        let passingText = false
+        for (const node of resNode.resources) {
+            if (isTextNode(node)) {
+                if (!passingText) {
+                    dstResources.push(node)
                 }
-            } else {
-                if (value.includes('CDATA')) {
-                    value = value.substring(9, value.length - 3)
+                continue
+            }
+
+            // string 태그
+            if (isTagNode(node, 'string')) {
+                // translatable="false" 인 태그는 스킵
+                const translatable = getAttrValue(node, 'translatable')
+                if (translatable == 'false') {
+                    continue
+                }
+
+                // name attr 없는 태그는 문제가 있는 것인데, 일단 스킵
+                const name = getAttrValue(node, 'name')
+                if (name == null) {
+                    continue
+                }
+
+                // 번역이 없는 태그도 스킵
+                const poEntry = findPoEntry(po, name, null)
+                if (poEntry == null) {
+                    continue
+                }
+                let value = poEntry.msgstr[0]
+
+                // html format 은 번역 텍스트 그대로 사용
+                const format = getAttrValue(node, 'format')
+                if (format === 'html') {
+                    // no post process
+                    dstResources.push({
+                        ...node,
+                        string: [{
+                            '#text': value
+                        }]
+                    })
                 } else {
-                    value = encodeAndroidStrings(value)
+                    // CDATA 노드인 경우 CDATA를 그대로 살려서 스트링만 교체
+                    if (node.string.some(node => isCDataNode(node))) {
+                        dstResources.push({
+                            ...node,
+                            string: [{
+                                '#cdata': [{
+                                    '#text': value
+                                }]
+                            }]
+                        })
+                    } else if (containsAndroidXmlSpecialChars(value)) {
+                        dstResources.push({
+                            ...node,
+                            string: [{
+                                '#cdata': [{
+                                    '#text': encodeAndroidStrings(value)
+                                }]
+                            }]
+                        })
+                    } else {
+                        // 그 외의 경우는 android string encoding 하여 사용
+                        dstResources.push({
+                            ...node,
+                            string: [{
+                                '#text': encodeAndroidStrings(value)
+                            }]
+                        })
+                    }
                 }
-                if (value) {
-                    string._ = value
-                    strings.push(string)
-                }
+                continue
             }
+
+            if (isTagNode(node, 'plurals')) {
+                const name = getAttrValue(node, 'name')
+                if (name != null) {
+                    const dstNode = findFirstTagNode(dstResNode.resources, 'plurals', {name})
+                    if (dstNode != null) {
+                        dstResources.push(dstNode)
+                    }
+                }
+                continue
+            }
+
+            dstResources.push(node)
         }
 
         if (locale === defaultLocale) {
-            shell.mkdir('-p', path.dirname(srcPath))
-            fs.writeFileSync(srcPath, builder.buildObject(srcXmlJson), {encoding: 'utf-8'})
+            writeXmlJson(builder, srcXmlJson, resDir, null)
         }
 
-        const resLocale = locale.replace('_', '-r')
-        const targetPath = path.join(resDir, 'values-' + resLocale, 'strings.xml')
+        dstResNode.resources = dstResources
 
-        const dstInput = fs.readFileSync(targetPath, {encoding: 'utf-8'})
-        const dstXmlJson = await xml2js.parseStringPromise(dstInput)
-
-        dstXmlJson.resources.string = strings
-
-        const xml = builder.buildObject(dstXmlJson)
-
-        shell.mkdir('-p', path.dirname(targetPath))
-        fs.writeFileSync(targetPath, xml, {encoding: 'utf-8'})
-
+        writeXmlJson(builder, dstXmlJson, resDir, locale)
     }
 }
 
-function encodeAndroidStrings(value: string): string {
-    value = value.replace(/[\n'"@]/g, m => {
-        switch (m) {
-            case '"':
-            case '\'':
-            case '@':
-                return '\\' + m
-            case '\n':
-                return '\\n'
-            default:
-                throw new Error(`unknown android escape code: ${m}`)
-        }
-    })
-    if (value.match(/(^\s|\s$)/)) {
-        value = '"' + value + '"'
+async function readXmlJson(parser: XMLParser, resDir: string, locale: string | null): Promise<XMLNode[]> {
+    let targetPath: string
+    if (locale == null) {
+        targetPath = path.join(resDir, 'values', 'strings.xml')
+    } else {
+        targetPath = path.join(resDir, 'values-' + locale, 'strings.xml')
     }
-    return value
+
+    const xml = fs.readFileSync(targetPath, {encoding: 'utf-8'})
+    return await parseAndroidXml(parser, xml)
+}
+
+function writeXmlJson(builder: XMLBuilder, xmlJson: XMLNode[], resDir: string, locale: string | null) {
+    const xml = buildAndroidXml(builder, xmlJson)
+
+    let targetPath: string
+    if (locale == null) {
+        targetPath = path.join(resDir, 'values', 'strings.xml')
+    } else {
+        targetPath = path.join(resDir, 'values-' + locale, 'strings.xml')
+    }
+    shell.mkdir('-p', path.dirname(targetPath))
+    fs.writeFileSync(targetPath, xml, {encoding: 'utf-8'})
 }

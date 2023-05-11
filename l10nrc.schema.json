@@ -193,6 +193,13 @@
         "lokalise": {
             "additionalProperties": false,
             "properties": {
+                "locale-sync-map": {
+                    "additionalProperties": {
+                        "type": "string"
+                    },
+                    "description": "Locale map to pass to syncer",
+                    "type": "object"
+                },
                 "projectId": {
                     "type": "string"
                 },

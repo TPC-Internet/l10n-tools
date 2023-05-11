@@ -1,6 +1,7 @@
 import {type Command} from 'commander';
 import jsonfile from 'jsonfile';
 import {type SupportedPlatforms} from '@lokalise/node-api';
+import {invert} from 'lodash-es';
 
 type L10nConf = {
     $schema?: string,
@@ -353,6 +354,8 @@ export class GoogleDocsConfig {
 type LokaliseConf = {
     token: string
     projectId: string
+    /** Locale map to pass to syncer */
+    'locale-sync-map'?: {[locale: string]: string},
 }
 
 export class LokaliseConfig {
@@ -367,5 +370,17 @@ export class LokaliseConfig {
 
     getProjectId(): string {
         return this.lc['projectId']
+    }
+
+    getLocaleSyncMap(inverted: boolean): {[locale: string]: string} | undefined {
+        const map = this.lc['locale-sync-map']
+        if (map == null) {
+            return undefined
+        }
+        if (inverted) {
+            return invert(map)
+        } else {
+            return map
+        }
     }
 }
