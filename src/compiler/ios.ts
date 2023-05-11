@@ -7,6 +7,8 @@ import i18nStringsFiles, {type CommentedI18nStringsMsg, type I18nStringsMsg} fro
 import {findPoEntry, readPoFile} from '../po.js'
 import {execWithLog, getTempDir} from '../utils.js'
 import {type CompilerConfig} from '../config.js'
+import PQueue from 'p-queue';
+import os from 'os';
 
 const infoPlistKeys = [
     'NSCameraUsageDescription',
@@ -29,8 +31,8 @@ export default async function (domainName: string, config: CompilerConfig, poDir
 
         const po = readPoFile(poPath)
 
-        const stringsPaths = await getStringsPaths(srcDir, locale)
-        for (const stringsPath of stringsPaths) {
+        const queue = new PQueue({concurrency: os.cpus().length})
+        async function compile(stringsPath: string) {
             log.info('compile', stringsPath)
             const stringsName = path.basename(stringsPath, '.strings')
             if (stringsName === 'InfoPlist') {
@@ -46,7 +48,7 @@ export default async function (domainName: string, config: CompilerConfig, poDir
                     }
                 }
 
-                const output = compileStringsFile(strings)
+                const output = generateStringsFile(strings)
                 fs.writeFileSync(stringsPath, output, {encoding: 'utf-8'})
             } else if (stringsName === 'Localizable') {
                 await execWithLog(`find "${srcDir}" -name "*.swift" -print0 | xargs -0 genstrings -q -u -SwiftUI -o "${tempDir}"`)
@@ -60,7 +62,7 @@ export default async function (domainName: string, config: CompilerConfig, poDir
                     }
                 }
 
-                const output = compileStringsFile(strings)
+                const output = generateStringsFile(strings)
                 fs.writeFileSync(stringsPath, output, {encoding: 'utf-8'})
             } else {
                 const basePath = path.dirname(path.dirname(stringsPath))
@@ -79,13 +81,15 @@ export default async function (domainName: string, config: CompilerConfig, poDir
                             }
                         }
 
-                        const output = compileStringsFile(strings)
+                        const output = generateStringsFile(strings)
                         fs.writeFileSync(stringsPath, output, {encoding: 'utf-8'})
                         break
                     }
                 }
             }
         }
+        const stringsPaths = await getStringsPaths(srcDir, locale)
+        await queue.addAll(stringsPaths.map(stringsPath => () => compile(stringsPath)))
     }
     shell.rm('-rf', tempDir)
 }
@@ -95,7 +99,7 @@ async function getStringsPaths(srcDir: string, locale: string): Promise<string[]
     return await glob(srcPattern)
 }
 
-function compileStringsFile(data: I18nStringsMsg | CommentedI18nStringsMsg) {
+function generateStringsFile(data: I18nStringsMsg | CommentedI18nStringsMsg) {
     let output = "";
     for (let msgid of Object.keys(data)) {
         const val = data[msgid];
