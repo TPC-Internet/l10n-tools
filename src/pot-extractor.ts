@@ -1,4 +1,5 @@
 import {parse} from 'node-html-parser';
+import he from 'he'
 import log from 'npmlog'
 import {findPoEntry, PoEntryBuilder, setPoEntry} from './po.js'
 import ts from 'typescript'
@@ -8,7 +9,7 @@ import path from 'path'
 import {type GetTextTranslations} from 'gettext-parser'
 import {type TemplateMarker} from './common.js'
 import {fileURLToPath} from 'url';
-import {decodeAndroidStrings} from './compiler/android-xml-utils.js';
+import {containsAndroidXmlSpecialChars, decodeAndroidStrings} from './compiler/android-xml-utils.js';
 
 export type PotExtractorOptions = {
     keywords: string[] | Set<string>
@@ -448,6 +449,9 @@ export class PotExtractor {
                     content = content.substring(9, content.length - 3)
                 } else {
                     content = decodeAndroidStrings(content)
+                    if (containsAndroidXmlSpecialChars(content)) {
+                        content = he.decode(content)
+                    }
                 }
             }
 

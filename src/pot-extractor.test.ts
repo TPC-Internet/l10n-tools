@@ -158,6 +158,7 @@ describe('PotExtractor', () => {
     <string name="html_key_3" format="html"><b>관심사!</b>\\n설정!\\n아래!</string>
     <string name="no_trans_key" translatable="false">(+%1$s)</string>
     <string name="cdata_key_2"><![CDATA[<b>%1$s</b> Present.]]></string>
+    <string name="escaped_key">&lt;font color="#FF424D"&gt;RENEW&lt;/font&gt;</string>
     <plurals name="plural_key">
         <item quantity="one">%d day</item>
         <item quantity="other">%d days</item>
@@ -177,6 +178,8 @@ describe('PotExtractor', () => {
             expect(extractor.po.translations['html_key_3']['<b>관심사!</b>\\n설정!\\n아래!'].comments?.reference).toEqual('test-file:7')
             expect(extractor.po.translations).toHaveProperty(['cdata_key_2', '<b>%1$s</b> Present.', 'comments', 'reference'])
             expect(extractor.po.translations['cdata_key_2']['<b>%1$s</b> Present.'].comments?.reference).toEqual('test-file:9')
+            expect(extractor.po.translations).toHaveProperty(['escaped_key', '<font color="#FF424D">RENEW</font>', 'comments', 'reference'])
+            expect(extractor.po.translations['escaped_key']['<font color="#FF424D">RENEW</font>'].comments?.reference).toEqual('test-file:10')
         })
     })
 })
