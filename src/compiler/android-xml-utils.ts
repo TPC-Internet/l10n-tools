@@ -121,3 +121,21 @@ export function encodeAndroidStrings(value: string): string {
 export function containsAndroidXmlSpecialChars(value: string): boolean {
     return /[<>&]/.test(value)
 }
+
+export function decodeAndroidStrings(value: string): string {
+    if (value.startsWith('"') && value.endsWith('"')) {
+        value = value.substring(1, value.length - 1)
+    }
+    return value.replace(/\\(.)/g, (m, p1) => {
+        switch (p1) {
+            case '"':
+            case '\'':
+            case '@':
+                return p1
+            case 'n':
+                return '\n'
+            default:
+                throw new Error(`unknown android escape code: ${p1} of '${value}'`)
+        }
+    })
+}

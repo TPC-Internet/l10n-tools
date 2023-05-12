@@ -1,4 +1,4 @@
-import cheerio from 'cheerio'
+import {parse} from 'node-html-parser';
 import log from 'npmlog'
 import {findPoEntry, PoEntryBuilder, setPoEntry} from './po.js'
 import ts from 'typescript'
@@ -8,6 +8,7 @@ import path from 'path'
 import {type GetTextTranslations} from 'gettext-parser'
 import {type TemplateMarker} from './common.js'
 import {fileURLToPath} from 'url';
+import {decodeAndroidStrings} from './compiler/android-xml-utils.js';
 
 export type PotExtractorOptions = {
     keywords: string[] | Set<string>
@@ -132,162 +133,139 @@ export class PotExtractor {
     }
 
     extractVue (filename: string, src: string, startLine: number = 1) {
-        const $ = cheerio.load(src, {decodeEntities: false, withStartIndices: true})
-
-        $.root().children().each((index, elem) => {
-            if (!isTagElement(elem)) {
-                return
-            }
-            if (elem.children.length === 0) {
-                return
-            }
-
-            if (elem.name === 'template') {
-                const content = $(elem).html()
+        const root = parse(src)
+        for (const elem of root.querySelectorAll(':scope > *')) {
+            if (elem.rawTagName == 'template') {
+                const content = elem.innerHTML
                 if (content) {
-                    const line = getLineTo(src, elem.children[0].startIndex!, startLine)
+                    const line = getLineTo(src, elem.childNodes[0].range[0], startLine)
                     this.extractTemplate(filename, content, line)
                 }
-            } else if (elem.name === 'script') {
-                const content = $(elem).html()
+            } else if (elem.rawTagName === 'script') {
+                const content = elem.innerHTML
                 if (content) {
-                    const {lang, type} = elem.attribs
+                    const {lang, type} = elem.attrs
                     if (lang === 'ts') {
-                        const line = getLineTo(src, elem.children[0].startIndex!, startLine)
+                        const line = getLineTo(src, elem.childNodes[0].range[0], startLine)
                         this.extractTsModule(filename, content, line)
                     } else if (!type || type === 'text/javascript') {
-                        const line = getLineTo(src, elem.children[0].startIndex!, startLine)
+                        const line = getLineTo(src, elem.childNodes[0].range[0], startLine)
                         this.extractJsModule(filename, content, line)
                     }
                 }
             }
-        })
+        }
     }
 
     extractTemplate (filename: string, src: string, startLine: number = 1) {
-        const $ = cheerio.load(src, {decodeEntities: false, withStartIndices: true})
-
-        $('*').each((index, elem) => {
-            const node = $(elem)
-
-            if (!isTagElement(elem)) {
-                return
-            }
-
-            if (elem.name === 'script') {
-                const content = $(elem).html()
+        const root = parse(src)
+        for (const elem of root.querySelectorAll('*')) {
+            if (elem.rawTagName == 'script') {
+                const content = elem.innerHTML
                 if (content) {
-                    const type = elem.attribs.type
-                    if (!type || type === 'text/javascript') {
-                        const line = getLineTo(src, elem.children[0].startIndex!, startLine)
+                    const type = elem.attributes['type']
+                    if (!type || type == 'text/javascript') {
+                        const line = getLineTo(src, elem.childNodes[0].range[0], startLine)
                         this.extractJsModule(filename, content, line)
                     } else if (type === 'text/ng-template') {
-                        const line = getLineTo(src, elem.children[0].startIndex!, startLine)
+                        const line = getLineTo(src, elem.childNodes[0].range[0], startLine)
                         this.extractTemplate(filename, content, line)
                     }
                 }
             }
 
-            if (this.options.tagNames.includes(elem.name)) {
-                if (elem.name === 'translate') {
-                    const id = node.html()?.trim()
+            if (this.options.tagNames.includes(elem.rawTagName)) {
+                if (elem.rawTagName == 'translate') {
+                    const id = elem.innerHTML.trim()
                     if (id) {
-                        const line = getLineTo(src, elem.children[0].startIndex!, startLine)
-                        const plural = elem.attribs['translate-plural'] || null
-                        const comment = elem.attribs['translate-comment'] || null
-                        const context = elem.attribs['translate-context'] || null
+                        const line = getLineTo(src, elem.childNodes[0].range[0], startLine)
+                        const plural = elem.attributes['translate-plural'] || null
+                        const comment = elem.attributes['translate-comment'] || null
+                        const context = elem.attributes['translate-context'] || null
                         this.addMessage({filename, line}, id, {plural, comment, context})
                     }
-                } else if (elem.name === 'i18n') {
-                    if ('path' in elem.attribs) {
-                        const id = elem.attribs['path']
-                        if (id) {
-                            const line = getLineTo(src, elem.startIndex!, startLine)
-                            this.addMessage({filename, line}, id)
-                        }
-                    } else if (':path' in elem.attribs) {
-                        const source = elem.attribs[':path']
-                        if (source) {
-                            const line = getLineTo(src, elem.startIndex!, startLine)
-                            this.extractJsIdentifier(filename, source, line)
-                        }
+                } else if (elem.rawTagName == 'i18n') {
+                    if (elem.attributes['path']) {
+                        const id = elem.attributes['path']
+                        const line = getLineTo(src, elem.range[0], startLine)
+                        this.addMessage({filename, line}, id)
+                    } else if (elem.attributes[':path']) {
+                        const source = elem.attributes[':path']
+                        const line = getLineTo(src, elem.range[0], startLine)
+                        this.extractJsIdentifier(filename, source, line)
                     }
-                } else if (elem.name === 'i18n-t') {
-                    if ('keypath' in elem.attribs) {
-                        const id = elem.attribs['keypath']
-                        if (id) {
-                            const line = getLineTo(src, elem.startIndex!, startLine)
-                            this.addMessage({filename, line}, id)
-                        }
-                    } else if (':keypath' in elem.attribs) {
-                        const source = elem.attribs[':keypath']
-                        if (source) {
-                            const line = getLineTo(src, elem.startIndex!, startLine)
-                            this.extractJsIdentifier(filename, source, line)
-                        }
+                } else if (elem.rawTagName == 'i18n-t') {
+                    if (elem.attributes['keypath']) {
+                        const id = elem.attributes['keypath']
+                        const line = getLineTo(src, elem.range[0], startLine)
+                        this.addMessage({filename, line}, id)
+                    } else if (elem.attributes[':keypath']) {
+                        const source = elem.attributes[':keypath']
+                        const line = getLineTo(src, elem.range[0], startLine)
+                        this.extractJsIdentifier(filename, source, line)
                     }
                 }
             }
 
-            if (this.options.attrNames.some(attrName => elem.attribs.hasOwnProperty(attrName))) {
-                const id = node.html()?.trim()
+            if (this.options.attrNames.some(attrName => elem.attributes[attrName])) {
+                const id = elem.innerHTML.trim()
                 if (id) {
-                    const line = getLineTo(src, elem.children[0].startIndex!, startLine)
-                    const plural = elem.attribs['translate-plural'] || null
-                    const comment = elem.attribs['translate-comment'] || null
-                    const context = elem.attribs['translate-context'] || null
+                    const line = getLineTo(src, elem.childNodes[0].range[0], startLine)
+                    const plural = elem.attributes['translate-plural'] || null
+                    const comment = elem.attributes['translate-comment'] || null
+                    const context = elem.attributes['translate-context'] || null
                     this.addMessage({filename, line}, id, {plural, comment, context})
                 }
             }
 
-            for (const [attr, content] of Object.entries(elem.attribs)) {
+            for (const [attr, content] of Object.entries(elem.attributes)) {
                 if (content) {
                     if (this.options.exprAttrs.some(pattern => attr.match(pattern))) {
                         let contentIndex = 0
-                        const attrIndex = src.substr(elem.startIndex!).indexOf(attr)
+                        const attrIndex = src.substring(elem.range[0]).indexOf(attr)
                         if (attrIndex >= 0) {
                             contentIndex = attrIndex + attr.length
-                            while (/[=\s]/.test(src.substr(elem.startIndex! + contentIndex)[0])) {
+                            while (/[=\s]/.test(src.substring(elem.range[0] + contentIndex)[0])) {
                                 contentIndex++
                             }
-                            if (['\'', '"'].includes(src.substr(elem.startIndex! + contentIndex)[0])) {
+                            if (['\'', '"'].includes(src.substring(elem.range[0] + contentIndex)[0])) {
                                 contentIndex++
                             }
                         }
-                        const line = getLineTo(src, elem.startIndex! + contentIndex, startLine)
+                        const line = getLineTo(src, elem.range[0] + contentIndex, startLine)
                         this.extractJsExpression(filename, content, line)
                     } else if (this.options.valueAttrNames.some(pattern => attr.match(pattern))) {
                         let contentIndex = 0
-                        const attrIndex = src.substr(elem.startIndex!).indexOf(attr)
+                        const attrIndex = src.substring(elem.range[0]).indexOf(attr)
                         if (attrIndex >= 0) {
                             contentIndex = attrIndex + attr.length
-                            while (/[=\s]/.test(src.substr(elem.startIndex! + contentIndex)[0])) {
+                            while (/[=\s]/.test(src.substring(elem.range[0] + contentIndex)[0])) {
                                 contentIndex++
                             }
-                            if (['\'', '"'].includes(src.substr(elem.startIndex! + contentIndex)[0])) {
+                            if (['\'', '"'].includes(src.substring(elem.range[0] + contentIndex)[0])) {
                                 contentIndex++
                             }
                         }
-                        const line = getLineTo(src, elem.startIndex! + contentIndex, startLine)
+                        const line = getLineTo(src, elem.range[0] + contentIndex, startLine)
                         this.extractJsIdentifier(filename, content, line)
                     } else if (Object.keys(this.options.objectAttrs).includes(attr)) {
                         let contentIndex = 0
-                        const attrIndex = src.substr(elem.startIndex!).indexOf(attr)
+                        const attrIndex = src.substring(elem.range[0]).indexOf(attr)
                         if (attrIndex >= 0) {
                             contentIndex = attrIndex + attr.length
-                            while (/[=\s]/.test(src.substr(elem.startIndex! + contentIndex)[0])) {
+                            while (/[=\s]/.test(src.substring(elem.range[0] + contentIndex)[0])) {
                                 contentIndex++
                             }
-                            if (['\'', '"'].includes(src.substr(elem.startIndex! + contentIndex)[0])) {
+                            if (['\'', '"'].includes(src.substring(elem.range[0] + contentIndex)[0])) {
                                 contentIndex++
                             }
                         }
-                        const line = getLineTo(src, elem.startIndex! + contentIndex, startLine)
+                        const line = getLineTo(src, elem.range[0] + contentIndex, startLine)
                         this.extractJsObjectPaths(filename, content, this.options.objectAttrs[attr], line)
                     }
                 }
             }
-        })
+        }
 
         for (const marker of this.options.markers) {
             let srcIndex = 0
@@ -454,6 +432,31 @@ export class PotExtractor {
         }
     }
 
+    extractAndroidStringsXml (filename: string, src: string, startLine: number = 1) {
+        const root = parse(src)
+        for (const elem of root.querySelectorAll(':scope > resources > string')) {
+            if (elem.attributes['translatable'] == 'false') {
+                continue
+            }
+
+            let content
+            if (elem.attributes['format'] == 'html') {
+                content = elem.innerHTML.trim()
+            } else {
+                content = elem.innerHTML.trim()
+                if (content.startsWith('<![CDATA[')) {
+                    content = content.substring(9, content.length - 3)
+                } else {
+                    content = decodeAndroidStrings(content)
+                }
+            }
+
+            const name = elem.attributes['name']
+            const line = getLineTo(src, elem.childNodes[0].range[0], startLine)
+            this.addMessage({filename, line}, content, {context: name, allowSpaceInId: true})
+        }
+    }
+
     _evaluatePhpArgumentValues (node: php.Node): string[] {
         if (node instanceof php.String) {
             return [node.value]
@@ -599,8 +602,4 @@ export function getLineTo(src: string, index: number, startLine: number = 1): nu
         return startLine
     }
     return startLine + matches.length
-}
-
-export function isTagElement(elem: cheerio.Element): elem is cheerio.TagElement {
-    return ['tag', 'script', 'style'].includes(elem.type)
 }

@@ -30,6 +30,28 @@ describe('PotExtractor', () => {
         })
     })
 
+    describe('vue-i18n keywords in vue file', () => {
+        it('extract $t in vue', () => {
+            const module = `
+                <template>
+                    <div>
+                        <span>{{ $t('Apple & Banana') }}</span>
+                        <span>{{ $t('Hello') }}</span>
+                    </div>
+                </template>
+            `
+            const extractor = PotExtractor.create('testDomain', {
+                markers: [{start: '{{', end: '}}'}],
+                keywords: ['$t']
+            })
+            extractor.extractVue('test-file', module)
+            expect(extractor.po.translations).toHaveProperty(['', 'Apple & Banana', 'comments', 'reference'])
+            expect(extractor.po.translations['']['Apple & Banana']?.comments?.reference).toEqual('test-file:4')
+            expect(extractor.po.translations).toHaveProperty(['', 'Hello', 'comments', 'reference'])
+            expect(extractor.po.translations['']['Hello']?.comments?.reference).toEqual('test-file:5')
+        })
+    })
+
     describe('vue-i18n i18n tag', () => {
         it('path and :path', () => {
             const module = `
@@ -122,6 +144,39 @@ describe('PotExtractor', () => {
             const key = '{length}(mm) {width}(mm) {height}(mm)'
             expect(extractor.po.translations).toHaveProperty(['', key, 'comments', 'reference'])
             expect(extractor.po.translations[''][key]?.comments?.reference).toEqual('test-file:12')
+        })
+    })
+
+    describe('android strings.xml', () => {
+        it('extract with reference', () => {
+            const srcXml = `<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="normal_key">LIKEY</string>
+    <string name="html_key_1" format="html">No Account? <font color="#FF424D">SignUp</font></string>
+    <string name="html_key_2" format="html">Agreed to <u>Terms</u> and <u>PP</u></string>
+    <string name="cdata_key_1"><![CDATA[관심사 & 해시태그]]></string>
+    <string name="html_key_3" format="html"><b>관심사!</b>\\n설정!\\n아래!</string>
+    <string name="no_trans_key" translatable="false">(+%1$s)</string>
+    <string name="cdata_key_2"><![CDATA[<b>%1$s</b> Present.]]></string>
+    <plurals name="plural_key">
+        <item quantity="one">%d day</item>
+        <item quantity="other">%d days</item>
+    </plurals>
+</resources>`
+            const extractor = PotExtractor.create('testDomain', {})
+            extractor.extractAndroidStringsXml('test-file', srcXml)
+            expect(extractor.po.translations).toHaveProperty(['normal_key', 'LIKEY', 'comments', 'reference'])
+            expect(extractor.po.translations['normal_key']['LIKEY'].comments?.reference).toEqual('test-file:3')
+            expect(extractor.po.translations).toHaveProperty(['html_key_1', 'No Account? <font color="#FF424D">SignUp</font>', 'comments', 'reference'])
+            expect(extractor.po.translations['html_key_1']['No Account? <font color="#FF424D">SignUp</font>'].comments?.reference).toEqual('test-file:4')
+            expect(extractor.po.translations).toHaveProperty(['html_key_2', 'Agreed to <u>Terms</u> and <u>PP</u>', 'comments', 'reference'])
+            expect(extractor.po.translations['html_key_2']['Agreed to <u>Terms</u> and <u>PP</u>'].comments?.reference).toEqual('test-file:5')
+            expect(extractor.po.translations).toHaveProperty(['cdata_key_1', '관심사 & 해시태그', 'comments', 'reference'])
+            expect(extractor.po.translations['cdata_key_1']['관심사 & 해시태그'].comments?.reference).toEqual('test-file:6')
+            expect(extractor.po.translations).toHaveProperty(['html_key_3', '<b>관심사!</b>\\n설정!\\n아래!', 'comments', 'reference'])
+            expect(extractor.po.translations['html_key_3']['<b>관심사!</b>\\n설정!\\n아래!'].comments?.reference).toEqual('test-file:7')
+            expect(extractor.po.translations).toHaveProperty(['cdata_key_2', '<b>%1$s</b> Present.', 'comments', 'reference'])
+            expect(extractor.po.translations['cdata_key_2']['<b>%1$s</b> Present.'].comments?.reference).toEqual('test-file:9')
         })
     })
 })
