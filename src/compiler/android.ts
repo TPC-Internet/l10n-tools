@@ -76,6 +76,9 @@ export default async function (domainName: string, config: CompilerConfig, poDir
                     continue
                 }
                 let value = poEntry.msgstr[0]
+                if (!value) {
+                    continue
+                }
 
                 // html format 은 번역 텍스트 그대로 사용
                 const format = getAttrValue(node, 'format')
