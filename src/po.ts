@@ -190,7 +190,38 @@ export async function readPoFiles(poDir: string): Promise<{[locale: string]: Get
 }
 
 export function writePoFile (poPath: string, po: GetTextTranslations) {
-    const output = gettextParser.po.compile(po)
+    function compareMsgctxt(left: string | undefined, right: string | undefined) {
+        if (left && right) {
+            if (left < right)
+                return -1
+            if (left > right)
+                return 1
+            return 0
+        } else {
+            if (right)
+                return -1
+            if (left)
+                return 1
+            return 0
+        }
+    }
+
+    function compareMsgid(left: string, right: string) {
+        if (left < right)
+            return -1
+        if (left > right)
+            return 1
+        return 0
+    }
+
+    function sort(left: GetTextTranslation, right: GetTextTranslation) {
+        const order = compareMsgid(left.msgid, right.msgid)
+        if (order !== 0)
+            return order
+        return compareMsgctxt(left.msgctxt, right.msgctxt)
+    }
+
+    const output = gettextParser.po.compile(po, {sort})
     fs.writeFileSync(poPath, output)
 }
 

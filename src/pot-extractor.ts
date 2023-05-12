@@ -1,12 +1,11 @@
 import cheerio from 'cheerio'
 import log from 'npmlog'
 import {findPoEntry, PoEntryBuilder, setPoEntry} from './po.js'
-import * as gettextParser from 'gettext-parser'
 import ts from 'typescript'
 import php from 'php-parser'
 import fs from 'fs'
 import path from 'path'
-import {type GetTextTranslation, type GetTextTranslations} from 'gettext-parser'
+import {type GetTextTranslations} from 'gettext-parser'
 import {type TemplateMarker} from './common.js'
 import {fileURLToPath} from 'url';
 
@@ -554,41 +553,6 @@ export class PotExtractor {
         }
 
         setPoEntry(this.po, builder.toPoEntry())
-    }
-
-    toString (): Buffer {
-        function compareMsgctxt(left: string | undefined, right: string | undefined) {
-            if (left && right) {
-                if (left < right)
-                    return -1
-                if (left > right)
-                    return 1
-                return 0
-            } else {
-                if (right)
-                    return -1
-                if (left)
-                    return 1
-                return 0
-            }
-        }
-
-        function compareMsgid(left: string, right: string) {
-            if (left < right)
-                return -1
-            if (left > right)
-                return 1
-            return 0
-        }
-
-        function sort(left: GetTextTranslation, right: GetTextTranslation) {
-            const order = compareMsgid(left.msgid, right.msgid)
-            if (order !== 0)
-                return order
-            return compareMsgctxt(left.msgctxt, right.msgctxt)
-        }
-
-        return gettextParser.po.compile(this.po, {sort})
     }
 }
 

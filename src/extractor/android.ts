@@ -5,6 +5,7 @@ import * as path from 'path'
 import cheerio from "cheerio"
 import * as htmlEntities from 'html-entities'
 import {type DomainConfig} from '../config.js'
+import {writePoFile} from '../po.js';
 
 export default async function (domainName: string, config: DomainConfig, potPath: string) {
     const resDir = config.getResDir()
@@ -15,7 +16,7 @@ export default async function (domainName: string, config: DomainConfig, potPath
     log.verbose('extractPot', `processing '${srcPath}'`)
     const input = fs.readFileSync(srcPath, {encoding: 'utf-8'})
     extractAndroidStrings(extractor, srcPath, input)
-    fs.writeFileSync(potPath, extractor.toString())
+    writePoFile(potPath, extractor.po)
 }
 
 function extractAndroidStrings(extractor: PotExtractor, filename: string, src: string, startLine: number = 1) {

@@ -10,6 +10,7 @@ import shell from "shelljs"
 import {type DomainConfig} from '../config.js'
 import PQueue from 'p-queue';
 import os from 'os';
+import {writePoFile} from '../po.js';
 
 const infoPlistKeys = [
     'NSCameraUsageDescription',
@@ -62,7 +63,7 @@ export default async function (domainName: string, config: DomainConfig, potPath
         extractIosStrings(extractor, xibName, input)
     }
 
-    fs.writeFileSync(potPath, extractor.toString())
+    writePoFile(potPath, extractor.po)
     shell.rm('-rf', tempDir)
 }
 

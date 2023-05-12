@@ -4,6 +4,7 @@ import * as path from 'path'
 import {getSrcPaths} from '../common.js'
 import {PotExtractor} from '../pot-extractor.js'
 import {type DomainConfig} from '../config.js'
+import {writePoFile} from '../po.js';
 
 export default async function (domainName: string, config: DomainConfig, potPath: string) {
     const srcPaths = await getSrcPaths(config, ['.php'])
@@ -25,5 +26,5 @@ export default async function (domainName: string, config: DomainConfig, potPath
             log.warn('extractPot', `skipping '${srcPath}': unknown extension`)
         }
     }
-    fs.writeFileSync(potPath, extractor.toString())
+    writePoFile(potPath, extractor.po)
 }

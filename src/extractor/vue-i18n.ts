@@ -4,6 +4,7 @@ import log from 'npmlog'
 import * as path from 'path'
 import {getSrcPaths} from '../common.js'
 import {PotExtractor} from '../pot-extractor.js'
+import {writePoFile} from '../po.js';
 
 export default async function (domainName: string, config: DomainConfig, potPath: string) {
     const srcPaths = await getSrcPaths(config, ['.vue', '.js', '.ts'])
@@ -41,5 +42,5 @@ export default async function (domainName: string, config: DomainConfig, potPath
             log.warn('extractPot', `skipping '${srcPath}': unknown extension`)
         }
     }
-    fs.writeFileSync(potPath, extractor.toString())
+    writePoFile(potPath, extractor.po)
 }
