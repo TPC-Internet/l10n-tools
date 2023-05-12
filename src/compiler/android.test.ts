@@ -1,5 +1,6 @@
 import {
-    encodeAndroidStrings,
+    createCDataNode,
+    createTextNode,
     findFirstTagNode,
     getAndroidXmlBuilder,
     getAndroidXmlParser,
@@ -85,33 +86,15 @@ describe('android compiler test', () => {
                 const format = getAttrValue(node, 'format')
                 if (format === 'html') {
                     // no post process
-                    return {
-                        ...node,
-                        string: [{
-                            '#text': value
-                        }]
-                    } as unknown as XMLTagNode
+                    return {...node, string: [createTextNode(value, true)]} as XMLTagNode
                 } else {
                     // CDATA 노드인 경우 CDATA를 그대로 살려서 스트링만 교체
                     if (node.string.some(node => isCDataNode(node))) {
-                        const {string , ...rest} = node
-                        return {
-                            ...node,
-                            string: [{
-                                '#cdata': [{
-                                    '#text': value
-                                }]
-                            }]
-                        }
+                        return {...node, string: [createCDataNode(value, true)]}
                     }
 
                     // 그 외의 경우는 android string encoding 하여 사용
-                    return {
-                        ...node,
-                        string: [{
-                            '#text': encodeAndroidStrings(value)
-                        }]
-                    }
+                    return {...node, string: [createTextNode(value, false)]}
                 }
             })
             .filter((node): node is XMLNode => node != null)

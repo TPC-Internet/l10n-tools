@@ -8,7 +8,8 @@ import {type CompilerConfig} from '../config.js';
 import {
     buildAndroidXml,
     containsAndroidXmlSpecialChars,
-    encodeAndroidStrings,
+    createCDataNode,
+    createTextNode,
     findFirstTagNode,
     getAndroidXmlBuilder,
     getAndroidXmlParser,
@@ -50,7 +51,9 @@ export default async function (domainName: string, config: CompilerConfig, poDir
         let passingText = false
         for (const node of resNode.resources) {
             if (isTextNode(node)) {
-                if (!passingText) {
+                if (passingText) {
+                    passingText = false
+                } else {
                     dstResources.push(node)
                 }
                 continue
@@ -61,22 +64,26 @@ export default async function (domainName: string, config: CompilerConfig, poDir
                 // translatable="false" 인 태그는 스킵
                 const translatable = getAttrValue(node, 'translatable')
                 if (translatable == 'false') {
+                    passingText = true
                     continue
                 }
 
                 // name attr 없는 태그는 문제가 있는 것인데, 일단 스킵
                 const name = getAttrValue(node, 'name')
                 if (name == null) {
+                    passingText = true
                     continue
                 }
 
                 // 번역이 없는 태그도 스킵
                 const poEntry = findPoEntry(po, name, null)
                 if (poEntry == null) {
+                    passingText = true
                     continue
                 }
                 let value = poEntry.msgstr[0]
                 if (!value) {
+                    passingText = true
                     continue
                 }
 
@@ -84,40 +91,16 @@ export default async function (domainName: string, config: CompilerConfig, poDir
                 const format = getAttrValue(node, 'format')
                 if (format === 'html') {
                     // no post process
-                    dstResources.push({
-                        ...node,
-                        string: [{
-                            '#text': value
-                        }]
-                    })
+                    dstResources.push({...node, string: [createTextNode(value, true)]})
                 } else {
                     // CDATA 노드인 경우 CDATA를 그대로 살려서 스트링만 교체
                     if (node.string.some(node => isCDataNode(node))) {
-                        dstResources.push({
-                            ...node,
-                            string: [{
-                                '#cdata': [{
-                                    '#text': value
-                                }]
-                            }]
-                        })
+                        dstResources.push({...node, string: [createTextNode(value, true)]})
                     } else if (containsAndroidXmlSpecialChars(value)) {
-                        dstResources.push({
-                            ...node,
-                            string: [{
-                                '#cdata': [{
-                                    '#text': encodeAndroidStrings(value)
-                                }]
-                            }]
-                        })
+                        dstResources.push({...node, string: [createCDataNode(value, false)]})
                     } else {
                         // 그 외의 경우는 android string encoding 하여 사용
-                        dstResources.push({
-                            ...node,
-                            string: [{
-                                '#text': encodeAndroidStrings(value)
-                            }]
-                        })
+                        dstResources.push({...node, string: [createTextNode(value, false)]})
                     }
                 }
                 continue
@@ -129,8 +112,10 @@ export default async function (domainName: string, config: CompilerConfig, poDir
                     const dstNode = findFirstTagNode(dstResNode.resources, 'plurals', {name})
                     if (dstNode != null) {
                         dstResources.push(dstNode)
+                        continue
                     }
                 }
+                passingText = true
                 continue
             }
 

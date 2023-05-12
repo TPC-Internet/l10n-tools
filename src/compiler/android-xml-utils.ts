@@ -48,7 +48,7 @@ export function parseAndroidXml(parser: XMLParser, src: string): XMLNodeList {
     let srcJson = parser.parse(src) as any[]
     for (const [i, child] of srcJson.entries()) {
         if (child['?xml']) {
-            srcJson.splice(i + 1, 0, {'#text': '\n'})
+            srcJson.splice(i + 1, 0, createTextNode('\n', true))
             break
         }
     }
@@ -89,6 +89,14 @@ export function isTagNode(node: XMLNode, tagName: string): node is XMLTagNode {
 
 export function getAttrValue(node: XMLTagNode, attrName: string): string | null {
     return node[':@']?.[`@_${attrName}`] ?? null
+}
+
+export function createTextNode(text: string, isRaw: boolean): XMLTextNode {
+    return {'#text': isRaw ? text : encodeAndroidStrings(text)}
+}
+
+export function createCDataNode(text: string, isRaw: boolean): XMLCDataNode {
+    return {'#cdata': [createTextNode(text, isRaw)]}
 }
 
 export function encodeAndroidStrings(value: string): string {
