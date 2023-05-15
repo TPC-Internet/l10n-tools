@@ -203,6 +203,14 @@
                 "projectId": {
                     "type": "string"
                 },
+                "skip-not-reviewed": {
+                    "description": "Skip applying not-reviewed translations",
+                    "type": "boolean"
+                },
+                "skip-unverified": {
+                    "description": "Skip applying unverified translations",
+                    "type": "boolean"
+                },
                 "token": {
                     "type": "string"
                 }

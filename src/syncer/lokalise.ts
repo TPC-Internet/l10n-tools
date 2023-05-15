@@ -28,7 +28,7 @@ export async function syncPoToLokalise (config: L10nConfig, domainConfig: Domain
         }
     }
     const {creatingKeyMap, updatingKeyMap} = updateKeyData(platform, tag, pot, poData, listedKeyMap)
-    updatePoData(tag, pot, poData, listedKeyMap)
+    updatePoData(tag, lokaliseConfig, pot, poData, listedKeyMap)
     await uploadToLokalise(lokaliseApi, projectId, tag, lokaliseConfig, creatingKeyMap, updatingKeyMap)
 }
 
@@ -203,10 +203,13 @@ function updateKeyData(
 
 function updatePoData(
     tag: string,
+    config: LokaliseConfig,
     pot: GetTextTranslations,
     poData: {[locale: string]: GetTextTranslations},
     listedKeyMap: {[keyName: string]: Key}
 ) {
+    const skipUnverified = config.skipUnverified()
+    const skipNotReviewed = config.skipNotReviewed()
     for (const [keyName, key] of Object.entries(listedKeyMap)) {
         for (const tr of key.translations) {
             const locale = tr.language_iso
@@ -245,11 +248,19 @@ function updatePoData(
                             log.notice('updatePoData', `remove mark of ${locale} of ${entryId}`)
                             removePoEntryFlag(poEntry)
                         }
+                    }
 
-                        if (tr.translation && tr.translation !== poEntry.msgstr[0]) {
-                            log.notice('updatePoData', `updating value of ${entryId}: ${poEntry.msgstr[0]} -> ${tr.translation}`)
-                            poEntry.msgstr = [tr.translation]
-                        }
+                    if (skipNotReviewed && !tr.is_reviewed) {
+                        log.info('updatePoData', `skipping not reviewed: ${locale} of ${entryId}`)
+                        continue
+                    }
+                    if (skipUnverified && tr.is_unverified) {
+                        log.info('updatePoData', `skipping unverified: ${locale} of ${entryId}`)
+                        continue
+                    }
+                    if (tr.translation && tr.translation !== poEntry.msgstr[0]) {
+                        log.notice('updatePoData', `updating value of ${entryId}: ${poEntry.msgstr[0]} -> ${tr.translation}`)
+                        poEntry.msgstr = [tr.translation]
                     }
                 }
             }

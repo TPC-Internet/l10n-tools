@@ -354,8 +354,12 @@ export class GoogleDocsConfig {
 type LokaliseConf = {
     token: string
     projectId: string
+    /** Skip applying unverified translations */
+    'skip-unverified'?: boolean
+    /** Skip applying not-reviewed translations */
+    'skip-not-reviewed'?: boolean
     /** Locale map to pass to syncer */
-    'locale-sync-map'?: {[locale: string]: string},
+    'locale-sync-map'?: {[locale: string]: string}
 }
 
 export class LokaliseConfig {
@@ -370,6 +374,14 @@ export class LokaliseConfig {
 
     getProjectId(): string {
         return this.lc['projectId']
+    }
+
+    skipUnverified(): boolean {
+        return this.lc['skip-unverified'] ?? false
+    }
+
+    skipNotReviewed(): boolean {
+        return this.lc['skip-not-reviewed'] ?? false
     }
 
     getLocaleSyncMap(inverted: boolean): {[locale: string]: string} | undefined {
