@@ -57,3 +57,15 @@ export function getTempDir(): string {
 export function sortSet<T> (set: Set<T>): T[] {
     return Array.from(set).sort()
 }
+
+export function addToArraySet<T>(array: T[], value: T): T[] {
+    const set = new Set(array)
+    set.add(value)
+    return [...set]
+}
+
+export function removeFromArraySet<T>(array: T[], value: T): T[] {
+    const set = new Set(array)
+    set.delete(value)
+    return [...set]
+}

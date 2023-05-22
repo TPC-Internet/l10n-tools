@@ -2,14 +2,14 @@ import {type DomainConfig, L10nConfig, type SyncTarget} from '../config.js'
 import {readPoFile, readPoFiles, writePoFile, writePoFiles} from '../po.js';
 import {type GetTextTranslations} from 'gettext-parser';
 
-export type SyncerFunc = (config: L10nConfig, domainConfig: DomainConfig, tag: string, pot: GetTextTranslations, poData: {[locale: string]: GetTextTranslations}) => Promise<void>
+export type SyncerFunc = (config: L10nConfig, domainConfig: DomainConfig, tag: string, pot: GetTextTranslations, poData: {[locale: string]: GetTextTranslations}, drySync: boolean) => Promise<void>
 
-export async function syncPoToTarget (config: L10nConfig, domainConfig: DomainConfig, tag: string, potPath: string, poDir: string) {
+export async function syncPoToTarget (config: L10nConfig, domainConfig: DomainConfig, tag: string, potPath: string, poDir: string, drySync: boolean) {
     const target = config.getSyncTarget()
     const syncer = await loadSyncer(target)
     const pot = await readPoFile(potPath)
     const poData = await readPoFiles(poDir)
-    await syncer(config, domainConfig, tag, pot, poData)
+    await syncer(config, domainConfig, tag, pot, poData, drySync)
     writePoFile(potPath, pot)
     writePoFiles(poDir, poData)
 }

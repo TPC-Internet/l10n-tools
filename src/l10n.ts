@@ -27,6 +27,7 @@ async function run () {
         .option('-d, --domains <domains>', '적용할 도메인 지정, 없으면 설정 파일에 있는 모든 도메인 (콤마로 여러 도메인 나열 가능)', val => val.split(','))
         .option('-s, --skip-validation', 'Skip format validation')
         .option('-b, --validation-base-locale <locale>', 'Use msgstr of locale as validation base, default to msgid')
+        .option('-n, --dry-sync', 'skip actual sync')
         .option('-v, --verbose', 'log verbose')
         .option('-q, --quiet', '조용히')
         .on('--help', () => {
@@ -64,7 +65,7 @@ async function run () {
     program.command('upload')
         .description('로컬 소스 변경사항을 Google Docs 에 업로드 (로컬 번역 파일은 건드리지 않음)')
         .action(async (opts, cmd) => {
-            await runSubCommand(cmd.name(), async (domainName, config, domainConfig) => {
+            await runSubCommand(cmd.name(), async (domainName, config, domainConfig, drySync) => {
                 const i18nDir = domainConfig.getI18nDir()
                 const locales = domainConfig.getLocales()
                 const tag = domainConfig.getTag()
@@ -79,7 +80,7 @@ async function run () {
                 shell.rm('-rf', tempDir)
                 await extractPot(domainName, domainConfig, potPath)
                 updatePo(potPath, fromPoDir, poDir, locales, validationConfig)
-                await syncPoToTarget(config, domainConfig, tag, potPath, poDir)
+                await syncPoToTarget(config, domainConfig, tag, potPath, poDir, drySync)
                 shell.rm('-rf', tempDir)
             })
         })
@@ -87,7 +88,7 @@ async function run () {
     program.command('sync')
         .description('로컬 소스와 Google Docs 간 싱크')
         .action(async (opts, cmd) => {
-            await runSubCommand(cmd.name(), async (domainName, config, domainConfig) => {
+            await runSubCommand(cmd.name(), async (domainName, config, domainConfig, drySync) => {
                 const i18nDir = domainConfig.getI18nDir()
                 const locales = domainConfig.getLocales()
                 const fallbackLocale = domainConfig.getFallbackLocale()
@@ -99,7 +100,7 @@ async function run () {
 
                 await extractPot(domainName, domainConfig, potPath)
                 updatePo(potPath, poDir, poDir, locales, null)
-                await syncPoToTarget(config, domainConfig, tag, potPath, poDir)
+                await syncPoToTarget(config, domainConfig, tag, potPath, poDir, drySync)
                 updatePo(potPath, poDir, poDir, locales, validationConfig)
 
                 if (fallbackLocale != null) {
@@ -279,21 +280,21 @@ async function run () {
     program.command('_sync')
         .description('[고급] PO 파일 Google Docs 싱크')
         .action(async (opts, cmd) => {
-            await runSubCommand(cmd.name(), async (domainName, config, domainConfig) => {
+            await runSubCommand(cmd.name(), async (domainName, config, domainConfig, drySync) => {
                 const tag = domainConfig.getTag()
                 const i18nDir = domainConfig.getI18nDir()
 
                 const poDir = path.join(i18nDir, domainName)
                 const potPath = path.join(i18nDir, domainName, 'template.pot')
 
-                await syncPoToTarget(config, domainConfig, tag, potPath, poDir)
+                await syncPoToTarget(config, domainConfig, tag, potPath, poDir, drySync)
             })
         })
 
     program.parse(process.argv)
 }
 
-async function runSubCommand(cmdName: string, action: (domainName: string, config: L10nConfig, domainConfig: DomainConfig) => Promise<void>) {
+async function runSubCommand(cmdName: string, action: (domainName: string, config: L10nConfig, domainConfig: DomainConfig, drySync: boolean) => Promise<void>) {
     log.heading = cmdName
 
     const globalOpts = program.opts()
@@ -305,6 +306,7 @@ async function runSubCommand(cmdName: string, action: (domainName: string, confi
 
     const config = await loadConfig(globalOpts.rcfile || '.l10nrc')
     const domainNames = globalOpts.domains || config.getDomainNames()
+    const drySync = globalOpts.drySync || false
 
     for (const domainName of domainNames) {
         const domainConfig = config.getDomainConfig(domainName)
@@ -313,7 +315,7 @@ async function runSubCommand(cmdName: string, action: (domainName: string, confi
             process.exit(1)
         }
         log.heading = `[${domainName}] ${cmdName}`
-        await action(domainName, config, domainConfig)
+        await action(domainName, config, domainConfig, drySync)
     }
 }
 

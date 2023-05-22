@@ -17,7 +17,7 @@ import {type GetTextTranslations} from 'gettext-parser';
 // @ts-ignore
 httpShutdown.extend()
 
-export async function syncPoToGoogleDocs (config: L10nConfig, domainConfig: DomainConfig, tag: string, pot: GetTextTranslations, poData: {[locale: string]: GetTextTranslations}) {
+export async function syncPoToGoogleDocs (config: L10nConfig, domainConfig: DomainConfig, tag: string, pot: GetTextTranslations, poData: {[locale: string]: GetTextTranslations}, drySync: boolean) {
     const googleDocsConfig = config.getGoogleDocsConfig()
     const sheetName = googleDocsConfig.getSheetName()
     const credentials = googleDocsConfig.getCredentials()
@@ -37,7 +37,7 @@ export async function syncPoToGoogleDocs (config: L10nConfig, domainConfig: Doma
     updatePoData(tag, pot, poData, sheetData)
 
     const docActions = await updateSheet(tag, rows, columnMap, sheetData)
-    await applyDocumentActions(sheetName, sheets, auth, docId, docActions)
+    await applyDocumentActions(sheetName, sheets, auth, docId, docActions, drySync)
 }
 
 async function authorize(sheetName: string, credentials: GoogleCredentials) {
@@ -489,7 +489,7 @@ async function updateSheet(tag:string, rows: string[][], columnMap: L10nColumnMa
     return docActions
 }
 
-async function applyDocumentActions(sheetName: string, sheets: sheets_v4.Sheets, auth: OAuth2Client, docId: string, docActions: L10nDocAction[]) {
+async function applyDocumentActions(sheetName: string, sheets: sheets_v4.Sheets, auth: OAuth2Client, docId: string, docActions: L10nDocAction[], drySync: boolean) {
     const updateData: {range: string, values: string[][]}[] = []
     const newRows: string[][] = []
 
@@ -505,28 +505,34 @@ async function applyDocumentActions(sheetName: string, sheets: sheets_v4.Sheets,
     }
 
     if (updateData.length > 0) {
-        // console.log('update data', JSON.stringify(updateData, null, 2))
-        await sheets.spreadsheets.values.batchUpdate({
-            auth,
-            spreadsheetId: docId,
-            requestBody: {
-                valueInputOption: 'RAW',
-                data: updateData
-            }
-        }).then(r => r.data)
+        if (drySync) {
+            log.notice('drySync', 'updating rows', JSON.stringify(updateData, null, 2))
+        } else {
+            await sheets.spreadsheets.values.batchUpdate({
+                auth,
+                spreadsheetId: docId,
+                requestBody: {
+                    valueInputOption: 'RAW',
+                    data: updateData
+                }
+            }).then(r => r.data)
+        }
     }
 
     if (newRows.length > 0) {
-        // console.log('new rows', JSON.stringify(newRows, null, 2))
-        await sheets.spreadsheets.values.append({
-            auth,
-            spreadsheetId: docId,
-            range: sheetName,
-            valueInputOption: 'RAW',
-            requestBody: {
-                values: newRows
-            }
-        }).then(r => r.data)
+        if (drySync) {
+            log.notice('drySync', 'creating rows', JSON.stringify(newRows, null, 2))
+        } else {
+            await sheets.spreadsheets.values.append({
+                auth,
+                spreadsheetId: docId,
+                range: sheetName,
+                valueInputOption: 'RAW',
+                requestBody: {
+                    values: newRows
+                }
+            }).then(r => r.data)
+        }
     }
 }
 

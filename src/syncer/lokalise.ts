@@ -12,24 +12,30 @@ import {
 } from '@lokalise/node-api'
 import {chunk} from 'lodash-es'
 import PQueue from 'p-queue';
+import {addContext, containsContext, getContexts, removeContext} from './lokalise-context.js';
+import {addToArraySet, removeFromArraySet} from '../utils.js';
 
-export async function syncPoToLokalise (config: L10nConfig, domainConfig: DomainConfig, tag: string, pot: GetTextTranslations, poData: {[locale: string]: GetTextTranslations}) {
+export async function syncPoToLokalise (config: L10nConfig, domainConfig: DomainConfig, tag: string, pot: GetTextTranslations, poData: {[locale: string]: GetTextTranslations}, drySync: boolean) {
     const lokaliseConfig = config.getLokaliseConfig()
     const lokaliseApi = new LokaliseApi({apiKey: lokaliseConfig.getToken()})
     const projectId = lokaliseConfig.getProjectId()
     const platform = domainConfig.getLokalisePlatform()
 
+    // 1. Lokalise 에서 키 읽어오기
     const listedKeys = await listLokaliseKeys(lokaliseApi, projectId, lokaliseConfig)
     const listedKeyMap: {[keyName: string]: Key} = {}
     for (const key of listedKeys) {
         const keyPlatform = key.key_name[platform]
         if (keyPlatform) {
-            listedKeyMap[keyPlatform] = key
+            listedKeyMap[decodeKeyName(keyPlatform)] = key
         }
     }
+    // 2. 로컬 번역과 비교하여 Lokalise 에 업로드할 데이터 만들기
     const {creatingKeyMap, updatingKeyMap} = updateKeyData(platform, tag, pot, poData, listedKeyMap)
+    // 3. 로컬 번역 업데이트
     updatePoData(tag, lokaliseConfig, pot, poData, listedKeyMap)
-    await uploadToLokalise(lokaliseApi, projectId, tag, lokaliseConfig, creatingKeyMap, updatingKeyMap)
+    // 4. 2에서 준비한 데이터 Lokalise 에 업로드
+    await uploadToLokalise(lokaliseApi, projectId, tag, lokaliseConfig, creatingKeyMap, updatingKeyMap, drySync)
 }
 
 async function listLokaliseKeys(lokaliseApi: LokaliseApi, projectId: string, config: LokaliseConfig) {
@@ -91,23 +97,58 @@ function reverseLocaleSyncMap(key: Key, invertedSyncMap: {[locale: string]: stri
     }
 }
 
-function createUpdateKeyData(platform: SupportedPlatforms, tag: string, key: Key, potEntry: GetTextTranslation): UpdateKeyDataWithId {
+function createUpdateKeyDataByAdding(platform: SupportedPlatforms, tag: string, key: Key | UpdateKeyDataWithId, potEntry: GetTextTranslation): UpdateKeyDataWithId {
     return {
         key_id: key.key_id,
-        key_name: potEntry.msgid,
-        platforms: [...new Set([...key.platforms, platform])],
-        tags: [tag],
-        merge_tags: true,
-        context: potEntry.msgctxt
+        key_name: encodeKeyName(potEntry.msgid),
+        platforms: addToArraySet(key.platforms ?? [], platform),
+        tags: addToArraySet(key.tags ?? [], tag),
+        context: addContext(key.context, tag, potEntry.msgctxt)
+    }
+}
+
+function encodeKeyName(keyName: string): string {
+    if (/^\s/.test(keyName)) {
+        keyName = 'BEG:' + keyName
+    }
+    if (/\s$/.test(keyName)) {
+        keyName = keyName + ':END'
+    }
+    return keyName
+}
+
+function decodeKeyName(encodedKeyName: string): string {
+    return encodedKeyName
+        .replace(/^BEG:/, '')
+        .replace(/:END$/, '')
+}
+
+function createUpdateKeyDataByRemoving(platform: SupportedPlatforms, tag: string, key: Key | UpdateKeyDataWithId, keyName: string, msgctxt: string | null): UpdateKeyDataWithId {
+    const context = removeContext(key.context, tag, msgctxt)
+    if (getContexts(context, tag, false).length == 0) {
+        return {
+            key_id: key.key_id,
+            key_name: encodeKeyName(keyName),
+            tags: removeFromArraySet(key.tags ?? [], tag),
+            context: context
+        }
+    } else {
+        return {
+            key_id: key.key_id,
+            key_name: encodeKeyName(keyName),
+            platforms: addToArraySet(key.platforms ?? [], platform),
+            tags: addToArraySet(key.tags ?? [], tag),
+            context: context
+        }
     }
 }
 
 function createNewKeyData(platform: SupportedPlatforms, tag: string, potEntry: GetTextTranslation): CreateKeyData {
     return {
-        key_name: potEntry.msgid,
+        key_name: encodeKeyName(potEntry.msgid),
         platforms: [platform],
         tags: [tag],
-        context: potEntry.msgctxt
+        context: addContext(undefined, tag, potEntry.msgctxt)
     }
 }
 
@@ -149,15 +190,28 @@ function updateKeyData(
     // 기존 키에서 업데이트할 부분
     const updatingKeyMap: {[keyName: string]: UpdateKeyDataWithId} = {}
 
+    for (const keyName of Object.keys(listedKeyMap)) {
+        const key = updatingKeyMap[keyName] ?? listedKeyMap[keyName]
+        if (!key.tags?.includes(tag)) {
+            continue
+        }
+        for (const msgctxt of getContexts(key.context, tag, true)) {
+            const potEntry = findPoEntry(pot, msgctxt, keyName)
+            if (potEntry == null) {
+                updatingKeyMap[keyName] = createUpdateKeyDataByRemoving(platform, tag, key, keyName, msgctxt)
+            }
+        }
+    }
+
     for (const potEntry of getPoEntries(pot)) {
         // 로컬에서 추출한 pot 에서 (pot 에는 번역은 없고 msgid 만 있음)
         const entryId = potEntry.msgid
-        const key = listedKeyMap[entryId]
+        const key = updatingKeyMap[entryId] ?? listedKeyMap[entryId]
         if (key != null) {
             // 기존 키는 있는데
-            if (!key.tags.includes(tag) || !key.platforms.includes(platform)) {
-                // 태그가 없으면 업데이트
-                updatingKeyMap[entryId] = createUpdateKeyData(platform, tag, key, potEntry)
+            if (!key.tags?.includes(tag) || !key.platforms?.includes(platform) || !containsContext(key.context, tag, potEntry.msgctxt)) {
+                // 태그, 플랫폼, context 가 없으면 업데이트
+                updatingKeyMap[entryId] = createUpdateKeyDataByAdding(platform, tag, key, potEntry)
             }
         } else {
             // 기존 키 자체가 없으면 새로 키 만들기
@@ -181,7 +235,7 @@ function updateKeyData(
                     // 기존 키에 로컬 번역은 있는데, lokalise 에 번역이 있는 경우 unverified 상태로 넣어줌
                     let updatingKey = updatingKeyMap[entryId]
                     if (updatingKey == null) {
-                        updatingKey = createUpdateKeyData(platform, tag, key, poEntry)
+                        updatingKey = createUpdateKeyDataByAdding(platform, tag, key, poEntry)
                         updatingKeyMap[entryId] = updatingKey
                     }
                     appendTranslation(updatingKey, createTranslationData(locale, poEntry.msgstr[0]))
@@ -218,15 +272,11 @@ function updatePoData(
                 // 해당 언어 번역이 있는 경우
                 const po = poData[locale]
                 const poEntries = []
-                if (key.context) {
-                    const poEntry = findPoEntry(po, key.context, keyName)
+                for (const msgctxt of getContexts(key.context, tag, true)) {
+                    const poEntry = findPoEntry(po, msgctxt, keyName)
                     if (poEntry) {
                         poEntries.push(poEntry)
                     }
-                }
-                const poEntry = findPoEntry(po, null, keyName)
-                if (poEntry) {
-                    poEntries.push(poEntry)
                 }
 
                 for (const poEntry of poEntries) {
@@ -245,7 +295,7 @@ function updatePoData(
                         }
                     } else {
                         if (flag) {
-                            log.notice('updatePoData', `remove mark of ${locale} of ${entryId}`)
+                            log.notice('updatePoData', `remove all flags of ${locale} of ${entryId}`)
                             removePoEntryFlag(poEntry)
                         }
                     }
@@ -259,7 +309,7 @@ function updatePoData(
                         continue
                     }
                     if (tr.translation && tr.translation !== poEntry.msgstr[0]) {
-                        log.notice('updatePoData', `updating value of ${entryId}: ${poEntry.msgstr[0]} -> ${tr.translation}`)
+                        log.notice('updatePoData', `updating ${locale} value of ${entryId}: ${poEntry.msgstr[0]} -> ${tr.translation}`)
                         poEntry.msgstr = [tr.translation]
                     }
                 }
@@ -275,17 +325,22 @@ async function uploadToLokalise(
     tag:string,
     config: LokaliseConfig,
     creatingKeyMap: {[keyName: string]: CreateKeyData},
-    updatingKeyMap: {[keyName: string]: UpdateKeyDataWithId}
+    updatingKeyMap: {[keyName: string]: UpdateKeyDataWithId},
+    drySync: boolean
 ) {
     const localeSyncMap = config.getLocaleSyncMap(false)
     for (let keys of chunk(Object.values(creatingKeyMap), 500)) {
         try {
             keys = keys.map(key => applyLocaleSyncMap(key, localeSyncMap))
-            await lokaliseApi.keys().create({
-                keys: keys
-            }, {
-                project_id: projectId
-            })
+            if (drySync) {
+                log.notice('drySync', 'create keys', JSON.stringify(keys, undefined, 2))
+            } else {
+                await lokaliseApi.keys().create({
+                    keys: keys
+                }, {
+                    project_id: projectId
+                })
+            }
             log.info('lokaliseApi', 'created key count', keys.length)
         } catch (err) {
             log.error('lokaliseApi', 'creating keys failed', err)
@@ -296,11 +351,15 @@ async function uploadToLokalise(
     for (let keys of chunk(Object.values(updatingKeyMap), 500)) {
         try {
             keys = keys.map(key => applyLocaleSyncMap(key, localeSyncMap))
-            await lokaliseApi.keys().bulk_update({
-                keys: keys
-            }, {
-                project_id: projectId
-            })
+            if (drySync) {
+                log.notice('drySync', 'updating keys', JSON.stringify(keys, undefined, 2))
+            } else {
+                await lokaliseApi.keys().bulk_update({
+                    keys: keys
+                }, {
+                    project_id: projectId
+                })
+            }
             log.info('lokaliseApi', 'updated key count', keys.length)
         } catch (err) {
             log.error('lokaliseApi', 'updating keys failed', err)
