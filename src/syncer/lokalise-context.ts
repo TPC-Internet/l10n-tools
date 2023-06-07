@@ -25,7 +25,11 @@ export function addContext(context: string | undefined, tag: string, msgctxt: st
             contextMap[tag].push(msgctxt)
         }
     }
-    return JSON.stringify(contextMap)
+    if (Object.keys(contextMap).length == 0) {
+        return ''
+    } else {
+        return JSON.stringify(contextMap)
+    }
 }
 
 export function getContexts(context: string | undefined, tag: string, fillNull: boolean): (string | null)[] {
