@@ -67,19 +67,19 @@ export class PotExtractor {
         }, options)
     }
 
-    extractJsIdentifierNode (filename: string, src: string, ast: ts.SourceFile, startLine = 1) {
+    private extractJsIdentifierNode (filename: string, src: string, ast: ts.SourceFile, startLine = 1) {
         const visit = (node: ts.Node) => {
             if (ts.isExpressionStatement(node)) {
                 const pos = findNonSpace(src, node.pos)
                 try {
-                    const ids = this._evaluateTsArgumentValues(node.expression)
+                    const ids = this.evaluateTsArgumentValues(node.expression)
                     for (const id of ids) {
                         this.addMessage({filename, line: getLineTo(src, pos, startLine)}, id)
                     }
                     return
                 } catch (err: any) {
-                    log.warn('extractJsObjectNode', err.message)
-                    log.warn('extractJsObjectNode', `'${src.substring(pos, node.end)}': (${filename}:${getLineTo(src, pos, startLine)})`)
+                    log.warn('extractJsIdentifierNode', err.message)
+                    log.warn('extractJsIdentifierNode', `'${src.substring(pos, node.end)}': (${filename}:${getLineTo(src, pos, startLine)})`)
                 }
             }
             ts.forEachChild(node, visit)
@@ -87,14 +87,14 @@ export class PotExtractor {
         visit(ast)
     }
 
-    extractJsObjectNode (filename: string, src: string, ast: ts.SourceFile, paths: string[], startLine: number = 1) {
+    private extractJsObjectNode (filename: string, src: string, ast: ts.SourceFile, paths: string[], startLine: number = 1) {
         const visit = (node: ts.Node) => {
             if (ts.isExpressionStatement(node)) {
                 const pos = findNonSpace(src, node.pos)
                 const errs: any[] = []
                 for (const path of paths) {
                     try {
-                        const ids = this._evaluateTsArgumentValues(node.expression, path)
+                        const ids = this.evaluateTsArgumentValues(node.expression, path)
                         for (const id of ids) {
                             this.addMessage({filename, line: getLineTo(src, pos, startLine)}, id)
                         }
@@ -158,7 +158,7 @@ export class PotExtractor {
         }
     }
 
-    extractTemplate (filename: string, src: string, startLine: number = 1) {
+    private extractTemplate (filename: string, src: string, startLine: number = 1) {
         const root = parse(src)
         for (const elem of root.querySelectorAll('*')) {
             if (elem.rawTagName == 'script') {
@@ -292,7 +292,7 @@ export class PotExtractor {
         }
     }
 
-    extractMarkerExpression (filename: string, src: string, marker: TemplateMarker, startLine = 1) {
+    private extractMarkerExpression (filename: string, src: string, marker: TemplateMarker, startLine = 1) {
         if (!marker.type || marker.type === 'js') {
             this.extractJsExpression(filename, src, startLine)
         }
@@ -307,7 +307,7 @@ export class PotExtractor {
         }
     }
 
-    extractJsIdentifier (filename: string, src: string, startLine: number = 1) {
+    private extractJsIdentifier (filename: string, src: string, startLine: number = 1) {
         try {
             const ast = ts.createSourceFile(filename, `(${src})`, ts.ScriptTarget.Latest, true, ts.ScriptKind.JS)
             this.extractJsIdentifierNode(filename, src, ast, startLine)
@@ -316,7 +316,7 @@ export class PotExtractor {
         }
     }
 
-    extractJsObjectPaths (filename: string, src: string, paths: string[], startLine: number = 1) {
+    private extractJsObjectPaths (filename: string, src: string, paths: string[], startLine: number = 1) {
         try {
             const ast = ts.createSourceFile(filename, `(${src})`, ts.ScriptTarget.Latest, true, ts.ScriptKind.JS)
             this.extractJsObjectNode(filename, src, ast, paths, startLine)
@@ -325,9 +325,9 @@ export class PotExtractor {
         }
     }
 
-    _evaluateTsArgumentValues (node: ts.Expression, path = ''): string[] {
+    private evaluateTsArgumentValues (node: ts.Expression, path = ''): string[] {
         if (ts.isParenthesizedExpression(node)) {
-            return this._evaluateTsArgumentValues(node.expression, path)
+            return this.evaluateTsArgumentValues(node.expression, path)
         }
         if (path) {
             if (ts.isObjectLiteralExpression(node)) {
@@ -341,7 +341,7 @@ export class PotExtractor {
                     if (prop.name.escapedText !== path) {
                         continue
                     }
-                    return this._evaluateTsArgumentValues(prop.initializer)
+                    return this.evaluateTsArgumentValues(prop.initializer)
                 }
                 throw new Error(`cannot extract translations from '${node.kind}' node, no ${path} property`)
             } else {
@@ -356,22 +356,22 @@ export class PotExtractor {
                 throw new Error('cannot extract translations from variable, use string literal directly')
             } else if (ts.isBinaryExpression(node) && ts.isPlusToken(node.operatorToken)) {
                 const values = []
-                for (const leftValue of this._evaluateTsArgumentValues(node.left)) {
-                    for (const rightValue of this._evaluateTsArgumentValues(node.right)) {
+                for (const leftValue of this.evaluateTsArgumentValues(node.left)) {
+                    for (const rightValue of this.evaluateTsArgumentValues(node.right)) {
                         values.push(leftValue + rightValue)
                     }
                 }
                 return values
             } else if (ts.isConditionalExpression(node)) {
-                return this._evaluateTsArgumentValues(node.whenTrue)
-                    .concat(this._evaluateTsArgumentValues(node.whenFalse))
+                return this.evaluateTsArgumentValues(node.whenTrue)
+                    .concat(this.evaluateTsArgumentValues(node.whenFalse))
             } else {
                 throw new Error(`cannot extract translations from '${node.kind}' node, use string literal directly`)
             }
         }
     }
 
-    _getTsCalleeName(node: ts.Node): string | null {
+    private getTsCalleeName(node: ts.Node): string | null {
         if (ts.isIdentifier(node)) {
             return node.text
         }
@@ -381,8 +381,8 @@ export class PotExtractor {
         }
 
         if (ts.isPropertyAccessExpression(node)) {
-            const obj = this._getTsCalleeName(node.expression)
-            const prop = this._getTsCalleeName(node.name)
+            const obj = this.getTsCalleeName(node.expression)
+            const prop = this.getTsCalleeName(node.name)
             if (obj == null || prop == null) {
                 return null
             }
@@ -392,15 +392,15 @@ export class PotExtractor {
         return null
     }
 
-    extractTsNode (filename: string, src: string, ast: ts.SourceFile, startLine: number = 1) {
+    private extractTsNode (filename: string, src: string, ast: ts.SourceFile, startLine: number = 1) {
         const visit = (node: ts.Node) => {
             if (ts.isCallExpression(node)) {
                 const pos = findNonSpace(src, node.pos)
-                const calleeName = this._getTsCalleeName(node.expression)
-                if (calleeName != null && this.keywordMap.hasOwnProperty(calleeName)) {
+                const calleeName = this.getTsCalleeName(node.expression)
+                if (calleeName != null && this.keywordMap[calleeName]) {
                     try {
                         const position = this.keywordMap[calleeName]
-                        const ids = this._evaluateTsArgumentValues(node.arguments[position])
+                        const ids = this.evaluateTsArgumentValues(node.arguments[position])
                         for (const id of ids) {
                             this.addMessage({filename, line: getLineTo(src, pos, startLine)}, id)
                         }
@@ -461,7 +461,7 @@ export class PotExtractor {
         }
     }
 
-    _evaluatePhpArgumentValues (node: php.Node): string[] {
+    private evaluatePhpArgumentValues (node: php.Node): string[] {
         if (node instanceof php.String) {
             return [node.value]
         } else if (node instanceof php.Encapsed) {
@@ -472,21 +472,21 @@ export class PotExtractor {
             throw new Error('cannot extract translations from variable, use string literal directly')
         } else if (node instanceof php.Bin && node.type === '+') {
             const values = []
-            for (const leftValue of this._evaluatePhpArgumentValues(node.left)) {
-                for (const rightValue of this._evaluatePhpArgumentValues(node.right)) {
+            for (const leftValue of this.evaluatePhpArgumentValues(node.left)) {
+                for (const rightValue of this.evaluatePhpArgumentValues(node.right)) {
                     values.push(leftValue + rightValue)
                 }
             }
             return values
         } else if (node instanceof php.RetIf) {
-            return this._evaluatePhpArgumentValues(node.trueExpr)
-                .concat(this._evaluatePhpArgumentValues(node.falseExpr))
+            return this.evaluatePhpArgumentValues(node.trueExpr)
+                .concat(this.evaluatePhpArgumentValues(node.falseExpr))
         } else {
             throw new Error(`cannot extract translations from '${node.kind}' node, use string literal directly`)
         }
     }
 
-    extractPhpNode (filename: string, src: string, ast: php.Program) {
+    private extractPhpNode (filename: string, src: string, ast: php.Program) {
         const visit = (node: php.Node) => {
             if (node instanceof php.Call) {
                 for (const {propName, position} of this.keywordDefs) {
@@ -494,7 +494,7 @@ export class PotExtractor {
                         if (node.what.name === propName) {
                             const startOffset = src.substr(0, node.loc!.start.offset).lastIndexOf(propName)
                             try {
-                                const ids = this._evaluatePhpArgumentValues(node.arguments[position])
+                                const ids = this.evaluatePhpArgumentValues(node.arguments[position])
                                 for (const id of ids) {
                                     this.addMessage({filename, line: node.loc!.start.line}, id)
                                 }
