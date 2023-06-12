@@ -1,4 +1,5 @@
 import log from 'npmlog'
+import type {TransMessages} from './entry.js'
 
 export class ValidateError extends Error {}
 
@@ -17,7 +18,18 @@ const formatDefs: FormatDef[] = [
     {type: 'single-brace-named', regex: /\{[A-Za-z_][A-Za-z0-9_]*}/g}
 ]
 
-export function validateMsg(baseMsg: string, msg: string) {
+export function validateMessages(baseMessages: TransMessages, messages: TransMessages) {
+    validateMsg(baseMessages.other, messages.other)
+    validateMsg(baseMessages.zero, messages.zero)
+    validateMsg(baseMessages.one, messages.one)
+    validateMsg(baseMessages.few, messages.few)
+    validateMsg(baseMessages.many, messages.many)
+}
+
+export function validateMsg(baseMsg: string | undefined, msg: string | undefined) {
+    if (!baseMsg || !msg) {
+        return
+    }
     if (!msg.trim()) {
         return
     }

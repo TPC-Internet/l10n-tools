@@ -1,16 +1,14 @@
-import {cleanupPot} from '../common.js'
 import * as path from 'path'
 import shell from 'shelljs'
 import {type DomainConfig, type DomainType} from '../config.js'
 
-export type ExtractorFunc = (domainName: string, domainConfig: DomainConfig, potPath: string) => Promise<void>
+export type ExtractorFunc = (domainName: string, domainConfig: DomainConfig, keysPath: string) => Promise<void>
 
-export async function extractPot (domainName: string, domainConfig: DomainConfig, potPath: string) {
+export async function extractKeys (domainName: string, domainConfig: DomainConfig, keysPath: string) {
     const type = domainConfig.getType()
-    shell.mkdir('-p', path.dirname(potPath))
+    shell.mkdir('-p', path.dirname(keysPath))
     const extractor = await loadExtractor(type)
-    await extractor(domainName, domainConfig, potPath)
-    cleanupPot(potPath)
+    await extractor(domainName, domainConfig, keysPath)
 }
 
 async function loadExtractor (type: DomainType): Promise<ExtractorFunc> {

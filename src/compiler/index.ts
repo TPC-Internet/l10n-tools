@@ -1,13 +1,13 @@
 import {type CompilerConfig, type CompilerType, type DomainConfig} from '../config.js'
 
-export type CompilerFunc = (domainName: string, config: CompilerConfig, poDir: string) => Promise<void>
+export type CompilerFunc = (domainName: string, config: CompilerConfig, transDir: string) => Promise<void>
 
-export async function compileAll (domainName: string, domainConfig: DomainConfig, poDir: string) {
+export async function compileAll (domainName: string, domainConfig: DomainConfig, transDir: string) {
     const configs = domainConfig.getCompilerConfigs()
     for (const config of configs) {
         const type = config.getType()
         const compiler = await loadCompiler(type)
-        await compiler(domainName, config, poDir)
+        await compiler(domainName, config, transDir)
     }
 }
 
@@ -15,21 +15,21 @@ async function loadCompiler (type: CompilerType): Promise<CompilerFunc> {
     switch (type) {
         case 'json':
         case 'vue-gettext':
-            return (await import('./json.js')).default
+            return (await import('./json.js')).compileToJson
         case 'json-dir':
         case 'i18next':
-            return (await import('./json-dir.js')).default
+            return (await import('./json.js')).compileToJsonDir
         case 'po-json':
-            return (await import('./po-json.js')).default
+            return (await import('./gettext.js')).compileToPoJson
         case 'mo':
         case 'python':
-            return (await import('./mo.js')).default
+            return (await import('./gettext.js')).compileToMo
         case 'node-gettext':
-            return (await import('./node-gettext.js')).default
+            return (await import('./gettext.js')).compileToPoJson
         case 'android':
-            return (await import('./android.js')).default
+            return (await import('./android.js')).compileToAndroidXml
         case 'ios':
-            return (await import('./ios.js')).default
+            return (await import('./ios.js')).compileToIosStrings
     }
     throw new Error(`unknown compiler type: ${type}`)
 }

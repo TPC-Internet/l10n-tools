@@ -1,25 +1,25 @@
 import {type DomainConfig, L10nConfig, type SyncTarget} from '../config.js'
-import {readPoFile, readPoFiles, writePoFile, writePoFiles} from '../po.js';
-import {type GetTextTranslations} from 'gettext-parser';
+import type {KeyEntry, TransEntry} from '../entry.js'
+import {readAllTransEntries, readKeyEntries, writeAllTransEntries, writeKeyEntries} from '../entry.js'
 
-export type SyncerFunc = (config: L10nConfig, domainConfig: DomainConfig, tag: string, pot: GetTextTranslations, poData: {[locale: string]: GetTextTranslations}, drySync: boolean) => Promise<void>
+export type SyncerFunc = (config: L10nConfig, domainConfig: DomainConfig, tag: string, keyEntries: KeyEntry[], allTransEntries: {[locale: string]: TransEntry[]}, drySync: boolean) => Promise<void>
 
-export async function syncPoToTarget (config: L10nConfig, domainConfig: DomainConfig, tag: string, potPath: string, poDir: string, drySync: boolean) {
+export async function syncTransToTarget (config: L10nConfig, domainConfig: DomainConfig, tag: string, keysPath: string, transDir: string, drySync: boolean) {
     const target = config.getSyncTarget()
     const syncer = await loadSyncer(target)
-    const pot = await readPoFile(potPath)
-    const poData = await readPoFiles(poDir)
-    await syncer(config, domainConfig, tag, pot, poData, drySync)
-    writePoFile(potPath, pot)
-    writePoFiles(poDir, poData)
+    const keyEntries = await readKeyEntries(keysPath)
+    const allTransEntries = await readAllTransEntries(transDir)
+    await syncer(config, domainConfig, tag, keyEntries, allTransEntries, drySync)
+    await writeKeyEntries(keysPath, keyEntries)
+    await writeAllTransEntries(transDir, allTransEntries)
 }
 
 async function loadSyncer (target: SyncTarget): Promise<SyncerFunc> {
     switch (target) {
         case 'google-docs':
-            return (await import('./google-docs.js')).syncPoToGoogleDocs
+            return (await import('./google-docs.js')).syncTransToGoogleDocs
         case 'lokalise':
-            return (await import('./lokalise.js')).syncPoToLokalise
+            return (await import('./lokalise.js')).syncTransToLokalise
     }
     throw new Error(`unknown sync target: ${target}`)
 }

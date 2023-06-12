@@ -1,5 +1,5 @@
 import {type Command} from 'commander';
-import jsonfile from 'jsonfile';
+import fs from 'node:fs/promises'
 import {type SupportedPlatforms} from '@lokalise/node-api';
 import {invert} from 'lodash-es';
 
@@ -134,10 +134,6 @@ export class DomainConfig {
 
     getLocales(): string[] {
         return this.dc['locales']
-    }
-
-    getFallbackLocale(): string | undefined {
-        return this.dc['fallback-locale']
     }
 
     getKeywords(): string[] {
@@ -337,10 +333,11 @@ export class GoogleDocsConfig {
         return this.gdc['sheet-name']
     }
 
-    getCredentials(): GoogleCredentials {
+    async getCredentials(): Promise<GoogleCredentials> {
         const clientSecretPath = this.gdc['client-secret-path']
         if (clientSecretPath != null) {
-            return jsonfile.readFileSync(clientSecretPath)['installed']
+            const input = await fs.readFile(clientSecretPath, {encoding: 'utf-8'})
+            return JSON.parse(input)['installed']
         }
         const clientId = this.gdc['client-id']
         const clientSecret = this.gdc['client-secret']

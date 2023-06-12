@@ -1,10 +1,10 @@
-import {PotExtractor} from './pot-extractor.js'
+import {KeyExtractor} from './key-extractor.js'
 
-describe('PotExtractor', () => {
+describe('KeyExtractor', () => {
     describe('vue-i18n keywords', () => {
         const keywords = ['$t', 'vm.$t', 'this.$t', 'app.i18n.t', '$tc', 'vm.$tc', 'this.$tc', 'app.i18n.tc']
         it.each([...keywords])('extract %s', (keyword) => {
-            const extractor = PotExtractor.create('testDomain', {keywords: [keyword]})
+            const extractor = new KeyExtractor({keywords: [keyword]})
             for (const key of ['js', 'ts']) {
                 const module = `
                     let $t = () => {};
@@ -19,14 +19,14 @@ describe('PotExtractor', () => {
                     `
                 if (key === 'js') {
                     extractor.extractJsModule('test-file', module)
-                    expect(extractor.po.translations).toHaveProperty(['', 'key-js'])
+                    expect(extractor.keys.find(null, 'key-js')).toBeDefined()
                 } else if (key === 'ts') {
                     extractor.extractTsModule('test-file', module)
-                    expect(extractor.po.translations).toHaveProperty(['', 'key-ts'])
+                    expect(extractor.keys.find(null, 'key-ts')).toBeDefined()
                 }
             }
             extractor.extractJsExpression('test-file', `${keyword}('key-jse')`)
-            expect(extractor.po.translations).toHaveProperty(['', 'key-jse'])
+            expect(extractor.keys.find(null, 'key-jse')).toBeDefined()
         })
     })
 
@@ -40,15 +40,21 @@ describe('PotExtractor', () => {
                     </div>
                 </template>
             `
-            const extractor = PotExtractor.create('testDomain', {
+            const extractor = new KeyExtractor({
                 markers: [{start: '{{', end: '}}'}],
                 keywords: ['$t']
             })
             extractor.extractVue('test-file', module)
-            expect(extractor.po.translations).toHaveProperty(['', 'Apple & Banana', 'comments', 'reference'])
-            expect(extractor.po.translations['']['Apple & Banana']?.comments?.reference).toEqual('test-file:4')
-            expect(extractor.po.translations).toHaveProperty(['', 'Hello', 'comments', 'reference'])
-            expect(extractor.po.translations['']['Hello']?.comments?.reference).toEqual('test-file:5')
+            {
+                const keyEntry = extractor.keys.find(null, 'Apple & Banana')
+                expect(keyEntry).not.toBeNull()
+                expect(keyEntry!.references).toContainEqual({file: 'test-file', loc: '4'})
+            }
+            {
+                const keyEntry = extractor.keys.find(null, 'Hello')
+                expect(keyEntry).not.toBeNull()
+                expect(keyEntry!.references).toContainEqual({file: 'test-file', loc: '5'})
+            }
         })
     })
 
@@ -62,12 +68,18 @@ describe('PotExtractor', () => {
                     </div>
                 </template>
             `
-            const extractor = PotExtractor.create('testDomain', {tagNames: ['i18n']})
+            const extractor = new KeyExtractor({tagNames: ['i18n']})
             extractor.extractVue('test-file', module)
-            expect(extractor.po.translations).toHaveProperty(['', 'key-vue-i18n-path', 'comments', 'reference'])
-            expect(extractor.po.translations['']['key-vue-i18n-path']?.comments?.reference).toEqual('test-file:4')
-            expect(extractor.po.translations).toHaveProperty(['', 'key-vue-i18n-path-exp', 'comments', 'reference'])
-            expect(extractor.po.translations['']['key-vue-i18n-path-exp']?.comments?.reference).toEqual('test-file:5')
+            {
+                const keyEntry = extractor.keys.find(null, 'key-vue-i18n-path')
+                expect(keyEntry).not.toBeNull()
+                expect(keyEntry!.references).toContainEqual({file: 'test-file', loc: '4'})
+            }
+            {
+                const keyEntry = extractor.keys.find(null, 'key-vue-i18n-path-exp')
+                expect(keyEntry).not.toBeNull()
+                expect(keyEntry!.references).toContainEqual({file: 'test-file', loc: '5'})
+            }
         })
 
         it('v-t attrs', () => {
@@ -77,12 +89,18 @@ describe('PotExtractor', () => {
                     <div v-t="{path: 'key-v-t-path'}"></div>
                 </template>
             `
-            const extractor = PotExtractor.create('testDomain', {objectAttrs: {'v-t': ['', 'path']}})
+            const extractor = new KeyExtractor({objectAttrs: {'v-t': ['', 'path']}})
             extractor.extractVue('test-file', module)
-            expect(extractor.po.translations).toHaveProperty(['', 'key-v-t', 'comments', 'reference'])
-            expect(extractor.po.translations['']['key-v-t']?.comments?.reference).toEqual('test-file:3')
-            expect(extractor.po.translations).toHaveProperty(['', 'key-v-t-path', 'comments', 'reference'])
-            expect(extractor.po.translations['']['key-v-t-path']?.comments?.reference).toEqual('test-file:4')
+            {
+                const keyEntry = extractor.keys.find(null, 'key-v-t')
+                expect(keyEntry).not.toBeNull()
+                expect(keyEntry!.references).toContainEqual({file: 'test-file', loc: '3'})
+            }
+            {
+                const keyEntry = extractor.keys.find(null, 'key-v-t-path')
+                expect(keyEntry).not.toBeNull()
+                expect(keyEntry!.references).toContainEqual({file: 'test-file', loc: '4'})
+            }
         })
     })
 
@@ -105,12 +123,18 @@ describe('PotExtractor', () => {
                 }
                 </script>
             `
-            const extractor = PotExtractor.create('testDomain', {keywords: ['this.$t']})
+            const extractor = new KeyExtractor({keywords: ['this.$t']})
             extractor.extractVue('test-file', module)
-            expect(extractor.po.translations).toHaveProperty(['', 'key-js', 'comments', 'reference'])
-            expect(extractor.po.translations['']['key-js']?.comments?.reference).toEqual('test-file:6')
-            expect(extractor.po.translations).toHaveProperty(['', 'key-ts', 'comments', 'reference'])
-            expect(extractor.po.translations['']['key-ts']?.comments?.reference).toEqual('test-file:13')
+            {
+                const keyEntry = extractor.keys.find(null, 'key-js')
+                expect(keyEntry).not.toBeNull()
+                expect(keyEntry!.references).toContainEqual({file: 'test-file', loc: '6'})
+            }
+            {
+                const keyEntry = extractor.keys.find(null, 'key-ts')
+                expect(keyEntry).not.toBeNull()
+                expect(keyEntry!.references).toContainEqual({file: 'test-file', loc: '13'})
+            }
         })
     })
 
@@ -139,11 +163,14 @@ describe('PotExtractor', () => {
                     );
                 }
             `
-            const extractor = PotExtractor.create('testDomain', {keywords: ['translate']})
+            const extractor = new KeyExtractor({keywords: ['translate']})
             extractor.extractReactJsModule('test-file', module)
             const key = '{length}(mm) {width}(mm) {height}(mm)'
-            expect(extractor.po.translations).toHaveProperty(['', key, 'comments', 'reference'])
-            expect(extractor.po.translations[''][key]?.comments?.reference).toEqual('test-file:12')
+            {
+                const keyEntry = extractor.keys.find(null, key)
+                expect(keyEntry).not.toBeNull()
+                expect(keyEntry!.references).toContainEqual({file: 'test-file', loc: '12'})
+            }
         })
     })
 
@@ -164,22 +191,43 @@ describe('PotExtractor', () => {
         <item quantity="other">%d days</item>
     </plurals>
 </resources>`
-            const extractor = PotExtractor.create('testDomain', {})
+            const extractor = new KeyExtractor({})
             extractor.extractAndroidStringsXml('test-file', srcXml)
-            expect(extractor.po.translations).toHaveProperty(['normal_key', 'LIKEY', 'comments', 'reference'])
-            expect(extractor.po.translations['normal_key']['LIKEY'].comments?.reference).toEqual('test-file:3')
-            expect(extractor.po.translations).toHaveProperty(['html_key_1', 'No Account? <font color="#FF424D">SignUp</font>', 'comments', 'reference'])
-            expect(extractor.po.translations['html_key_1']['No Account? <font color="#FF424D">SignUp</font>'].comments?.reference).toEqual('test-file:4')
-            expect(extractor.po.translations).toHaveProperty(['html_key_2', 'Agreed to <u>Terms</u> and <u>PP</u>', 'comments', 'reference'])
-            expect(extractor.po.translations['html_key_2']['Agreed to <u>Terms</u> and <u>PP</u>'].comments?.reference).toEqual('test-file:5')
-            expect(extractor.po.translations).toHaveProperty(['cdata_key_1', '관심사 & 해시태그', 'comments', 'reference'])
-            expect(extractor.po.translations['cdata_key_1']['관심사 & 해시태그'].comments?.reference).toEqual('test-file:6')
-            expect(extractor.po.translations).toHaveProperty(['html_key_3', '<b>관심사!</b>\\n설정!\\n아래!', 'comments', 'reference'])
-            expect(extractor.po.translations['html_key_3']['<b>관심사!</b>\\n설정!\\n아래!'].comments?.reference).toEqual('test-file:7')
-            expect(extractor.po.translations).toHaveProperty(['cdata_key_2', '<b>%1$s</b> Present.', 'comments', 'reference'])
-            expect(extractor.po.translations['cdata_key_2']['<b>%1$s</b> Present.'].comments?.reference).toEqual('test-file:9')
-            expect(extractor.po.translations).toHaveProperty(['escaped_key', '<font color="#FF424D">RENEW</font>', 'comments', 'reference'])
-            expect(extractor.po.translations['escaped_key']['<font color="#FF424D">RENEW</font>'].comments?.reference).toEqual('test-file:10')
+            {
+                const keyEntry = extractor.keys.find('normal_key', 'LIKEY')
+                expect(keyEntry).not.toBeNull()
+                expect(keyEntry!.references).toContainEqual({file: 'test-file', loc: '3'})
+            }
+            {
+                const keyEntry = extractor.keys.find('html_key_1', 'No Account? <font color="#FF424D">SignUp</font>')
+                expect(keyEntry).not.toBeNull()
+                expect(keyEntry!.references).toContainEqual({file: 'test-file', loc: '4'})
+            }
+            {
+                const keyEntry = extractor.keys.find('html_key_2', 'Agreed to <u>Terms</u> and <u>PP</u>')
+                expect(keyEntry).not.toBeNull()
+                expect(keyEntry!.references).toContainEqual({file: 'test-file', loc: '5'})
+            }
+            {
+                const keyEntry = extractor.keys.find('cdata_key_1', '관심사 & 해시태그')
+                expect(keyEntry).not.toBeNull()
+                expect(keyEntry!.references).toContainEqual({file: 'test-file', loc: '6'})
+            }
+            {
+                const keyEntry = extractor.keys.find('html_key_3', '<b>관심사!</b>\\n설정!\\n아래!')
+                expect(keyEntry).not.toBeNull()
+                expect(keyEntry!.references).toContainEqual({file: 'test-file', loc: '7'})
+            }
+            {
+                const keyEntry = extractor.keys.find('cdata_key_2', '<b>%1$s</b> Present.')
+                expect(keyEntry).not.toBeNull()
+                expect(keyEntry!.references).toContainEqual({file: 'test-file', loc: '9'})
+            }
+            {
+                const keyEntry = extractor.keys.find('escaped_key', '<font color="#FF424D">RENEW</font>')
+                expect(keyEntry).not.toBeNull()
+                expect(keyEntry!.references).toContainEqual({file: 'test-file', loc: '10'})
+            }
         })
     })
 })

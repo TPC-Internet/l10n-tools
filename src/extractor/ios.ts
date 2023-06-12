@@ -1,6 +1,6 @@
 import log from 'npmlog'
-import { PotExtractor} from '../pot-extractor.js'
-import * as fs from 'fs'
+import {KeyExtractor} from '../key-extractor.js'
+import * as fs from 'node:fs/promises'
 import * as path from 'path'
 import i18nStringsFiles from 'i18n-strings-files'
 import plist from 'plist'
@@ -10,7 +10,7 @@ import shell from "shelljs"
 import {type DomainConfig} from '../config.js'
 import PQueue from 'p-queue';
 import os from 'os';
-import {writePoFile} from '../po.js';
+import {writeKeyEntries} from '../entry.js'
 
 const infoPlistKeys = [
     'NSCameraUsageDescription',
@@ -20,22 +20,22 @@ const infoPlistKeys = [
     'NSUserTrackingUsageDescription'
 ]
 
-export default async function (domainName: string, config: DomainConfig, potPath: string) {
+export default async function (domainName: string, config: DomainConfig, keysPath: string) {
     const tempDir = path.join(getTempDir(), 'extractor')
     shell.mkdir('-p', tempDir)
 
-    const extractor = PotExtractor.create(domainName, {})
+    const extractor = new KeyExtractor({})
 
-    log.info('extractPot', 'extracting from .swift files')
+    log.info('extractKeys', 'extracting from .swift files')
     const srcDir = config.getSrcDir()
     await execWithLog(`find "${srcDir}" -name "*.swift" -print0 | xargs -0 genstrings -q -u -SwiftUI -o "${tempDir}"`)
     const stringsPath = path.join(tempDir, 'Localizable.strings')
-    const input = fs.readFileSync(stringsPath, {encoding: 'utf16le'})
+    const input = await fs.readFile(stringsPath, {encoding: 'utf16le'})
     extractIosStrings(extractor, 'code', input)
 
-    log.info('extractPot', 'extracting from info.plist')
+    log.info('extractKeys', 'extracting from info.plist')
     const infoPlistPath = await getInfoPlistPath(srcDir)
-    const infoPlist = plist.parse(fs.readFileSync(infoPlistPath, {encoding: 'utf-8'}))
+    const infoPlist = plist.parse(await fs.readFile(infoPlistPath, {encoding: 'utf-8'}))
     for (const key of infoPlistKeys) {
         if (infoPlist.hasOwnProperty(key)) {
             // @ts-ignore
@@ -43,16 +43,16 @@ export default async function (domainName: string, config: DomainConfig, potPath
         }
     }
 
-    log.info('extractPot', 'extracting from .xib, .storyboard files')
+    log.info('extractKeys', 'extracting from .xib, .storyboard files')
     const queue = new PQueue({concurrency: os.cpus().length})
     async function extract(xibPath: string): Promise<{input: string, xibName: string}> {
-        log.verbose('extractPot', `processing '${xibPath}'`)
+        log.verbose('extractKeys', `processing '${xibPath}'`)
         const extName = path.extname(xibPath)
         const baseName = path.basename(xibPath, extName)
         const stringsPath = path.join(tempDir, `${baseName}.strings`)
 
         await execWithLog(`ibtool --export-strings-file "${stringsPath}" "${xibPath}"`)
-        const input = fs.readFileSync(stringsPath, {encoding: 'utf16le'})
+        const input = await fs.readFile(stringsPath, {encoding: 'utf16le'})
         const xibName = path.basename(xibPath)
         return {input, xibName}
     }
@@ -63,7 +63,7 @@ export default async function (domainName: string, config: DomainConfig, potPath
         extractIosStrings(extractor, xibName, input)
     }
 
-    writePoFile(potPath, extractor.po)
+    await writeKeyEntries(keysPath, extractor.keys.toEntries())
     shell.rm('-rf', tempDir)
 }
 
@@ -83,7 +83,7 @@ async function getXibPaths(srcDir: string) {
     return baseXibPaths
 }
 
-function extractIosStrings(extractor: PotExtractor, filename: string, src: string, startLine: number = 1) {
+function extractIosStrings(extractor: KeyExtractor, filename: string, src: string, startLine: number = 1) {
     const data = i18nStringsFiles.parse(src, true)
     for (const [key, value] of Object.entries(data)) {
         const {defaultValue, ignore} = parseComment(key, value.comment)
@@ -124,8 +124,8 @@ function parseComment(key: string, commentText: string | undefined) {
     }
 
     if (commentData['Class'] === '"UITextView"' && commentData['text'] && !ignore) {
-        log.warn('extractPot', `${key}: UITextView.text does not support Storyboard (xib) localization.`)
-        log.warn('extractPot', 'Consider localizing by code or note #vv-ignore to mute this warning')
+        log.warn('extractKeys', `${key}: UITextView.text does not support Storyboard (xib) localization.`)
+        log.warn('extractKeys', 'Consider localizing by code or note #vv-ignore to mute this warning')
     }
 
     if (commentData[key]) {

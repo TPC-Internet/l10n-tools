@@ -1,12 +1,12 @@
-import fs from 'fs'
+import fs from 'node:fs/promises'
 import log from 'npmlog'
 import * as path from 'path'
 import {getSrcPaths} from '../common.js'
-import {PotExtractor} from '../pot-extractor.js'
+import {KeyExtractor} from '../key-extractor.js'
 import {type DomainConfig} from '../config.js'
-import {writePoFile} from '../po.js';
+import {writeKeyEntries} from '../entry.js'
 
-export default async function (domainName: string, config: DomainConfig, potPath: string) {
+export default async function (domainName: string, config: DomainConfig, keysPath: string) {
     const srcPaths = await getSrcPaths(config, ['.vue', '.js'])
     const keywords = new Set(config.getKeywords())
     keywords.add('$gettext')
@@ -16,26 +16,26 @@ export default async function (domainName: string, config: DomainConfig, potPath
     keywords.add('this.$gettextInterpolate')
     keywords.add('vm.$gettextInterpolate')
 
-    const extractor = PotExtractor.create(domainName, {
+    const extractor = new KeyExtractor({
         tagNames: ['translate'],
         attrNames: ['v-translate'],
         exprAttrs: [/^:/, /^v-bind:/],
         markers: [{start: '{{', end: '}}'}],
         keywords: keywords
     })
-    log.info('extractPot', 'extracting from .vue, .js files')
+    log.info('extractKeys', 'extracting from .vue, .js files')
     for (const srcPath of srcPaths) {
-        log.verbose('extractPot', `processing '${srcPath}'`)
+        log.verbose('extractKeys', `processing '${srcPath}'`)
         const ext = path.extname(srcPath)
         if (ext === '.vue') {
-            const input = fs.readFileSync(srcPath, {encoding: 'utf-8'})
+            const input = await fs.readFile(srcPath, {encoding: 'utf-8'})
             extractor.extractVue(srcPath, input)
         } else if (ext === '.js') {
-            const input = fs.readFileSync(srcPath, {encoding: 'utf-8'})
+            const input = await fs.readFile(srcPath, {encoding: 'utf-8'})
             extractor.extractJsModule(srcPath, input)
         } else {
-            log.warn('extractPot', `skipping '${srcPath}': unknown extension`)
+            log.warn('extractKeys', `skipping '${srcPath}': unknown extension`)
         }
     }
-    writePoFile(potPath, extractor.po)
+    await writeKeyEntries(keysPath, extractor.keys.toEntries())
 }

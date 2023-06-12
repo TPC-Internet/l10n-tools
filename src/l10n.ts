@@ -2,16 +2,16 @@
 
 import {Command} from 'commander'
 import log from 'npmlog'
-import {checkPoEntrySpecs, getPoEntriesFromFile, getPoEntryFlag} from './po.js'
-import {getTempDir} from './utils.js'
-import {mergeFallbackLocale, updatePo} from './common.js'
+import {checkTransEntrySpecs, readTransEntries} from './entry.js'
+import {getKeysPath, getTempDir, getTransPath} from './utils.js'
+import {updateTrans} from './common.js'
 import shell from 'shelljs'
-import {syncPoToTarget} from './syncer/index.js';
+import {syncTransToTarget} from './syncer/index.js';
 import * as path from 'path'
 import {DomainConfig, L10nConfig} from './config.js'
-import {extractPot} from './extractor/index.js'
+import {extractKeys} from './extractor/index.js'
 import {compileAll} from './compiler/index.js'
-import * as fs from 'fs'
+import fs from 'node:fs/promises'
 import {cosmiconfig} from 'cosmiconfig'
 import {fileURLToPath} from 'url'
 import Ajv from 'ajv'
@@ -20,7 +20,7 @@ const program = new Command('l10n-tools')
 const dirname = path.dirname(fileURLToPath(import.meta.url))
 
 async function run () {
-    const pkg = JSON.parse(fs.readFileSync(path.join(dirname, '..', 'package.json'), 'utf-8'))
+    const pkg = JSON.parse(await fs.readFile(path.join(dirname, '..', 'package.json'), {encoding: 'utf-8'}))
     program.version(pkg.version)
         .description(pkg.description)
         .option('-r, --rcfile <rcfile>', '설정 파일 지정, 기본값은 .l10nrc')
@@ -35,35 +35,25 @@ async function run () {
         })
 
     program.command('update')
-        .description('로컬 번역 업데이트')
+        .description('Update local translations')
         .action(async (opts, cmd) => {
             await runSubCommand(cmd.name(), async (domainName, config, domainConfig) => {
                 const i18nDir = domainConfig.getI18nDir()
                 const locales = domainConfig.getLocales()
-                const fallbackLocale = domainConfig.getFallbackLocale()
                 const validationConfig = config.getValidationConfig(program)
 
-                const potPath = path.join(i18nDir, domainName, 'template.pot')
-                const poDir = path.join(i18nDir, domainName)
+                const keysPath = getKeysPath(path.join(i18nDir, domainName))
+                const transDir = path.join(i18nDir, domainName)
 
-                await extractPot(domainName, domainConfig, potPath)
-                updatePo(potPath, poDir, poDir, locales, validationConfig)
+                await extractKeys(domainName, domainConfig, keysPath)
+                await updateTrans(keysPath, transDir, transDir, locales, validationConfig)
 
-                if (fallbackLocale != null) {
-                    const tempDir = path.join(getTempDir(), domainName)
-                    shell.rm('-rf', tempDir)
-                    const mergedPoDir = tempDir
-                    await mergeFallbackLocale(domainName, poDir, fallbackLocale, mergedPoDir)
-                    await compileAll(domainName, domainConfig, mergedPoDir)
-                    shell.rm('-rf', tempDir)
-                } else {
-                    await compileAll(domainName, domainConfig, poDir)
-                }
+                await compileAll(domainName, domainConfig, transDir)
             })
         })
 
     program.command('upload')
-        .description('로컬 소스 변경사항을 Google Docs 에 업로드 (로컬 번역 파일은 건드리지 않음)')
+        .description('Upload local changes to sync target (local files will not touched)')
         .action(async (opts, cmd) => {
             await runSubCommand(cmd.name(), async (domainName, config, domainConfig, drySync) => {
                 const i18nDir = domainConfig.getI18nDir()
@@ -71,89 +61,79 @@ async function run () {
                 const tag = domainConfig.getTag()
                 const validationConfig = config.getValidationConfig(program)
 
-                const fromPoDir = path.join(i18nDir, domainName)
+                const fromTransDir = path.join(i18nDir, domainName)
                 const tempDir = path.join(getTempDir(), domainName)
-                const potPath = path.join(tempDir, 'template.pot')
-                const poDir = tempDir
+                const keysPath = getKeysPath(tempDir)
+                const transDir = tempDir
 
                 log.info('l10n', `temp dir: '${tempDir}'`)
                 shell.rm('-rf', tempDir)
-                await extractPot(domainName, domainConfig, potPath)
-                updatePo(potPath, fromPoDir, poDir, locales, validationConfig)
-                await syncPoToTarget(config, domainConfig, tag, potPath, poDir, drySync)
+                await extractKeys(domainName, domainConfig, keysPath)
+                await updateTrans(keysPath, fromTransDir, transDir, locales, validationConfig)
+                await syncTransToTarget(config, domainConfig, tag, keysPath, transDir, drySync)
                 shell.rm('-rf', tempDir)
             })
         })
 
     program.command('sync')
-        .description('로컬 소스와 Google Docs 간 싱크')
+        .description('Synchronize local translations and sync target')
         .action(async (opts, cmd) => {
             await runSubCommand(cmd.name(), async (domainName, config, domainConfig, drySync) => {
                 const i18nDir = domainConfig.getI18nDir()
                 const locales = domainConfig.getLocales()
-                const fallbackLocale = domainConfig.getFallbackLocale()
                 const tag = domainConfig.getTag()
                 const validationConfig = config.getValidationConfig(program)
 
-                const potPath = path.join(i18nDir, domainName, 'template.pot')
-                const poDir = path.join(i18nDir, domainName)
+                const keysPath = getKeysPath(path.join(i18nDir, domainName))
+                const transDir = path.join(i18nDir, domainName)
 
-                await extractPot(domainName, domainConfig, potPath)
-                updatePo(potPath, poDir, poDir, locales, null)
-                await syncPoToTarget(config, domainConfig, tag, potPath, poDir, drySync)
-                updatePo(potPath, poDir, poDir, locales, validationConfig)
+                await extractKeys(domainName, domainConfig, keysPath)
+                await updateTrans(keysPath, transDir, transDir, locales, null)
+                await syncTransToTarget(config, domainConfig, tag, keysPath, transDir, drySync)
+                await updateTrans(keysPath, transDir, transDir, locales, validationConfig)
 
-                if (fallbackLocale != null) {
-                    const tempDir = path.join(getTempDir(), domainName)
-                    shell.rm('-rf', tempDir)
-                    const mergedPoDir = tempDir
-                    await mergeFallbackLocale(domainName, poDir, fallbackLocale, mergedPoDir)
-                    await compileAll(domainName, domainConfig, mergedPoDir)
-                    shell.rm('-rf', tempDir)
-                } else {
-                    await compileAll(domainName, domainConfig, poDir)
-                }
+                await compileAll(domainName, domainConfig, transDir)
             })
         })
 
     program.command('check')
-        .description('전체 번역 여부 검사')
-        .option('-l, --locales [locales]', '검사한 로케일 (콤마로 나열 가능, 없으면 전체)')
+        .description('Check all translated')
+        .option('-l, --locales [locales]', 'Locales to check, all if not speficied (comma separated)')
         .action(async (opts, cmd) => {
             await runSubCommand(cmd.name(), async (domainName, config, domainConfig) => {
                 const i18nDir = domainConfig.getI18nDir()
-                const locales = opts.locales ? opts.locales.split(',') : domainConfig.getLocales()
+                const locales = opts['locales'] ? opts['locales'].split(',') : domainConfig.getLocales()
                 const validationConfig = config.getValidationConfig(program)
 
                 const specs = ['untranslated']
-                const fromPoDir = path.join(i18nDir, domainName)
+                const fromTransDir = path.join(i18nDir, domainName)
                 const tempDir = path.join(getTempDir(), domainName)
-                const potPath = path.join(tempDir, 'template.pot')
-                const poDir = tempDir
+                const keysPath = getKeysPath(tempDir)
+                const transDir = tempDir
 
                 log.info('l10n', `temp dir: '${tempDir}'`)
                 shell.rm('-rf', tempDir)
-                await extractPot(domainName, domainConfig, potPath)
-                updatePo(potPath, fromPoDir, poDir, locales, validationConfig)
+                await extractKeys(domainName, domainConfig, keysPath)
+                await updateTrans(keysPath, fromTransDir, transDir, locales, validationConfig)
 
                 for (const locale of locales) {
-                    const poPath = path.join(poDir, locale + '.po')
-                    for (const poEntry of getPoEntriesFromFile(poPath)) {
-                        if (!checkPoEntrySpecs(poEntry, specs)) {
+                    const transPath = getTransPath(transDir, locale)
+                    for (const transEntry of await readTransEntries(transPath)) {
+                        if (!checkTransEntrySpecs(transEntry, specs)) {
                             continue
                         }
                         process.exitCode = 1
 
                         process.stdout.write(`[${locale}] ${specs.join(',')}\n`)
-                        const flag = getPoEntryFlag(poEntry)
+                        const flag = transEntry.flag
                         if (flag) {
                             process.stdout.write(`#, ${flag}\n`)
                         }
-                        if (poEntry.msgctxt) {
-                            process.stdout.write(`msgctxt "${poEntry.msgctxt.replace(/\n/g, '\\n')}"\n`)
+                        if (transEntry.context) {
+                            process.stdout.write(`msgctxt "${transEntry.context.replace(/\n/g, '\\n')}"\n`)
                         }
-                        process.stdout.write(`msgid   "${poEntry.msgid.replace(/\n/g, '\\n')}"\n`)
-                        process.stdout.write(`msgstr  "${poEntry.msgstr[0].replace(/\n/g, '\\n')}"\n\n`)
+                        process.stdout.write(`msgid   "${transEntry.key.replace(/\n/g, '\\n')}"\n`)
+                        process.stdout.write(`msgstr  "${(transEntry.messages.other ?? '').replace(/\n/g, '\\n')}"\n\n`)
                     }
                 }
 
@@ -161,133 +141,122 @@ async function run () {
             })
         })
 
-    program.command('_extractPot')
-        .description('[고급] 소스에서 번역 추출하여 pot 파일 작성')
-        .option('--potdir [potdir]', '설정한 위치에 pot 파일 추출')
+    program.command('_extractKeys')
+        .description('(Internal) Extract key entries from source and saved to files')
+        .option('--keys-dir [keysDir]', 'Directory to save key files')
         .action(async (opts, cmd) => {
             await runSubCommand(cmd.name(), async (domainName, config, domainConfig) => {
-                const i18nDir = opts.potdir || domainConfig.getI18nDir()
-                const potPath = path.join(i18nDir, domainName, 'template.pot')
+                const i18nDir = opts['keysDir'] || domainConfig.getI18nDir()
+                const keysPath = getKeysPath(path.join(i18nDir, domainName))
 
-                await extractPot(domainName, domainConfig, potPath)
+                await extractKeys(domainName, domainConfig, keysPath)
             })
         })
 
-    program.command('_updatePo')
-        .description('[고급] pot 파일에서 po 파일 업데이트')
-        .option('-l, --locales [locales]', '설정한 로케일만 업데이트 (콤마로 나열 가능)')
-        .option('--potdir [potdir]', '설정한 위치에 있는 pot 파일에서 추출')
-        .option('--podir [podir]', '설정한 위치에 업데이트된 po 파일 저장')
+    program.command('_updateTrans')
+        .description('(Internal) Apply key changes to translations')
+        .option('-l, --locales [locales]', 'Locales to update (comma separated)')
+        .option('--keys-dir [keysDir]', 'Directory to load key files')
+        .option('--trans-dir [transDir]', 'Directory to save translation files')
         .action(async (opts, cmd) => {
             await runSubCommand(cmd.name(), async (domainName, config, domainConfig) => {
                 const i18nDir = domainConfig.getI18nDir()
-                const locales = opts.locales ? opts.locales.split(',') : domainConfig.getLocales()
+                const locales = opts['locales'] ? opts['locales'].split(',') : domainConfig.getLocales()
                 config.getValidationConfig(program)
                 const validationConfig = config.getValidationConfig(program)
 
-                const potPath = path.join(opts.potdir || i18nDir, domainName, 'template.pot')
-                const fromPoDir = path.join(i18nDir, domainName)
-                const poDir = path.join(opts.podir || i18nDir, domainName)
+                const keysPath = getKeysPath(path.join(opts['keysDir'] || i18nDir, domainName))
+                const fromTransDir = path.join(i18nDir, domainName)
+                const transDir = path.join(opts['transDir'] || i18nDir, domainName)
 
-                updatePo(potPath, fromPoDir, poDir, locales, validationConfig)
+                await updateTrans(keysPath, fromTransDir, transDir, locales, validationConfig)
             })
         })
 
     program.command('_count')
-        .description('[고급] 번역 항목 갯수 세기')
-        .option('--podir [podir]', '설정한 위치에 있는 po 항목 세기')
-        .option('-l, --locales [locales]', '갯수를 셀 로케일 (콤마로 나열 가능)')
-        .option('-s, --spec [spec]', '어떤 것을 셀지 지정 (필수, 콤마로 나열하면 모든 조건 체크, !로 시작하면 반대) 지원: total,translated,untranslated,<flag>')
+        .description('(Internal) Count translations')
+        .option('--trans-dir [transDir]', 'Directory to load translation files')
+        .option('-l, --locales [locales]', 'Locales to count (comma separated)')
+        .option('-s, --spec [spec]', 'Spec to count (required, negate if starting with !, comma separated) supported: total,translated,untranslated,<flag>')
         .action(async (opts, cmd) => {
             await runSubCommand(cmd.name(), async (domainName, config, domainConfig) => {
                 const i18nDir = domainConfig.getI18nDir()
-                const locales: string[] = opts.locales ? opts.locales.split(',') : domainConfig.getLocales()
-                const specs = opts.spec ? opts.spec.split(',') : ['total']
+                const locales: string[] = opts['locales'] ? opts['locales'].split(',') : domainConfig.getLocales()
+                const specs = opts['spec'] ? opts['spec'].split(',') : ['total']
 
-                const poDir = path.join(opts.podir || i18nDir, domainName)
-                const counts = locales.map(locale => {
-                    const poPath = path.join(poDir, locale + '.po')
+                const transDir = path.join(opts['transDir'] || i18nDir, domainName)
+                const counts: string[] = []
+                for (const locale of locales) {
+                    const transPath = getTransPath(transDir, locale)
                     let count = 0
-                    for (const poEntry of getPoEntriesFromFile(poPath)) {
-                        if (checkPoEntrySpecs(poEntry, specs)) {
+                    for (const transEntry of await readTransEntries(transPath)) {
+                        if (checkTransEntrySpecs(transEntry, specs)) {
                             count++
                         }
                     }
-                    return locale + ':' + count
-                })
+                    counts.push(locale + ':' + count)
+                }
                 process.stdout.write(`${domainName},${counts.join(',')}\n`)
             })
         })
 
     program.command('_cat')
         .description('[고급] 번역 항목 표시')
-        .option('--podir [podir]', '설정한 위치에 있는 po 항목 표시')
-        .option('-l, --locale [locale]', '표시할 로케일 (필수)')
-        .option('-s, --spec [spec]', '어떤 것을 표시할지 지정 (필수, 콤마로 나열하면 모든 조건 체크, !로 시작하면 반대) 지원: total,translated,untranslated,<flag>')
+        .option('--trans-dir [transDir]', 'Directory to read translations')
+        .option('-l, --locale [locale]', 'Locale to print (required)')
+        .option('-s, --spec [spec]', 'Spec to print (required, negate if starting with !, comma separated) supported: total,translated,untranslated,<flag>')
         .action(async (opts, cmd) => {
             await runSubCommand(cmd.name(), async (domainName, config, domainConfig) => {
-                if (!opts.locale) {
+                if (!opts['locale']) {
                     cmd.help()
                 }
 
                 const i18nDir = domainConfig.getI18nDir()
-                const locale = opts.locale
-                const specs = opts.spec ? opts.spec.split(',') : ['total']
+                const locale = opts['locale']
+                const specs = opts['spec'] ? opts['spec'].split(',') : ['total']
 
-                const poDir = path.join(opts.podir || i18nDir, domainName)
-                const poPath = path.join(poDir, locale + '.po')
+                const transDir = path.join(opts['transDir'] || i18nDir, domainName)
+                const transPath = getTransPath(transDir, locale)
 
-                for (const poEntry of getPoEntriesFromFile(poPath)) {
-                    if (!checkPoEntrySpecs(poEntry, specs)) {
+                for (const transEntry of await readTransEntries(transPath)) {
+                    if (!checkTransEntrySpecs(transEntry, specs)) {
                         continue
                     }
 
-                    const flag = getPoEntryFlag(poEntry)
+                    const flag = transEntry.flag
                     if (flag) {
                         process.stdout.write(`#, ${flag}\n`)
                     }
-                    if (poEntry.msgctxt) {
-                        process.stdout.write(`msgctxt "${poEntry.msgctxt.replace(/\n/g, '\\n')}"\n`)
+                    if (transEntry.context) {
+                        process.stdout.write(`msgctxt "${transEntry.context.replace(/\n/g, '\\n')}"\n`)
                     }
-                    process.stdout.write(`msgid   "${poEntry.msgid.replace(/\n/g, '\\n')}"\n`)
-                    process.stdout.write(`msgstr  "${poEntry.msgstr[0].replace(/\n/g, '\\n')}"\n\n`)
+                    process.stdout.write(`msgid   "${transEntry.key.replace(/\n/g, '\\n')}"\n`)
+                    process.stdout.write(`msgstr  "${(transEntry.messages.other ?? '').replace(/\n/g, '\\n')}"\n\n`)
                 }
             })
         })
 
     program.command('_compile')
-        .description('[고급] PO 파일에서 번역 에셋 작성')
+        .description('(Internal) Write domain asset from translations')
         .action(async (opts, cmd) => {
             await runSubCommand(cmd.name(), async (domainName, config, domainConfig) => {
                 const i18nDir = domainConfig.getI18nDir()
-                const fallbackLocale = domainConfig.getFallbackLocale()
-
-                const poDir = path.join(i18nDir, domainName)
-
-                if (fallbackLocale != null) {
-                    const tempDir = path.join(getTempDir(), domainName)
-                    shell.rm('-rf', tempDir)
-                    const mergedPoDir = tempDir
-                    await mergeFallbackLocale(domainName, poDir, fallbackLocale, mergedPoDir)
-                    await compileAll(domainName, domainConfig, mergedPoDir)
-                    shell.rm('-rf', tempDir)
-                } else {
-                    await compileAll(domainName, domainConfig, poDir)
-                }
+                const transDir = path.join(i18nDir, domainName)
+                await compileAll(domainName, domainConfig, transDir)
             })
         })
 
     program.command('_sync')
-        .description('[고급] PO 파일 Google Docs 싱크')
+        .description('(Internal) Synchronize translations to remote target')
         .action(async (opts, cmd) => {
             await runSubCommand(cmd.name(), async (domainName, config, domainConfig, drySync) => {
                 const tag = domainConfig.getTag()
                 const i18nDir = domainConfig.getI18nDir()
 
-                const poDir = path.join(i18nDir, domainName)
-                const potPath = path.join(i18nDir, domainName, 'template.pot')
+                const transDir = path.join(i18nDir, domainName)
+                const keysPath = getKeysPath(path.join(i18nDir, domainName))
 
-                await syncPoToTarget(config, domainConfig, tag, potPath, poDir, drySync)
+                await syncTransToTarget(config, domainConfig, tag, keysPath, transDir, drySync)
             })
         })
 
@@ -298,15 +267,15 @@ async function runSubCommand(cmdName: string, action: (domainName: string, confi
     log.heading = cmdName
 
     const globalOpts = program.opts()
-    if (globalOpts.verbose) {
+    if (globalOpts['verbose']) {
         log.level = 'silly'
-    } else if (globalOpts.quiet) {
+    } else if (globalOpts['quiet']) {
         log.level = 'warn'
     }
 
-    const config = await loadConfig(globalOpts.rcfile || '.l10nrc')
-    const domainNames = globalOpts.domains || config.getDomainNames()
-    const drySync = globalOpts.drySync || false
+    const config = await loadConfig(globalOpts['rcfile'] || '.l10nrc')
+    const domainNames = globalOpts['domains'] || config.getDomainNames()
+    const drySync = globalOpts['drySync'] || false
 
     for (const domainName of domainNames) {
         const domainConfig = config.getDomainConfig(domainName)
@@ -323,7 +292,7 @@ async function loadConfig(rcPath: string): Promise<L10nConfig> {
     const explorer = cosmiconfig('l10n')
     const rc = await explorer.load(rcPath)
     const ajv = new Ajv.default()
-    const schema = JSON.parse(fs.readFileSync(path.join(dirname, '..', 'l10nrc.schema.json'), 'utf-8'))
+    const schema = JSON.parse(await fs.readFile(path.join(dirname, '..', 'l10nrc.schema.json'), {encoding: 'utf-8'}))
     const validate = ajv.compile(schema)
     const valid = validate(rc?.config)
     if (!valid) {

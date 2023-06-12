@@ -1,17 +1,20 @@
 import {parse} from 'node-html-parser';
 import he from 'he'
 import log from 'npmlog'
-import {findPoEntry, PoEntryBuilder, setPoEntry} from './po.js'
+import {KeyEntryBuilder} from './key-entry-builder.js'
+import {EntryCollection} from './entry-collection.js'
 import ts from 'typescript'
 import php from 'php-parser'
-import fs from 'fs'
-import path from 'path'
-import {type GetTextTranslations} from 'gettext-parser'
-import {type TemplateMarker} from './common.js'
-import {fileURLToPath} from 'url';
 import {containsAndroidXmlSpecialChars, decodeAndroidStrings} from './compiler/android-xml-utils.js';
+import type {KeyEntry} from './entry.js'
 
-export type PotExtractorOptions = {
+export type TemplateMarker = {
+    start: string
+    end: string
+    type?: 'js'
+}
+
+export type KeyExtractorOptions = {
     keywords: string[] | Set<string>
     tagNames: string[]
     attrNames: string[]
@@ -28,15 +31,20 @@ type KeywordDef = {
     propName: string
 }
 
-export class PotExtractor {
-    public readonly po: GetTextTranslations
-    private options: PotExtractorOptions
-    private readonly keywordDefs: KeywordDef[]
-    private readonly keywordMap: {[keyword: string]: number}
+type KeywordArgumentPositions = {
+    key: number
+    pluralCount: number
+}
 
-    constructor (po: GetTextTranslations, options: Partial<PotExtractorOptions>) {
-        this.po = po
-        this.options = Object.assign<PotExtractorOptions, Partial<PotExtractorOptions>>({
+export class KeyExtractor {
+    public readonly keys: EntryCollection<KeyEntry>
+    private options: KeyExtractorOptions
+    private readonly keywordDefs: KeywordDef[]
+    private readonly keywordMap: {[keyword: string]: KeywordArgumentPositions}
+
+    constructor (options: Partial<KeyExtractorOptions>) {
+        this.keys = new EntryCollection()
+        this.options = Object.assign<KeyExtractorOptions, Partial<KeyExtractorOptions>>({
             keywords: [],
             tagNames: [],
             attrNames: [],
@@ -51,30 +59,14 @@ export class PotExtractor {
         this.keywordMap = buildKeywordMap(this.options.keywords)
     }
 
-    static create (domainName: string, options: Partial<PotExtractorOptions>) {
-        const dirname = path.dirname(fileURLToPath(import.meta.url))
-        const pkg = JSON.parse(fs.readFileSync(path.join(dirname, '..', 'package.json'), 'utf-8'))
-        return new PotExtractor({
-            charset: 'utf-8',
-            headers: {
-                'Project-Id-Version': domainName,
-                'Mime-Version': '1.0',
-                'Content-Type': 'text/plain; charset=utf-8',
-                'Content-Transfer-Encoding': '8bit',
-                'X-Generator': `l10n-tools ${pkg.version}`
-            },
-            translations: {}
-        }, options)
-    }
-
     private extractJsIdentifierNode (filename: string, src: string, ast: ts.SourceFile, startLine = 1) {
         const visit = (node: ts.Node) => {
             if (ts.isExpressionStatement(node)) {
                 const pos = findNonSpace(src, node.pos)
                 try {
-                    const ids = this.evaluateTsArgumentValues(node.expression)
-                    for (const id of ids) {
-                        this.addMessage({filename, line: getLineTo(src, pos, startLine)}, id)
+                    const keys = this.evaluateTsArgumentValues(node.expression)
+                    for (const key of keys) {
+                        this.addMessage({filename, line: getLineTo(src, pos, startLine)}, key)
                     }
                     return
                 } catch (err: any) {
@@ -94,9 +86,9 @@ export class PotExtractor {
                 const errs: any[] = []
                 for (const path of paths) {
                     try {
-                        const ids = this.evaluateTsArgumentValues(node.expression, path)
-                        for (const id of ids) {
-                            this.addMessage({filename, line: getLineTo(src, pos, startLine)}, id)
+                        const keys = this.evaluateTsArgumentValues(node.expression, path)
+                        for (const key of keys) {
+                            this.addMessage({filename, line: getLineTo(src, pos, startLine)}, key)
                         }
                         return
                     } catch (err: any) {
@@ -177,19 +169,19 @@ export class PotExtractor {
 
             if (this.options.tagNames.includes(elem.rawTagName)) {
                 if (elem.rawTagName == 'translate') {
-                    const id = elem.innerHTML.trim()
-                    if (id) {
+                    const key = elem.innerHTML.trim()
+                    if (key) {
                         const line = getLineTo(src, elem.childNodes[0].range[0], startLine)
                         const plural = elem.attributes['translate-plural'] || null
                         const comment = elem.attributes['translate-comment'] || null
                         const context = elem.attributes['translate-context'] || null
-                        this.addMessage({filename, line}, id, {plural, comment, context})
+                        this.addMessage({filename, line}, key, {isPlural: plural != null, comment, context})
                     }
                 } else if (elem.rawTagName == 'i18n') {
                     if (elem.attributes['path']) {
-                        const id = elem.attributes['path']
+                        const key = elem.attributes['path']
                         const line = getLineTo(src, elem.range[0], startLine)
-                        this.addMessage({filename, line}, id)
+                        this.addMessage({filename, line}, key)
                     } else if (elem.attributes[':path']) {
                         const source = elem.attributes[':path']
                         const line = getLineTo(src, elem.range[0], startLine)
@@ -197,9 +189,9 @@ export class PotExtractor {
                     }
                 } else if (elem.rawTagName == 'i18n-t') {
                     if (elem.attributes['keypath']) {
-                        const id = elem.attributes['keypath']
+                        const key = elem.attributes['keypath']
                         const line = getLineTo(src, elem.range[0], startLine)
-                        this.addMessage({filename, line}, id)
+                        this.addMessage({filename, line}, key)
                     } else if (elem.attributes[':keypath']) {
                         const source = elem.attributes[':keypath']
                         const line = getLineTo(src, elem.range[0], startLine)
@@ -209,13 +201,13 @@ export class PotExtractor {
             }
 
             if (this.options.attrNames.some(attrName => elem.attributes[attrName])) {
-                const id = elem.innerHTML.trim()
-                if (id) {
+                const key = elem.innerHTML.trim()
+                if (key) {
                     const line = getLineTo(src, elem.childNodes[0].range[0], startLine)
                     const plural = elem.attributes['translate-plural'] || null
                     const comment = elem.attributes['translate-comment'] || null
                     const context = elem.attributes['translate-context'] || null
-                    this.addMessage({filename, line}, id, {plural, comment, context})
+                    this.addMessage({filename, line}, key, {isPlural: plural != null, comment, context})
                 }
             }
 
@@ -371,6 +363,44 @@ export class PotExtractor {
         }
     }
 
+    private isNumericTsArgument (node: ts.Expression): boolean | null {
+        if (ts.isParenthesizedExpression(node)) {
+            return this.isNumericTsArgument(node.expression)
+        }
+        if (ts.isNumericLiteral(node)) {
+            return true
+        } else if (ts.isStringLiteral(node)) {
+            return false
+        } else if (ts.isIdentifier(node)) {
+            return null
+        } else if (ts.isPropertyAccessExpression(node)) {
+            return null
+        } else if (ts.isBinaryExpression(node) && ts.isPlusToken(node.operatorToken)) {
+            const left = this.isNumericTsArgument(node.left)
+            const right = this.isNumericTsArgument(node.right)
+            if (left == false || right == false) {
+                return false
+            }
+            if (left == null || right == null) {
+                return null
+            }
+            return true
+        } else if (ts.isConditionalExpression(node)) {
+            const whenTrue = this.isNumericTsArgument(node.whenTrue)
+            const whenFalse = this.isNumericTsArgument(node.whenFalse)
+            if (whenTrue == false || whenFalse == false) {
+                return false
+            }
+            if (whenTrue == null || whenFalse == null) {
+                return null
+            }
+            return true
+        } else {
+            debugger
+            throw new Error(`cannot determine '${node.kind}' is numeric`)
+        }
+    }
+
     private getTsCalleeName(node: ts.Node): string | null {
         if (ts.isIdentifier(node)) {
             return node.text
@@ -399,10 +429,11 @@ export class PotExtractor {
                 const calleeName = this.getTsCalleeName(node.expression)
                 if (calleeName != null && this.keywordMap[calleeName]) {
                     try {
-                        const position = this.keywordMap[calleeName]
-                        const ids = this.evaluateTsArgumentValues(node.arguments[position])
-                        for (const id of ids) {
-                            this.addMessage({filename, line: getLineTo(src, pos, startLine)}, id)
+                        const positions = this.keywordMap[calleeName]
+                        const keys = this.evaluateTsArgumentValues(node.arguments[positions.key])
+                        // const isPlural = this.isNumericTsArgument(node.arguments[positions.pluralCount]) != false
+                        for (const key of keys) {
+                            this.addMessage({filename, line: getLineTo(src, pos, startLine)}, key)
                         }
                     } catch (err: any) {
                         log.warn('extractTsNode', err.message)
@@ -494,9 +525,9 @@ export class PotExtractor {
                         if (node.what.name === propName) {
                             const startOffset = src.substr(0, node.loc!.start.offset).lastIndexOf(propName)
                             try {
-                                const ids = this.evaluatePhpArgumentValues(node.arguments[position])
-                                for (const id of ids) {
-                                    this.addMessage({filename, line: node.loc!.start.line}, id)
+                                const keys = this.evaluatePhpArgumentValues(node.arguments[position])
+                                for (const key of keys) {
+                                    this.addMessage({filename, line: node.loc!.start.line}, key)
                                 }
                             } catch (err: any) {
                                 log.warn('extractPhpNode', err.message)
@@ -545,21 +576,21 @@ export class PotExtractor {
         }
     }
 
-    addMessage ({filename, line}: {filename: string, line: number | string}, id: string,
-                options?: { plural?: string | null, comment?: string | null, context?: string | null, allowSpaceInId?: boolean }) {
-        const {plural = null, comment = null, context = null, allowSpaceInId = false} = options ?? {}
-        const poEntry = findPoEntry(this.po, context, id)
-        const builder = poEntry ? PoEntryBuilder.fromPoEntry(poEntry) : new PoEntryBuilder(context, id, {allowSpaceInId})
+    addMessage ({filename, line}: {filename: string, line?: string | number}, key: string,
+                options?: { isPlural?: boolean, comment?: string | null, context?: string | null, allowSpaceInId?: boolean }) {
+        const {isPlural = false, comment = null, context = null, allowSpaceInId = false} = options ?? {}
+        const keyEntry = this.keys.find(context, key)
+        const builder = keyEntry ? KeyEntryBuilder.fromKeyEntry(keyEntry) : new KeyEntryBuilder(context, key, isPlural)
 
-        builder.addReference(filename, line)
-        if (plural) {
-            builder.setPlural(plural)
+        if (typeof line === 'number') {
+            line = line.toString()
         }
+        builder.addReference(filename, line)
         if (comment) {
             builder.addComment(comment)
         }
 
-        setPoEntry(this.po, builder.toPoEntry())
+        this.keys.set(builder.toKeyEntry())
     }
 }
 
@@ -582,11 +613,13 @@ function parseKeyword(keyword: string): KeywordDef {
     }
 }
 
-function buildKeywordMap(keywords: string[] | Set<string>): {[keyword: string]: number} {
-    const keywordMap: {[keyword: string]: number} = {}
+function buildKeywordMap(keywords: string[] | Set<string>): {[keyword: string]: KeywordArgumentPositions} {
+    const keywordMap: {[keyword: string]: KeywordArgumentPositions} = {}
     for (const keyword of keywords) {
-        const [name, pos] = keyword.split(':')
-        keywordMap[name] = pos ? Number.parseInt(pos) : 0
+        const [name, keyPos, pluralCountPos] = keyword.split(':')
+        const key = keyPos ? Number.parseInt(keyPos) : 0
+        const pluralCount = pluralCountPos ? Number.parseInt(pluralCountPos) : key + 1
+        keywordMap[name] = {key, pluralCount}
     }
     return keywordMap
 }

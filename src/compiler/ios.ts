@@ -1,11 +1,12 @@
-import fs from 'fs'
+import fs from 'node:fs/promises'
 import {glob} from 'glob'
 import log from 'npmlog'
 import shell from 'shelljs'
 import * as path from 'path'
 import i18nStringsFiles, {type CommentedI18nStringsMsg, type I18nStringsMsg} from 'i18n-strings-files'
-import {findPoEntry, readPoFile} from '../po.js'
-import {execWithLog, getTempDir} from '../utils.js'
+import {EntryCollection} from '../entry-collection.js'
+import {readTransEntries} from '../entry.js'
+import {execWithLog, extractLocaleFromTransPath, fileExists, getTempDir, listTransPaths} from '../utils.js'
 import {type CompilerConfig} from '../config.js'
 import PQueue from 'p-queue';
 import os from 'os';
@@ -18,18 +19,18 @@ const infoPlistKeys = [
     'NSUserTrackingUsageDescription'
 ]
 
-export default async function (domainName: string, config: CompilerConfig, poDir: string) {
+export async function compileToIosStrings(domainName: string, config: CompilerConfig, transDir: string) {
     const tempDir = path.join(getTempDir(), 'compiler')
     shell.mkdir('-p', tempDir)
     const srcDir = config.getSrcDir()
 
     log.info('compile', `generating .strings files`)
 
-    const poPaths = await glob(`${poDir}/*.po`)
-    for (const poPath of poPaths) {
-        const locale = path.basename(poPath, '.po')
+    const transPaths = await listTransPaths(transDir)
+    for (const transPath of transPaths) {
+        const locale = extractLocaleFromTransPath(transPath)
 
-        const po = readPoFile(poPath)
+        const trans = EntryCollection.loadEntries(await readTransEntries(transPath))
 
         const queue = new PQueue({concurrency: os.cpus().length})
         async function compile(stringsPath: string) {
@@ -38,10 +39,10 @@ export default async function (domainName: string, config: CompilerConfig, poDir
             if (stringsName === 'InfoPlist') {
                 const strings: CommentedI18nStringsMsg = {}
                 for (const key of infoPlistKeys) {
-                    const poEntry = findPoEntry(po, key)
-                    if (poEntry && poEntry.msgstr[0]) {
+                    const transEntry = trans.find(key, null)
+                    if (transEntry && transEntry.messages.other) {
                         strings[key] = {
-                            text: poEntry.msgstr[0] || poEntry.msgid
+                            text: transEntry.messages.other || transEntry.key
                         }
                     } else {
                         delete strings[key]
@@ -49,40 +50,40 @@ export default async function (domainName: string, config: CompilerConfig, poDir
                 }
 
                 const output = generateStringsFile(strings)
-                fs.writeFileSync(stringsPath, output, {encoding: 'utf-8'})
+                await fs.writeFile(stringsPath, output, {encoding: 'utf-8'})
             } else if (stringsName === 'Localizable') {
                 await execWithLog(`find "${srcDir}" -name "*.swift" -print0 | xargs -0 genstrings -q -u -SwiftUI -o "${tempDir}"`)
                 const strings = i18nStringsFiles.readFileSync(path.join(tempDir, 'Localizable.strings'), {encoding: 'utf16le', wantsComments: true})
                 for (const key of Object.keys(strings)) {
-                    const poEntry = findPoEntry(po, null, key)
-                    if (poEntry && poEntry.msgstr[0]) {
-                        strings[key].text = poEntry.msgstr[0] || poEntry.msgid
+                    const transEntry = trans.find(null, key)
+                    if (transEntry && transEntry.messages.other) {
+                        strings[key].text = transEntry.messages.other || transEntry.key
                     } else {
                         delete strings[key]
                     }
                 }
 
                 const output = generateStringsFile(strings)
-                fs.writeFileSync(stringsPath, output, {encoding: 'utf-8'})
+                await fs.writeFile(stringsPath, output, {encoding: 'utf-8'})
             } else {
                 const basePath = path.dirname(path.dirname(stringsPath))
                 for (const extName of ['.xib', '.storyboard']) {
                     const xibPath = path.join(basePath, 'Base.lproj', stringsName + extName)
-                    if (fs.existsSync(xibPath)) {
+                    if (await fileExists(xibPath, true)) {
                         const tempStringsPath = path.join(tempDir, stringsName + '.strings')
                         await execWithLog(`ibtool --export-strings-file "${tempStringsPath}" "${xibPath}"`)
                         const strings = i18nStringsFiles.readFileSync(tempStringsPath, {encoding: 'utf16le', wantsComments: true})
                         for (const key of Object.keys(strings)) {
-                            const poEntry = findPoEntry(po, key)
-                            if (poEntry && poEntry.msgstr[0]) {
-                                strings[key].text = poEntry.msgstr[0] || poEntry.msgid
+                            const transEntry = trans.find(key, null)
+                            if (transEntry && transEntry.messages.other) {
+                                strings[key].text = transEntry.messages.other || transEntry.key
                             } else {
                                 delete strings[key]
                             }
                         }
 
                         const output = generateStringsFile(strings)
-                        fs.writeFileSync(stringsPath, output, {encoding: 'utf-8'})
+                        await fs.writeFile(stringsPath, output, {encoding: 'utf-8'})
                         break
                     }
                 }

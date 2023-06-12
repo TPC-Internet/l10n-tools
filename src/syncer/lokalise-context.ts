@@ -2,8 +2,8 @@ import log from 'npmlog';
 
 type CombinedContextMap = {[tag: string]: string[]}
 
-export function containsContext(context: string | undefined, tag: string, msgctxt: string | undefined): boolean {
-    if (!msgctxt) {
+export function containsContext(context: string | undefined, tag: string, keyContext: string | null): boolean {
+    if (!keyContext) {
         return true
     }
 
@@ -12,17 +12,17 @@ export function containsContext(context: string | undefined, tag: string, msgctx
     }
 
     const contextMap = parseContext(context)
-    return contextMap[tag]?.includes(msgctxt)
+    return contextMap[tag]?.includes(keyContext)
 }
 
-export function addContext(context: string | undefined, tag: string, msgctxt: string | undefined): string {
+export function addContext(context: string | undefined, tag: string, keyContext: string | null): string {
     const contextMap = parseContext(context)
-    if (msgctxt) {
+    if (keyContext) {
         if (!contextMap[tag]) {
             contextMap[tag] = []
         }
-        if (!contextMap[tag].includes(msgctxt)) {
-            contextMap[tag].push(msgctxt)
+        if (!contextMap[tag].includes(keyContext)) {
+            contextMap[tag].push(keyContext)
         }
     }
     if (Object.keys(contextMap).length == 0) {
@@ -44,11 +44,11 @@ export function getContexts(context: string | undefined, tag: string, fillNull: 
     return contextMap[tag]
 }
 
-export function removeContext(context: string | undefined, tag: string, msgctxt: string | null): string {
+export function removeContext(context: string | undefined, tag: string, keyContext: string | null): string {
     const contextMap = parseContext(context)
-    if (msgctxt) {
+    if (keyContext) {
         if (contextMap[tag]) {
-            const index = contextMap[tag].findIndex(ctxt => ctxt == msgctxt)
+            const index = contextMap[tag].findIndex(ctxt => ctxt == keyContext)
             if (index >= 0) {
                 contextMap[tag].splice(index, 1)
                 if (contextMap[tag].length == 0) {

@@ -1,7 +1,6 @@
 import log from 'npmlog'
-import {findPoEntry, getPoEntries, getPoEntryFlag, removePoEntryFlag, setPoEntryFlag} from '../po.js'
 import {type DomainConfig, type L10nConfig, LokaliseConfig} from '../config.js'
-import {type GetTextTranslation, type GetTextTranslations} from 'gettext-parser'
+import type {BaseEntry, KeyEntry, TransEntry} from '../entry.js'
 import {
     type CreateKeyData,
     type Key,
@@ -14,8 +13,9 @@ import {chunk} from 'lodash-es'
 import PQueue from 'p-queue';
 import {addContext, containsContext, getContexts, removeContext} from './lokalise-context.js';
 import {addToArraySet, removeFromArraySet} from '../utils.js';
+import {EntryCollection} from '../entry-collection.js'
 
-export async function syncPoToLokalise (config: L10nConfig, domainConfig: DomainConfig, tag: string, pot: GetTextTranslations, poData: {[locale: string]: GetTextTranslations}, drySync: boolean) {
+export async function syncTransToLokalise (config: L10nConfig, domainConfig: DomainConfig, tag: string, keyEntries: KeyEntry[], allTransData: {[locale: string]: TransEntry[]}, drySync: boolean) {
     const lokaliseConfig = config.getLokaliseConfig()
     const lokaliseApi = new LokaliseApi({apiKey: lokaliseConfig.getToken()})
     const projectId = lokaliseConfig.getProjectId()
@@ -31,9 +31,12 @@ export async function syncPoToLokalise (config: L10nConfig, domainConfig: Domain
         }
     }
     // 2. 로컬 번역과 비교하여 Lokalise 에 업로드할 데이터 만들기
-    const {creatingKeyMap, updatingKeyMap} = updateKeyData(platform, tag, pot, poData, listedKeyMap)
+    const {
+        creatingKeyMap,
+        updatingKeyMap
+    } = updateKeyData(platform, tag, keyEntries, allTransData, listedKeyMap)
     // 3. 로컬 번역 업데이트
-    updatePoData(tag, lokaliseConfig, pot, poData, listedKeyMap)
+    updateTransEntries(tag, lokaliseConfig, keyEntries, allTransData, listedKeyMap)
     // 4. 2에서 준비한 데이터 Lokalise 에 업로드
     await uploadToLokalise(lokaliseApi, projectId, tag, lokaliseConfig, creatingKeyMap, updatingKeyMap, drySync)
 }
@@ -97,13 +100,13 @@ function reverseLocaleSyncMap(key: Key, invertedSyncMap: {[locale: string]: stri
     }
 }
 
-function createUpdateKeyDataByAdding(platform: SupportedPlatforms, tag: string, key: Key | UpdateKeyDataWithId, potEntry: GetTextTranslation): UpdateKeyDataWithId {
+function createUpdateKeyDataByAdding(platform: SupportedPlatforms, tag: string, key: Key | UpdateKeyDataWithId, entry: BaseEntry): UpdateKeyDataWithId {
     return {
         key_id: key.key_id,
-        key_name: encodeKeyName(potEntry.msgid),
+        key_name: encodeKeyName(entry.key),
         platforms: addToArraySet(key.platforms ?? [], platform),
         tags: addToArraySet(key.tags ?? [], tag),
-        context: addContext(key.context, tag, potEntry.msgctxt)
+        context: addContext(key.context, tag, entry.context)
     }
 }
 
@@ -123,8 +126,8 @@ function decodeKeyName(encodedKeyName: string): string {
         .replace(/:END$/, '')
 }
 
-function createUpdateKeyDataByRemoving(platform: SupportedPlatforms, tag: string, key: Key | UpdateKeyDataWithId, keyName: string, msgctxt: string | null): UpdateKeyDataWithId {
-    const context = removeContext(key.context, tag, msgctxt)
+function createUpdateKeyDataByRemoving(platform: SupportedPlatforms, tag: string, key: Key | UpdateKeyDataWithId, keyName: string, keyContext: string | null): UpdateKeyDataWithId {
+    const context = removeContext(key.context, tag, keyContext)
     if (getContexts(context, tag, false).length == 0) {
         return {
             key_id: key.key_id,
@@ -143,12 +146,12 @@ function createUpdateKeyDataByRemoving(platform: SupportedPlatforms, tag: string
     }
 }
 
-function createNewKeyData(platform: SupportedPlatforms, tag: string, potEntry: GetTextTranslation): CreateKeyData {
+function createNewKeyData(platform: SupportedPlatforms, tag: string, keyEntry: KeyEntry): CreateKeyData {
     return {
-        key_name: encodeKeyName(potEntry.msgid),
+        key_name: encodeKeyName(keyEntry.key),
         platforms: [platform],
         tags: [tag],
-        context: addContext(undefined, tag, potEntry.msgctxt)
+        context: addContext(undefined, tag, keyEntry.context)
     }
 }
 
@@ -178,13 +181,14 @@ function createTranslationData(locale: string, msgstr: string): TranslationData 
 function updateKeyData(
     platform: SupportedPlatforms,
     tag: string,
-    pot: GetTextTranslations,
-    poData: {[locale: string]: GetTextTranslations},
+    keyEntries: KeyEntry[],
+    allTransEntries: {[locale: string]: TransEntry[]},
     listedKeyMap: {[keyName: string]: Key}
 ): {
     creatingKeyMap: {[keyName: string]: CreateKeyData},
     updatingKeyMap: {[keyName: string]: UpdateKeyDataWithId}
 } {
+    const keys = EntryCollection.loadEntries(keyEntries)
     // 새로 만들 키
     const creatingKeyMap: {[keyName: string]: CreateKeyData} = {}
     // 기존 키에서 업데이트할 부분
@@ -195,57 +199,57 @@ function updateKeyData(
         if (!key.tags?.includes(tag)) {
             continue
         }
-        for (const msgctxt of getContexts(key.context, tag, true)) {
-            const potEntry = findPoEntry(pot, msgctxt, keyName)
-            if (potEntry == null) {
-                updatingKeyMap[keyName] = createUpdateKeyDataByRemoving(platform, tag, key, keyName, msgctxt)
+        for (const keyContext of getContexts(key.context, tag, true)) {
+            const keyEntry = keys.find(keyContext, keyName)
+            if (keyEntry == null) {
+                updatingKeyMap[keyName] = createUpdateKeyDataByRemoving(platform, tag, key, keyName, keyContext)
             }
         }
     }
 
-    for (const potEntry of getPoEntries(pot)) {
+    for (const keyEntry of keyEntries) {
         // 로컬에서 추출한 pot 에서 (pot 에는 번역은 없고 msgid 만 있음)
-        const entryId = potEntry.msgid
-        const key = updatingKeyMap[entryId] ?? listedKeyMap[entryId]
+        const entryKey = keyEntry.key
+        const key = updatingKeyMap[entryKey] ?? listedKeyMap[entryKey]
         if (key != null) {
             // 기존 키는 있는데
-            if (!key.tags?.includes(tag) || !key.platforms?.includes(platform) || !containsContext(key.context, tag, potEntry.msgctxt)) {
+            if (!key.tags?.includes(tag) || !key.platforms?.includes(platform) || !containsContext(key.context, tag, keyEntry.context)) {
                 // 태그, 플랫폼, context 가 없으면 업데이트
-                updatingKeyMap[entryId] = createUpdateKeyDataByAdding(platform, tag, key, potEntry)
+                updatingKeyMap[entryKey] = createUpdateKeyDataByAdding(platform, tag, key, keyEntry)
             }
         } else {
             // 기존 키 자체가 없으면 새로 키 만들기
-            creatingKeyMap[entryId] = createNewKeyData(platform, tag, potEntry)
+            creatingKeyMap[entryKey] = createNewKeyData(platform, tag, keyEntry)
         }
     }
 
-    for (const [locale, po] of Object.entries(poData)) {
+    for (const [locale, transEntries] of Object.entries(allTransEntries)) {
         // console.log('update sheet locale', locale)
-        for (const poEntry of getPoEntries(po)) {
+        for (const transEntry of transEntries) {
             // 로케일별 po 에서 (po 에는 번역도 있음)
-            const entryId = poEntry.msgid
-            // console.log('update sheet entry id', entryId)
+            const entryKey = transEntry.key
+            // console.log('update sheet entry key', entryKey)
             // console.log('matched entry (locale)', locale)
             // console.log('po entry', poEntry)
 
-            const key = listedKeyMap[entryId]
+            const key = listedKeyMap[entryKey]
             if (key != null) {
                 // 기존 키는 있는데
-                if (poEntry.msgstr[0] && !keyHasTranslation(key, locale)) {
+                if (transEntry.messages.other && !keyHasTranslation(key, locale)) {
                     // 기존 키에 로컬 번역은 있는데, lokalise 에 번역이 있는 경우 unverified 상태로 넣어줌
-                    let updatingKey = updatingKeyMap[entryId]
+                    let updatingKey = updatingKeyMap[entryKey]
                     if (updatingKey == null) {
-                        updatingKey = createUpdateKeyDataByAdding(platform, tag, key, poEntry)
-                        updatingKeyMap[entryId] = updatingKey
+                        updatingKey = createUpdateKeyDataByAdding(platform, tag, key, transEntry)
+                        updatingKeyMap[entryKey] = updatingKey
                     }
-                    appendTranslation(updatingKey, createTranslationData(locale, poEntry.msgstr[0]))
+                    appendTranslation(updatingKey, createTranslationData(locale, transEntry.messages.other))
                 }
             } else {
-                const creatingKey = creatingKeyMap[entryId]
+                const creatingKey = creatingKeyMap[entryKey]
                 if (creatingKey != null) {
                     // 새로 만들 키에 번역 추가 (unverified)
-                    if (poEntry.msgstr[0] && !keyHasTranslation(creatingKey, locale)) {
-                        appendTranslation(creatingKey, createTranslationData(locale, poEntry.msgstr[0]))
+                    if (transEntry.messages.other && !keyHasTranslation(creatingKey, locale)) {
+                        appendTranslation(creatingKey, createTranslationData(locale, transEntry.messages.other))
                     }
                 }
             }
@@ -255,11 +259,11 @@ function updateKeyData(
     return {creatingKeyMap, updatingKeyMap}
 }
 
-function updatePoData(
+function updateTransEntries(
     tag: string,
     config: LokaliseConfig,
-    pot: GetTextTranslations,
-    poData: {[locale: string]: GetTextTranslations},
+    keyEntries: KeyEntry[],
+    allTransEntries: {[locale: string]: TransEntry[]},
     listedKeyMap: {[keyName: string]: Key}
 ) {
     const skipUnverified = config.skipUnverified()
@@ -268,49 +272,41 @@ function updatePoData(
         for (const tr of key.translations) {
             const locale = tr.language_iso
             // lokalise 에 있는 번역에 대해서
-            if (poData[locale] != null) {
+            if (allTransEntries[locale] != null) {
                 // 해당 언어 번역이 있는 경우
-                const po = poData[locale]
-                const poEntries = []
-                for (const msgctxt of getContexts(key.context, tag, true)) {
-                    const poEntry = findPoEntry(po, msgctxt, keyName)
-                    if (poEntry) {
-                        poEntries.push(poEntry)
+                const trans = EntryCollection.loadEntries(allTransEntries[locale])
+                const transEntries: TransEntry[] = []
+                for (const keyContext of getContexts(key.context, tag, true)) {
+                    const transEntry = trans.find(keyContext, keyName)
+                    if (transEntry) {
+                        transEntries.push(transEntry)
                     }
                 }
 
-                for (const poEntry of poEntries) {
+                for (const transEntry of transEntries) {
                     // console.log('updating po, sheet entry', sheetEntry)
                     // console.log('updating po, po', po)
-                    const entryId = poEntry.msgid
-                    const flag = getPoEntryFlag(poEntry)
+                    const entryKey = transEntry.key
                     // console.log('updating po, po entry', poEntry)
                     if (tr.is_unverified) {
-                        if (flag != 'unverified') {
-                            setPoEntryFlag(poEntry, 'unverified')
-                        }
+                        transEntry.flag = 'unverified'
                     } else if (!tr.is_reviewed) {
-                        if (flag != 'not_reviewed') {
-                            setPoEntryFlag(poEntry, 'not_reviewed')
-                        }
+                        transEntry.flag = 'not_reviewed'
                     } else {
-                        if (flag) {
-                            log.notice('updatePoData', `remove all flags of ${locale} of ${entryId}`)
-                            removePoEntryFlag(poEntry)
-                        }
+                        transEntry.flag = null
                     }
 
                     if (skipNotReviewed && !tr.is_reviewed) {
-                        log.info('updatePoData', `skipping not reviewed: ${locale} of ${entryId}`)
+                        log.info('updateTransEntries', `skipping not reviewed: ${locale} of ${entryKey}`)
                         continue
                     }
                     if (skipUnverified && tr.is_unverified) {
-                        log.info('updatePoData', `skipping unverified: ${locale} of ${entryId}`)
+                        log.info('updateTransEntries', `skipping unverified: ${locale} of ${entryKey}`)
                         continue
                     }
-                    if (tr.translation && tr.translation !== poEntry.msgstr[0]) {
-                        log.notice('updatePoData', `updating ${locale} value of ${entryId}: ${poEntry.msgstr[0]} -> ${tr.translation}`)
-                        poEntry.msgstr = [tr.translation]
+                    if (tr.translation && tr.translation !== transEntry.messages.other) {
+                        log.notice('updateTransEntries', `updating ${locale} value of ${entryKey}: ${transEntry.messages.other} -> ${tr.translation}`)
+                        transEntry.messages.other = tr.translation
                     }
                 }
             }

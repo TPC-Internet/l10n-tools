@@ -4,23 +4,22 @@ import log from 'npmlog'
 import * as path from 'path'
 import querystring from 'querystring'
 import url from 'url'
-import {findPoEntry, getPoEntries, getPoEntryFlag, removePoEntryFlag, setPoEntryFlag} from '../po.js'
-import fs from 'fs'
+import {type KeyEntry, type TransEntry} from '../entry.js'
+import fs from 'node:fs/promises'
 import {drive_v3, google, sheets_v4} from 'googleapis'
 import {OAuth2Client} from 'google-auth-library'
-import jsonfile from 'jsonfile'
 import open from 'open'
 import shell from 'shelljs'
 import {type DomainConfig, type GoogleCredentials, GoogleDocsConfig, type L10nConfig} from '../config.js'
-import {type GetTextTranslations} from 'gettext-parser';
+import {EntryCollection} from '../entry-collection.js'
 
 // @ts-ignore
 httpShutdown.extend()
 
-export async function syncPoToGoogleDocs (config: L10nConfig, domainConfig: DomainConfig, tag: string, pot: GetTextTranslations, poData: {[locale: string]: GetTextTranslations}, drySync: boolean) {
+export async function syncTransToGoogleDocs (config: L10nConfig, domainConfig: DomainConfig, tag: string, keyEntries: KeyEntry[], allTransEntries: {[locale: string]: TransEntry[]}, drySync: boolean) {
     const googleDocsConfig = config.getGoogleDocsConfig()
     const sheetName = googleDocsConfig.getSheetName()
-    const credentials = googleDocsConfig.getCredentials()
+    const credentials = await googleDocsConfig.getCredentials()
 
     const drive = google.drive('v3')
     const sheets = google.sheets('v4')
@@ -28,13 +27,13 @@ export async function syncPoToGoogleDocs (config: L10nConfig, domainConfig: Doma
     const auth = await authorize(sheetName, credentials)
 
     const docId = await findDocumentId(drive, auth, googleDocsConfig)
-    log.notice('syncPoToGoogleDocs', `docId: ${docId}`)
+    log.notice('syncTransToGoogleDocs', `docId: ${docId}`)
 
     const rows = await readSheet(sheets, sheetName, auth, docId)
     const columnMap = getColumnMap(rows[0])
     const sheetData = createSheetData(tag, rows, columnMap)
-    updateSheetData(tag, pot, poData, sheetData)
-    updatePoData(tag, pot, poData, sheetData)
+    updateSheetData(tag, keyEntries, allTransEntries, sheetData)
+    updateTransEntries(tag, keyEntries, allTransEntries, sheetData)
 
     const docActions = await updateSheet(tag, rows, columnMap, sheetData)
     await applyDocumentActions(sheetName, sheets, auth, docId, docActions, drySync)
@@ -60,13 +59,13 @@ async function getToken(oauth2Client: OAuth2Client) {
 
     // Check if we have previously stored a token.
     try {
-        return jsonfile.readFileSync(tokenPath)
+        return JSON.parse(await fs.readFile(tokenPath, {encoding: 'utf-8'}))
     } catch (err) {
         const code = await readAuthCode(oauth2Client)
         log.info('getToken', `code is ${code}`)
         const r = await oauth2Client.getToken(code)
         shell.mkdir('-p', path.dirname(tokenPath))
-        fs.writeFileSync(tokenPath, JSON.stringify(r.tokens))
+        await fs.writeFile(tokenPath, JSON.stringify(r.tokens))
         log.info('getToken', `token stored to ${tokenPath}`)
         return r.tokens
     }
@@ -109,7 +108,7 @@ async function findDocumentId(drive: drive_v3.Drive, auth: OAuth2Client, config:
     if (docName == null) {
         throw new Error('doc-id or doc-name is required')
     }
-    log.info('syncPoToGoogleDocs', `finding doc by named ${docName}...`)
+    log.info('syncTransToGoogleDocs', `finding doc by named ${docName}...`)
     if (!documentIdCache.hasOwnProperty(docName)) {
         const {files} = await drive.files.list({
             auth,
@@ -249,115 +248,107 @@ function readDataRow(dataRow: string[], columnMap: L10nColumnMap): L10nDataEntry
     }
 }
 
-function updateSheetData(tag: string, pot: GetTextTranslations, poData: {[locale: string]: GetTextTranslations}, sheetData: {[source: string]: L10nDataEntry}) {
-    for (const potEntry of getPoEntries(pot)) {
-        const entryId = potEntry.msgid
-        if (!sheetData[entryId]) {
-            sheetData[entryId] = {
+function updateSheetData(tag: string, keyEntries: KeyEntry[], allTransEntries: {[locale: string]: TransEntry[]}, sheetData: {[source: string]: L10nDataEntry}) {
+    for (const keyEntry of keyEntries) {
+        const entryKey = keyEntry.key
+        if (!sheetData[entryKey]) {
+            sheetData[entryKey] = {
                 keys: [],
-                source: potEntry.msgid,
+                source: keyEntry.key,
                 targets: {},
                 tags: new Set(),
                 refs: []
             }
         }
 
-        const sheetEntry = sheetData[entryId]
-        if (potEntry.msgctxt) {
-            sheetEntry.keys.push(`${tag}:${potEntry.msgctxt}`)
+        const sheetEntry = sheetData[entryKey]
+        if (keyEntry.context) {
+            sheetEntry.keys.push(`${tag}:${keyEntry.context}`)
         }
 
-        const thisRefs = (potEntry.comments?.reference ?? '').split('\n').filter(ref => ref)
+        const thisRefs = keyEntry.references.filter(ref => ref)
             .map(ref => `${tag}:${ref}`)
         const otherRefs = sheetEntry.refs.filter(ref => !ref.startsWith(`${tag}:`))
         sheetEntry.refs = [...otherRefs, ...thisRefs]
     }
 
-    for (const [locale, po] of Object.entries(poData)) {
+    for (const [locale, transEntries] of Object.entries(allTransEntries)) {
         // console.log('update sheet locale', locale)
-        for (const poEntry of getPoEntries(po)) {
-            const entryId = poEntry.msgid
-            // console.log('update sheet entry id', entryId)
+        for (const transEntry of transEntries) {
+            const entryKey = transEntry.key
+            // console.log('update sheet entry key', entryKey)
             // console.log('matched entry (locale)', locale)
             // console.log('po entry', poEntry)
 
-            if (!sheetData[entryId]) {
-                sheetData[entryId] = {
+            if (!sheetData[entryKey]) {
+                sheetData[entryKey] = {
                     keys: [],
-                    source: poEntry.msgid,
+                    source: transEntry.key,
                     targets: {},
                     tags: new Set(),
                     refs: []
                 }
             }
 
-            const sheetEntry = sheetData[entryId]
+            const sheetEntry = sheetData[entryKey]
 
             sheetEntry.tags.add(tag)
 
-            if (poEntry.msgstr[0]) {
+            if (transEntry.messages.other) {
                 if (!sheetEntry.targets[locale] || sheetEntry.targets[locale].startsWith('$$needs review$$')) {
-                    sheetEntry.targets[locale] = '$$needs review$$ ' + poEntry.msgstr[0]
+                    sheetEntry.targets[locale] = '$$needs review$$ ' + transEntry.messages.other
                 }
-            }
-
-            const thisRefs = (poEntry.comments?.reference ?? '').split('\n').filter(ref => ref)
-                .map(ref => `${tag}:${ref}`)
-            if (thisRefs.length > 0) {
-                const otherRefs = sheetEntry.refs.filter(ref => !ref.startsWith(`${tag}:`))
-                sheetEntry.refs = [...otherRefs, ...thisRefs]
             }
         }
     }
     // console.log('updated sheet data', sheetData)
 }
 
-function updatePoData(tag: string, pot: GetTextTranslations, poData: {[locale: string]: GetTextTranslations}, sheetData: {[source: string]: L10nDataEntry}) {
+function updateTransEntries(tag: string, keyEntries: KeyEntry[], allTransEntries: {[locale: string]: TransEntry[]}, sheetData: {[source: string]: L10nDataEntry}) {
     for (const sheetEntry of Object.values(sheetData)) {
         for (const [locale, target] of Object.entries(sheetEntry.targets)) {
-            if (poData.hasOwnProperty(locale)) {
-                const po = poData[locale]
-                const poEntries = []
+            if (allTransEntries[locale] != null) {
+                const trans = EntryCollection.loadEntries(allTransEntries[locale])
+                const transEntries: TransEntry[] = []
                 for (const tagKey of sheetEntry.keys.filter(key => key.startsWith(`${tag}:`))) {
                    const key = tagKey.substr(tag.length + 1)
-                    const poEntry = findPoEntry(po, key, sheetEntry.source)
-                    if (poEntry) {
-                        poEntries.push(poEntry)
+                    const transEntry = trans.find(key, sheetEntry.source)
+                    if (transEntry) {
+                        transEntries.push(transEntry)
                     }
                 }
-                const poEntry = findPoEntry(po, null, sheetEntry.source)
-                if (poEntry) {
-                    poEntries.push(poEntry)
+                const transEntry = trans.find(null, sheetEntry.source)
+                if (transEntry) {
+                    transEntries.push(transEntry)
                 }
 
-                for (const poEntry of poEntries) {
+                for (const transEntry of transEntries) {
                     // console.log('updating po, sheet entry', sheetEntry)
                     // console.log('updating po, po', po)
-                    const entryId = poEntry.msgid
-                    const flag = getPoEntryFlag(poEntry)
+                    const entryKey = transEntry.key
                     // console.log('updating po, po entry', poEntry)
                     sheetEntry.tags.add(tag)
                     if (target === '$$no translation$$') {
-                        if (flag !== 'no-translation') {
-                            log.notice('updatePoData', `mark 'no-translation' flag of ${locale} of ${entryId}`)
-                            setPoEntryFlag(poEntry, 'no-translation')
+                        if (transEntry.flag !== 'no-translation') {
+                            log.notice('updateTransEntries', `mark 'no-translation' flag of ${locale} of ${entryKey}`)
+                            transEntry.flag = 'no-translation'
                         }
                     } else if (target === '$$needs translation$$') {
-                        if (flag !== 'needs-translation') {
-                            log.notice('updatePoData', `mark 'needs-translation' flag of ${locale} of ${entryId}`)
-                            setPoEntryFlag(poEntry, 'needs-translation')
+                        if (transEntry.flag !== 'needs-translation') {
+                            log.notice('updateTransEntries', `mark 'needs-translation' flag of ${locale} of ${entryKey}`)
+                            transEntry.flag = 'needs-translation'
                         }
                     } else if (target.startsWith('$$needs review$$')) {
                         // do not update po msgstr
                     } else {
-                        if (flag) {
-                            log.notice('updatePoData', `remove mark of ${locale} of ${entryId}`)
-                            removePoEntryFlag(poEntry)
+                        if (transEntry.flag) {
+                            log.notice('updateTransEntries', `remove mark of ${locale} of ${entryKey}`)
+                            transEntry.flag = null
                         }
 
-                        if (target && target !== poEntry.msgstr[0]) {
-                            log.notice('updatePoData', `updating value of ${entryId}: ${poEntry.msgstr[0]} -> ${target}`)
-                            poEntry.msgstr = [target]
+                        if (target && target !== transEntry.messages.other) {
+                            log.notice('updateTransEntries', `updating value of ${entryKey}: ${transEntry.messages.other} -> ${target}`)
+                            transEntry.messages.other = target
                         }
                     }
                 }

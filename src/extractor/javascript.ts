@@ -1,32 +1,32 @@
 import log from 'npmlog'
 import {getSrcPaths} from '../common.js'
-import {PotExtractor} from '../pot-extractor.js'
-import fs from 'fs'
+import {KeyExtractor} from '../key-extractor.js'
+import fs from 'node:fs/promises'
 import * as path from "path"
 import {type DomainConfig} from '../config.js'
-import {writePoFile} from '../po.js';
+import {writeKeyEntries} from '../entry.js'
 
-export default async function (domainName: string, config: DomainConfig, potPath: string) {
+export default async function (domainName: string, config: DomainConfig, keysPath: string) {
     const srcPaths = await getSrcPaths(config, ['.js', '.ts', '.jsx'])
     const keywords = config.getKeywords()
 
-    const extractor = PotExtractor.create(domainName, {keywords})
-    log.info('extractPot', 'extracting from .js, .ts files')
+    const extractor = new KeyExtractor({keywords})
+    log.info('extractKeys', 'extracting from .js, .ts files')
     for (const srcPath of srcPaths) {
-        log.verbose('extractPot', `processing '${srcPath}'`)
+        log.verbose('extractKeys', `processing '${srcPath}'`)
         const ext = path.extname(srcPath)
         if (ext === '.js') {
-            const input = fs.readFileSync(srcPath, {encoding: 'utf-8'})
+            const input = await fs.readFile(srcPath, {encoding: 'utf-8'})
             extractor.extractJsModule(srcPath, input)
         } else if (ext === '.ts') {
-            const input = fs.readFileSync(srcPath, {encoding: 'utf-8'})
+            const input = await fs.readFile(srcPath, {encoding: 'utf-8'})
             extractor.extractTsModule(srcPath, input)
         } else if (ext === '.jsx') {
-            const input = fs.readFileSync(srcPath, {encoding: 'utf-8'})
+            const input = await fs.readFile(srcPath, {encoding: 'utf-8'})
             extractor.extractReactJsModule(srcPath, input)
         } else {
-            log.warn('extractPot', `skipping '${srcPath}': unknown extension`)
+            log.warn('extractKeys', `skipping '${srcPath}': unknown extension`)
         }
     }
-    writePoFile(potPath, extractor.po)
+    await writeKeyEntries(keysPath, extractor.keys.toEntries())
 }

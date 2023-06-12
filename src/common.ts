@@ -1,13 +1,19 @@
-import fs from 'fs'
-import {po as gettextPo, type GetTextTranslations} from 'gettext-parser'
 import {glob} from 'glob'
 import log from 'npmlog'
 import * as path from 'path'
 import shell from 'shelljs'
-import {getPoEntries, findPoEntry, getPoEntryFlag, setPoEntryFlag, readPoFile, writePoFile} from './po.js'
-import {execWithLog, requireCmd} from './utils.js'
+import {execWithLog, fileExists, getTransPath, requireCmd} from './utils.js'
+import {
+    readKeyEntries,
+    readTransEntries,
+    toTransEntry,
+    type TransEntry,
+    type TransMessages,
+    writeTransEntries,
+} from './entry.js'
 import {type DomainConfig, ValidationConfig} from './config.js'
-import {validateMsg} from './validator.js'
+import {validateMessages} from './validator.js'
+import {EntryCollection} from './entry-collection.js'
 
 export async function getSrcPaths (config: DomainConfig, exts: string[]): Promise<string[]> {
     const srcDirs = config.getSrcDirs()
@@ -42,149 +48,56 @@ export async function xgettext (domainName: string, language: string, keywords: 
             ${srcPaths.join(' ')}`, 'xgettext')
 }
 
-export function updatePo (potPath: string, fromPoDir: string, poDir: string, locales: string[], validationConfig: ValidationConfig | null) {
-    shell.mkdir('-p', poDir)
-    const potInput = fs.readFileSync(potPath)
-    let basePo: GetTextTranslations | null = null
+export async function updateTrans (keysPath: string, fromTransDir: string, transDir: string, locales: string[], validationConfig: ValidationConfig | null) {
+    shell.mkdir('-p', transDir)
+    let baseTrans: EntryCollection<TransEntry> | null = null
     const baseLocale = validationConfig?.getBaseLocale() ?? null
     if (baseLocale != null) {
         try {
-            basePo = readPoFile(path.join(fromPoDir, baseLocale + '.po'))
+            const transEntries = await readTransEntries(getTransPath(fromTransDir, baseLocale))
+            baseTrans = EntryCollection.loadEntries(transEntries)
         } catch (err) {
-            log.warn('updatePo', 'Failed to read validation base locale file')
+            log.warn('updateTrans', 'Failed to read validation base locale file')
         }
     }
     for (const locale of locales) {
-        const poFile = locale + '.po'
-        const fromPoPath = path.join(fromPoDir, poFile)
+        const fromTransPath = getTransPath(fromTransDir, locale)
 
-        const pot = gettextPo.parse(potInput, {defaultCharset: 'UTF-8'})
-        pot.headers['language'] = locale
-        if (fs.existsSync(fromPoPath)) {
-            const fromPo = readPoFile(fromPoPath)
-            for (const potEntry of getPoEntries(pot)) {
-                const fromPoEntry = findPoEntry(fromPo, potEntry.msgctxt || null, potEntry.msgid)
-                if (fromPoEntry != null) {
-                    potEntry.msgstr = fromPoEntry.msgstr.map(value => value === '$$no translation$$' ? '' : value)
+        const keyTransEntries = (await readKeyEntries(keysPath)).map(entry => toTransEntry(entry))
+        // const valueCollection = KeyCollection.loadEntries<ValueEntry>(keyEntries.map(e => toValueEntry(e)))
+        if (await fileExists(fromTransPath, true)) {
+            const fromTrans = EntryCollection.loadEntries<TransEntry>(await readTransEntries(fromTransPath))
+            for (const keyTransEntry of keyTransEntries) {
+                const fromTransEntry = fromTrans.find(keyTransEntry.context, keyTransEntry.key)
+                if (fromTransEntry != null) {
+                    keyTransEntry.messages = {...fromTransEntry.messages}
                     if (validationConfig != null && baseLocale != locale) {
                         try {
-                            let baseMsg: string
-                            if (basePo == null) {
-                                baseMsg = potEntry.msgid
+                            let baseMessages: TransMessages
+                            if (baseTrans == null) {
+                                baseMessages = keyTransEntry.messages
                             } else {
-                                const basePoEntry = findPoEntry(basePo, potEntry.msgctxt || null, potEntry.msgid)
-                                baseMsg = basePoEntry?.msgstr[0] ?? potEntry.msgid
+                                const baseTransEntry = baseTrans.findByEntry(keyTransEntry)
+                                baseMessages = baseTransEntry?.messages ?? keyTransEntry.messages
                             }
-                            validateMsg(baseMsg, potEntry.msgstr[0])
+                            validateMessages(baseMessages, keyTransEntry.messages)
                         } catch (err: any) {
                             log.warn('validation', `[${locale}] ${err.constructor.name}: ${err.message}`)
-                            if (potEntry.msgctxt) {
-                                log.warn('validation', `ctxt: \`${potEntry.msgctxt}'`)
+                            if (keyTransEntry.context) {
+                                log.warn('validation', `context: \`${keyTransEntry.context}'`)
                             }
-                            log.warn('validation', `key: \`${potEntry.msgid}'`)
+                            log.warn('validation', `key: \`${keyTransEntry.key}'`)
                             if (!validationConfig.getSkip()) {
                                 throw err
                             }
                         }
                     }
-                    const flag = getPoEntryFlag(fromPoEntry)
-                    if (flag) {
-                        setPoEntryFlag(potEntry, flag)
-                    }
+                    keyTransEntry.flag = fromTransEntry.flag
                 }
             }
         }
 
-        const poPath = path.join(poDir, poFile)
-        writePoFile(poPath, pot)
-        cleanupPo(poPath)
+        const transPath = getTransPath(transDir, locale)
+        await writeTransEntries(transPath, keyTransEntries)
     }
-}
-
-export async function mergeFallbackLocale(domainName: string, poDir: string, fallbackLocale: string, mergedPoDir: string): Promise<void> {
-    shell.mkdir('-p', mergedPoDir)
-    const fallbackPo = readPoFile(path.join(poDir, fallbackLocale + '.po'))
-
-    const poPaths = await glob(`${poDir}/*.po`)
-    for (const poPath of poPaths) {
-        const locale = path.basename(poPath, '.po')
-        const po = readPoFile(poPath)
-        if (locale !== fallbackLocale) {
-            for (const poEntry of getPoEntries(po)) {
-                if (!poEntry.msgstr[0]) {
-                    const fallbackPoEntry = findPoEntry(fallbackPo, poEntry.msgctxt || null, poEntry.msgid)
-                    if (fallbackPoEntry != null && fallbackPoEntry.msgstr[0]) {
-                        poEntry.msgstr = fallbackPoEntry.msgstr
-                    }
-                }
-            }
-        }
-        const mergedPoPath = path.join(mergedPoDir, path.basename(poPath))
-        writePoFile(mergedPoPath, po)
-        cleanupPo(mergedPoPath)
-    }
-}
-
-export function cleanupPot (potPath: string) {
-    // POT-Creation-Date 항목이 자꾸 바뀌어서 diff 생기는 것 방지
-    // 빈 주석, fuzzy 마크 지우기
-    const input = fs.readFileSync(potPath, {encoding: 'utf-8'})
-    let output = input
-        .replace(/^"POT-Creation-Date:.*\n/mg, '')
-        .replace(/^# *\n/mg, '')
-        .replace(/^#, fuzzy *\n/mg, '')
-        .replace(/^(#.*), fuzzy(.*)/mg, '$1$2')
-    if (!output.endsWith('\n'))
-        output += '\n'
-    fs.writeFileSync(potPath, output, {encoding: 'utf-8'})
-}
-
-export function cleanupPo (poPath: string) {
-    // POT-Creation-Date 항목 제가 (쓸데없는 diff 방지)
-    // 빈 주석, fuzzy 마크 지우기
-    // source 주석 제거 (쓸데없는 diff 방지)
-    // Language 항목 제대로 설정
-    const language = path.basename(poPath, '.po')
-    const input = fs.readFileSync(poPath, {encoding: 'utf-8'})
-    let output = input
-        .replace(/^"POT-Creation-Date:.*\n/mg, '')
-        .replace(/^# *\n/mg, '')
-        .replace(/^#, fuzzy *\n/mg, '')
-        .replace(/^(#.*), fuzzy(.*)/mg, '$1$2')
-        .replace(/^#:.*\n/mg, '')
-        .replace(/^"Content-Type: .*\\n"/mg, '"Content-Type: text/plain; charset=UTF-8\\n"')
-        .replace(/^"Language: \\n"/mg, `"Language: ${language}\\n"`)
-    if (!output.endsWith('\n'))
-        output += '\n'
-    fs.writeFileSync(poPath, output, {encoding: 'utf-8'})
-}
-
-export type TemplateMarker = {
-    start: string
-    end: string
-    type?: 'js'
-}
-
-export function handleMarker(src: string, srcIndex: number, marker: TemplateMarker, fn: (inMarker: boolean, content: string) => void) {
-    while (true) {
-        let startOffset = src.indexOf(marker.start, srcIndex)
-        if (startOffset === -1)
-            break
-
-        let endOffset = src.indexOf(marker.end, startOffset + marker.start.length)
-        if (endOffset === -1) {
-            srcIndex = startOffset + marker.start.length
-            continue
-        }
-
-        if (startOffset > srcIndex) {
-            fn(false, src.substring(srcIndex, startOffset))
-        }
-
-        endOffset += marker.end.length
-        const content = src.substring(startOffset, endOffset)
-        fn(true, content)
-        srcIndex = endOffset
-    }
-    fn(false, src.substring(srcIndex))
 }
