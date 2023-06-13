@@ -1,6 +1,6 @@
 import log from 'npmlog'
 import {type DomainConfig, type L10nConfig, LokaliseConfig} from '../config.js'
-import type {BaseEntry, KeyEntry, TransEntry} from '../entry.js'
+import {type KeyEntry, type TransEntry, type TransMessages} from '../entry.js'
 import {
     type CreateKeyData,
     type Key,
@@ -9,7 +9,7 @@ import {
     type TranslationData,
     type UpdateKeyDataWithId
 } from '@lokalise/node-api'
-import {chunk} from 'lodash-es'
+import {chunk, isEqual, pickBy} from 'lodash-es'
 import PQueue from 'p-queue';
 import {addContext, containsContext, getContexts, removeContext} from './lokalise-context.js';
 import {addToArraySet, removeFromArraySet} from '../utils.js';
@@ -28,7 +28,7 @@ export async function syncTransToLokalise (config: L10nConfig, domainConfig: Dom
     for (const key of listedKeys) {
         const keyPlatform = key.key_name[platform]
         if (keyPlatform) {
-            listedKeyMap[decodeKeyName(keyPlatform)] = key
+            listedKeyMap[keyPlatform] = key
         }
     }
     // 2. 로컬 번역과 비교하여 Lokalise 에 업로드할 데이터 만들기
@@ -104,7 +104,7 @@ function reverseLocaleSyncMap(key: Key, invertedSyncMap: {[locale: string]: stri
 function createUpdateKeyDataByAddingKeyEntry(platform: SupportedPlatforms, tag: string, key: Key | UpdateKeyDataWithId, entry: KeyEntry): UpdateKeyDataWithId {
     return {
         key_id: key.key_id,
-        key_name: encodeKeyName(entry.key),
+        key_name: entry.key,
         platforms: addToArraySet(key.platforms ?? [], platform),
         tags: addToArraySet(key.tags ?? [], tag),
         context: addContext(key.context, tag, entry.context),
@@ -112,20 +112,14 @@ function createUpdateKeyDataByAddingKeyEntry(platform: SupportedPlatforms, tag: 
     }
 }
 
-function encodeKeyName(keyName: string): string {
-    if (/^\s/.test(keyName)) {
-        keyName = 'BEG:' + keyName
+function createUpdateKeyDataByAddingTransEntry(platform: SupportedPlatforms, tag: string, key: Key | UpdateKeyDataWithId, entry: TransEntry): UpdateKeyDataWithId {
+    return {
+        key_id: key.key_id,
+        key_name: entry.key,
+        platforms: addToArraySet(key.platforms ?? [], platform),
+        tags: addToArraySet(key.tags ?? [], tag),
+        context: addContext(key.context, tag, entry.context),
     }
-    if (/\s$/.test(keyName)) {
-        keyName = keyName + ':END'
-    }
-    return keyName
-}
-
-function decodeKeyName(encodedKeyName: string): string {
-    return encodedKeyName
-        .replace(/^BEG:/, '')
-        .replace(/:END$/, '')
 }
 
 function createUpdateKeyDataByRemoving(platform: SupportedPlatforms, tag: string, key: Key | UpdateKeyDataWithId, keyName: string, keyContext: string | null): UpdateKeyDataWithId {
@@ -133,14 +127,14 @@ function createUpdateKeyDataByRemoving(platform: SupportedPlatforms, tag: string
     if (getContexts(context, tag, false).length == 0) {
         return {
             key_id: key.key_id,
-            key_name: encodeKeyName(keyName),
+            key_name: keyName,
             tags: removeFromArraySet(key.tags ?? [], tag),
             context: context
         }
     } else {
         return {
             key_id: key.key_id,
-            key_name: encodeKeyName(keyName),
+            key_name: keyName,
             platforms: addToArraySet(key.platforms ?? [], platform),
             tags: addToArraySet(key.tags ?? [], tag),
             context: context
@@ -150,7 +144,8 @@ function createUpdateKeyDataByRemoving(platform: SupportedPlatforms, tag: string
 
 function createNewKeyData(platform: SupportedPlatforms, tag: string, keyEntry: KeyEntry): CreateKeyData {
     return {
-        key_name: encodeKeyName(keyEntry.key),
+        key_name: keyEntry.key,
+        is_plural: keyEntry.isPlural,
         platforms: [platform],
         tags: [tag],
         context: addContext(undefined, tag, keyEntry.context)
@@ -172,11 +167,19 @@ function keyHasTranslation(key: Key | CreateKeyData, locale: string): boolean {
     return key.translations.some(tr => tr.language_iso == locale)
 }
 
-function createTranslationData(locale: string, msgstr: string): TranslationData {
-    return {
-        language_iso: locale,
-        translation: msgstr,
-        is_unverified: true
+function createTranslationData(locale: string, isPlural: boolean, messages: TransMessages): TranslationData {
+    if (isPlural) {
+        return {
+            language_iso: locale,
+            translation: messages,
+            is_unverified: true
+        }
+    } else {
+        return {
+            language_iso: locale,
+            translation: messages['other'],
+            is_unverified: true
+        }
     }
 }
 
@@ -221,7 +224,7 @@ function updateKeyData(
                 !containsComment(key.description, tag, keyEntry.comments)
             ) {
                 // 태그, 플랫폼, context 가 없으면 업데이트
-                updatingKeyMap[entryKey] = createUpdateKeyDataByAdding(platform, tag, key, keyEntry)
+                updatingKeyMap[entryKey] = createUpdateKeyDataByAddingKeyEntry(platform, tag, key, keyEntry)
             }
         } else {
             // 기존 키 자체가 없으면 새로 키 만들기
@@ -241,21 +244,21 @@ function updateKeyData(
             const key = listedKeyMap[entryKey]
             if (key != null) {
                 // 기존 키는 있는데
-                if (transEntry.messages.other && !keyHasTranslation(key, locale)) {
+                if (transEntry.messages['other'] && !keyHasTranslation(key, locale)) {
                     // 기존 키에 로컬 번역은 있는데, lokalise 에 번역이 있는 경우 unverified 상태로 넣어줌
                     let updatingKey = updatingKeyMap[entryKey]
                     if (updatingKey == null) {
-                        updatingKey = createUpdateKeyDataByAdding(platform, tag, key, transEntry)
+                        updatingKey = createUpdateKeyDataByAddingTransEntry(platform, tag, key, transEntry)
                         updatingKeyMap[entryKey] = updatingKey
                     }
-                    appendTranslation(updatingKey, createTranslationData(locale, transEntry.messages.other))
+                    appendTranslation(updatingKey, createTranslationData(locale, key.is_plural, transEntry.messages))
                 }
             } else {
                 const creatingKey = creatingKeyMap[entryKey]
                 if (creatingKey != null) {
                     // 새로 만들 키에 번역 추가 (unverified)
-                    if (transEntry.messages.other && !keyHasTranslation(creatingKey, locale)) {
-                        appendTranslation(creatingKey, createTranslationData(locale, transEntry.messages.other))
+                    if (transEntry.messages['other'] && !keyHasTranslation(creatingKey, locale)) {
+                        appendTranslation(creatingKey, createTranslationData(locale, creatingKey.is_plural == true, transEntry.messages))
                     }
                 }
             }
@@ -310,9 +313,23 @@ function updateTransEntries(
                         log.info('updateTransEntries', `skipping unverified: ${locale} of ${entryKey}`)
                         continue
                     }
-                    if (tr.translation && tr.translation !== transEntry.messages.other) {
-                        log.notice('updateTransEntries', `updating ${locale} value of ${entryKey}: ${transEntry.messages.other} -> ${tr.translation}`)
-                        transEntry.messages.other = tr.translation
+                    if (tr.translation) {
+                        if (key.is_plural) {
+                            try {
+                                const translations = pickBy(JSON.parse(tr.translation), value => !!value)
+                                if (!isEqual(transEntry.messages, translations)) {
+                                    log.notice('updateTransEntries', `updating ${locale} value of ${entryKey}: ${JSON.stringify(transEntry.messages)} -> ${tr.translation}`)
+                                    transEntry.messages = translations
+                                }
+                            } catch (err) {
+                                log.warn('updateTransEntries', `cannot parse translation object: ${tr.translation}`)
+                            }
+                        } else {
+                            if (tr.translation !== transEntry.messages['other']) {
+                                log.notice('updateTransEntries', `updating ${locale} value of ${entryKey}: ${transEntry.messages['other']} -> ${tr.translation}`)
+                                transEntry.messages = {other: tr.translation}
+                            }
+                        }
                     }
                 }
             }

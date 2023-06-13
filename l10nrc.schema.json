@@ -3,7 +3,7 @@
     "additionalProperties": false,
     "definitions": {
         "CompilerType": {
-            "description": "json (vue-gettext): Single JSON all locales merged\njson-dir (i18next): JSON file per locale\npo-json: JSON PO file per locale\nmo (python): MO file per locale\nnode-gettext: PO file per locale\nandroid: Generate Android strings.xml\nios: Merge into iOS strings file",
+            "description": "json (vue-gettext): Single JSON all locales merged\njson-dir: JSON file per locale (plural not supported)\nnode-i18n: JSON file per locale with node-i18n plural type\nvue-i18n: JSON file per locale with vue-i18n plural type\ni18next: JSON file per locale with i18next plural type\npo-json: JSON PO file per locale\nmo (python): MO file per locale\nnode-gettext: PO file per locale\nandroid: Generate Android strings.xml\nios: Merge into iOS strings file",
             "enum": [
                 "android",
                 "i18next",
@@ -12,9 +12,11 @@
                 "json-dir",
                 "mo",
                 "node-gettext",
+                "node-i18n",
                 "po-json",
                 "python",
-                "vue-gettext"
+                "vue-gettext",
+                "vue-i18n"
             ],
             "type": "string"
         },
@@ -85,10 +87,6 @@
                             "additionalProperties": false,
                             "properties": {
                                 "default-locale": {
-                                    "type": "string"
-                                },
-                                "key-separator": {
-                                    "description": "If specified, split key to object with separator (json-dir)",
                                     "type": "string"
                                 },
                                 "res-dir": {

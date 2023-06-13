@@ -5,11 +5,12 @@ import shell from 'shelljs'
 import * as path from 'path'
 import i18nStringsFiles, {type CommentedI18nStringsMsg, type I18nStringsMsg} from 'i18n-strings-files'
 import {EntryCollection} from '../entry-collection.js'
-import {readTransEntries} from '../entry.js'
+import {readTransEntries, type TransMessages} from '../entry.js'
 import {execWithLog, extractLocaleFromTransPath, fileExists, getTempDir, listTransPaths} from '../utils.js'
 import {type CompilerConfig} from '../config.js'
 import PQueue from 'p-queue';
 import os from 'os';
+import plist from "plist";
 
 const infoPlistKeys = [
     'NSCameraUsageDescription',
@@ -18,6 +19,14 @@ const infoPlistKeys = [
     'NSLocationWhenInUseUsageDescription',
     'NSUserTrackingUsageDescription'
 ]
+
+type StringsDictValue = {
+    'NSStringLocalizedFormatKey': '%#@format@',
+    'format': {
+        'NSStringFormatSpecTypeKey': 'NSStringPluralRuleType',
+        'NSStringFormatValueTypeKey': 'li',
+    } & TransMessages
+}
 
 export async function compileToIosStrings(domainName: string, config: CompilerConfig, transDir: string) {
     const tempDir = path.join(getTempDir(), 'compiler')
@@ -54,17 +63,44 @@ export async function compileToIosStrings(domainName: string, config: CompilerCo
             } else if (stringsName === 'Localizable') {
                 await execWithLog(`find "${srcDir}" -name "*.swift" -print0 | xargs -0 genstrings -q -u -SwiftUI -o "${tempDir}"`)
                 const strings = i18nStringsFiles.readFileSync(path.join(tempDir, 'Localizable.strings'), {encoding: 'utf16le', wantsComments: true})
+                const stringsDict: {[key: string]: StringsDictValue} = {}
+                const stringsDictPath = path.join(path.dirname(stringsPath), stringsName + '.stringsdict')
                 for (const key of Object.keys(strings)) {
                     const transEntry = trans.find(null, key)
-                    if (transEntry && transEntry.messages.other) {
-                        strings[key].text = transEntry.messages.other || transEntry.key
+                    if (transEntry && transEntry.messages['other']) {
+                        strings[key].text = transEntry.messages['other']
+                        if (Object.keys(transEntry.messages).length > 1) {
+                            if (!await fileExists(stringsDictPath, false)) {
+                                throw new Error(`[${locale}] Add ${stringsName}.stringsdict file to project to utilize plural translation`)
+                            }
+                            const messages = Object.fromEntries(
+                                Object.entries(transEntry.messages).map(([quantity, message]) => {
+                                    const regex = /%(1$)?l?[dDfuUi]/
+                                    if (!regex.test(message)) {
+                                        throw new Error(`[${locale}] "${quantity}" of "${transEntry.key}": count format should be the first: "${message}"`)
+                                    }
+                                    return [quantity, message.replace(regex, '%li')]
+                                })
+                            )
+                            stringsDict[key] = {
+                                'NSStringLocalizedFormatKey': '%#@format@',
+                                'format': {
+                                    'NSStringFormatSpecTypeKey': 'NSStringPluralRuleType',
+                                    'NSStringFormatValueTypeKey': 'li',
+                                    ...messages
+                                }
+                            }
+                        }
                     } else {
                         delete strings[key]
                     }
                 }
 
                 const output = generateStringsFile(strings)
+                const stringsDictOutput = plist.build(stringsDict)
+
                 await fs.writeFile(stringsPath, output, {encoding: 'utf-8'})
+                await fs.writeFile(stringsDictPath, stringsDictOutput, {encoding: 'utf-8'})
             } else {
                 const basePath = path.dirname(path.dirname(stringsPath))
                 for (const extName of ['.xib', '.storyboard']) {

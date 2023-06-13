@@ -17,6 +17,7 @@ import {EntryCollection} from '../entry-collection.js'
 httpShutdown.extend()
 
 export async function syncTransToGoogleDocs (config: L10nConfig, domainConfig: DomainConfig, tag: string, keyEntries: KeyEntry[], allTransEntries: {[locale: string]: TransEntry[]}, drySync: boolean) {
+    warnPlural(keyEntries)
     const googleDocsConfig = config.getGoogleDocsConfig()
     const sheetName = googleDocsConfig.getSheetName()
     const credentials = await googleDocsConfig.getCredentials()
@@ -37,6 +38,15 @@ export async function syncTransToGoogleDocs (config: L10nConfig, domainConfig: D
 
     const docActions = await updateSheet(tag, rows, columnMap, sheetData)
     await applyDocumentActions(sheetName, sheets, auth, docId, docActions, drySync)
+}
+
+function warnPlural(keyEntries: KeyEntry[]) {
+    for (const keyEntry of keyEntries) {
+        if (keyEntry.isPlural) {
+            log.warn('syncTransToGoogleDocs', `google-docs syncer does not support plurals (key: ${keyEntry.key})`)
+            return
+        }
+    }
 }
 
 async function authorize(sheetName: string, credentials: GoogleCredentials) {

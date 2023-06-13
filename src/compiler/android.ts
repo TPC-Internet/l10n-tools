@@ -19,6 +19,8 @@ import {
     isTextNode,
     parseAndroidXml,
     type XMLNode,
+    type XMLTagNode,
+    type XMLTextNode,
 } from './android-xml-utils.js';
 import type {XMLBuilder, XMLParser} from 'fast-xml-parser';
 import {extractLocaleFromTransPath, listTransPaths} from '../utils.js'
@@ -88,39 +90,69 @@ export async function compileToAndroidXml(domainName: string, config: CompilerCo
                     continue
                 }
 
-                // html format 은 번역 텍스트 그대로 사용
-                const format = getAttrValue(node, 'format')
-                if (format === 'html') {
-                    // no post process
-                    dstResources.push({...node, string: [createTextNode(value, true)]})
-                } else {
-                    // CDATA 노드인 경우 CDATA를 그대로 살려서 스트링만 교체
-                    if (node.string.some(node => isCDataNode(node))) {
-                        dstResources.push({...node, string: [createTextNode(value, true)]})
-                    } else if (containsAndroidXmlSpecialChars(value)) {
-                        dstResources.push({...node, string: [createCDataNode(value, false)]})
-                    } else {
-                        // 그 외의 경우는 android string encoding 하여 사용
-                        dstResources.push({...node, string: [createTextNode(value, false)]})
-                    }
+                const valueNode = createValueNode(node, node.string, value)
+                dstResources.push({...node, string: [valueNode]})
+            } else if (isTagNode(node, 'plurals')) {
+                // translatable="false" 인 태그는 스킵
+                const translatable = getAttrValue(node, 'translatable')
+                if (translatable == 'false') {
+                    passingText = true
+                    continue
                 }
-                continue
-            }
 
-            if (isTagNode(node, 'plurals')) {
+                // name attr 없는 태그는 문제가 있는 것인데, 일단 스킵
                 const name = getAttrValue(node, 'name')
-                if (name != null) {
-                    const dstNode = findFirstTagNode(dstResNode.resources, 'plurals', {name})
-                    if (dstNode != null) {
-                        dstResources.push(dstNode)
-                        continue
-                    }
+                if (name == null) {
+                    passingText = true
+                    continue
                 }
-                passingText = true
-                continue
-            }
 
-            dstResources.push(node)
+                // 번역이 없는 태그도 스킵
+                const transEntry = trans.find(name, null)
+                if (transEntry == null) {
+                    passingText = true
+                    continue
+                }
+                let values = transEntry.messages
+                if (Object.keys(values).length == 0) {
+                    passingText = true
+                    continue
+                }
+
+                let plFirstTextNode: XMLTextNode | null = null
+                let plLastTextNode: XMLTextNode | null = null
+                const plurals = (node as XMLTagNode).plurals
+                if (isTextNode(plurals[0])) {
+                    plFirstTextNode = plurals[0]
+                }
+                if (isTextNode(plurals[plurals.length - 1])) {
+                    plLastTextNode = plurals[plurals.length - 1] as XMLTextNode
+                }
+
+                let itemNode = findFirstTagNode(plurals, 'item', {quantity: 'other'})
+                if (itemNode == null) {
+                    itemNode = findFirstTagNode(plurals, 'item')
+                }
+                if (itemNode == null) {
+                    passingText = true
+                    continue
+                }
+
+                const dstPlurals: XMLNode[] = []
+                for (const [key, value] of Object.entries(transEntry.messages)) {
+                    if (plFirstTextNode != null) {
+                        dstPlurals.push({...plFirstTextNode})
+                    }
+                    const valueNode = createValueNode(itemNode, itemNode.item, value)
+                    dstPlurals.push({...itemNode, item: [valueNode], ':@': {'@_quantity': key}})
+                }
+                if (plLastTextNode != null) {
+                    dstPlurals.push({...plLastTextNode})
+                }
+                dstResources.push({...node, plurals: dstPlurals})
+            } else {
+                dstResources.push(node)
+            }
         }
 
         if (locale === defaultLocale) {
@@ -130,6 +162,24 @@ export async function compileToAndroidXml(domainName: string, config: CompilerCo
         dstResNode.resources = dstResources
 
         await writeXmlJson(builder, dstXmlJson, resDir, locale)
+    }
+}
+
+function createValueNode(node: XMLTagNode, children: XMLNode[], value: string) {
+    const format = getAttrValue(node, 'format')
+    // html format 은 번역 텍스트 그대로 사용
+    if (format === 'html') {
+        return createTextNode(value, true)
+    } else {
+        // CDATA 노드인 경우 CDATA를 그대로 살려서 스트링만 교체
+        if (children.some(node => isCDataNode(node))) {
+            return createTextNode(value, true)
+        } else if (containsAndroidXmlSpecialChars(value)) {
+            return createCDataNode(value, false)
+        } else {
+            // 그 외의 경우는 android string encoding 하여 사용
+            return createTextNode(value, false)
+        }
     }
 }
 

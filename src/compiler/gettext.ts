@@ -5,7 +5,7 @@ import * as path from "path"
 import * as gettextParser from "gettext-parser"
 import {type GetTextTranslation, type GetTextTranslations} from 'gettext-parser'
 import fs from 'node:fs/promises'
-import {readTransEntries, type TransEntry} from '../entry.js'
+import {getPluralKeys, readTransEntries, type TransEntry} from '../entry.js'
 import {fileURLToPath} from 'url'
 import {extractLocaleFromTransPath, listTransPaths} from '../utils.js'
 
@@ -63,20 +63,28 @@ async function createPo(domainName: string, locale: string, transEntries: TransE
         if (po.translations[msgctxt] == null) {
             po.translations[msgctxt] = {}
         }
-        po.translations[msgctxt][msgid] = createPoEntry(transEntry)
+        po.translations[msgctxt][msgid] = createPoEntry(locale, transEntry)
     }
     return po
 }
 
-function createPoEntry(transEntry: TransEntry): GetTextTranslation {
-    // plural not supported yet
-    return {
-        msgctxt: transEntry.context || undefined,
-        msgid: transEntry.key,
-        msgid_plural: false,
-        msgstr: transEntry.messages.other ? [transEntry.messages.other] : [],
-        comments: {
-            flag: transEntry.flag || undefined
+function createPoEntry(locale: string, transEntry: TransEntry): GetTextTranslation {
+    if (!transEntry.messages['other'] || Object.keys(transEntry.messages).length == 1) {
+        return {
+            msgctxt: transEntry.context || undefined,
+            msgid: transEntry.key,
+            msgstr: [transEntry.messages['other'] || '']
+        }
+    } else {
+        const msgstr: string[] = []
+        for (const key of getPluralKeys(locale)) {
+            msgstr.push(transEntry.messages[key] || transEntry.messages['other'] || '')
+        }
+        return {
+            msgctxt: transEntry.context || undefined,
+            msgid: transEntry.key,
+            msgid_plural: transEntry.key,
+            msgstr: msgstr
         }
     }
 }

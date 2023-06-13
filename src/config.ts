@@ -185,7 +185,10 @@ export class DomainConfig {
 
 /**
  * json (vue-gettext): Single JSON all locales merged
- * json-dir (i18next): JSON file per locale
+ * json-dir: JSON file per locale (plural not supported)
+ * node-i18n: JSON file per locale with node-i18n plural type
+ * vue-i18n: JSON file per locale with vue-i18n plural type
+ * i18next: JSON file per locale with i18next plural type
  * po-json: JSON PO file per locale
  * mo (python): MO file per locale
  * node-gettext: PO file per locale
@@ -196,6 +199,8 @@ export type CompilerType =
     'json' |
     'vue-gettext' |
     'json-dir' |
+    'node-i18n' |
+    'vue-i18n' |
     'i18next' |
     'po-json' |
     'mo' |
@@ -216,8 +221,6 @@ type CompilerConf = {
     'default-locale'?: string
     /** Use locale as root key of json file if true (json-dir) */
     'use-locale-key'?: boolean
-    /** If specified, split key to object with separator (json-dir) */
-    'key-separator'?: string
 }
 
 export class CompilerConfig {
@@ -270,10 +273,6 @@ export class CompilerConfig {
 
     useLocaleKey(): boolean {
         return this.cc['use-locale-key'] ?? false
-    }
-
-    getKeySeparator(): string | null {
-        return this.cc['key-separator'] ?? null
     }
 }
 

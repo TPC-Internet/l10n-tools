@@ -1,11 +1,9 @@
 import {parse} from 'node-html-parser';
-import he from 'he'
 import log from 'npmlog'
 import {KeyEntryBuilder} from './key-entry-builder.js'
 import {EntryCollection} from './entry-collection.js'
 import ts from 'typescript'
 import php from 'php-parser'
-import {containsAndroidXmlSpecialChars, decodeAndroidStrings} from './compiler/android-xml-utils.js';
 import type {KeyEntry} from './entry.js'
 
 export type TemplateMarker = {
@@ -33,7 +31,7 @@ type KeywordDef = {
 
 type KeywordArgumentPositions = {
     key: number
-    pluralCount: number
+    pluralCount: number | null
 }
 
 export class KeyExtractor {
@@ -317,7 +315,10 @@ export class KeyExtractor {
         }
     }
 
-    private evaluateTsArgumentValues (node: ts.Expression, path = ''): string[] {
+    private evaluateTsArgumentValues (node: ts.Expression | undefined, path = ''): string[] {
+        if (node == null) {
+            return []
+        }
         if (ts.isParenthesizedExpression(node)) {
             return this.evaluateTsArgumentValues(node.expression, path)
         }
@@ -363,13 +364,18 @@ export class KeyExtractor {
         }
     }
 
-    private isNumericTsArgument (node: ts.Expression): boolean | null {
+    private isNumericTsArgument (node: ts.Expression | undefined): boolean | null {
+        if (node == null) {
+            return false
+        }
         if (ts.isParenthesizedExpression(node)) {
             return this.isNumericTsArgument(node.expression)
         }
         if (ts.isNumericLiteral(node)) {
             return true
         } else if (ts.isStringLiteral(node)) {
+            return false
+        } else if (ts.isObjectLiteralExpression(node)) {
             return false
         } else if (ts.isIdentifier(node)) {
             return null
@@ -396,7 +402,6 @@ export class KeyExtractor {
             }
             return true
         } else {
-            debugger
             throw new Error(`cannot determine '${node.kind}' is numeric`)
         }
     }
@@ -431,9 +436,9 @@ export class KeyExtractor {
                     try {
                         const positions = this.keywordMap[calleeName]
                         const keys = this.evaluateTsArgumentValues(node.arguments[positions.key])
-                        // const isPlural = this.isNumericTsArgument(node.arguments[positions.pluralCount]) != false
+                        const isPlural = positions.pluralCount == null ? false : this.isNumericTsArgument(node.arguments[positions.pluralCount]) != false
                         for (const key of keys) {
-                            this.addMessage({filename, line: getLineTo(src, pos, startLine)}, key)
+                            this.addMessage({filename, line: getLineTo(src, pos, startLine)}, key, {isPlural})
                         }
                     } catch (err: any) {
                         log.warn('extractTsNode', err.message)
@@ -461,34 +466,6 @@ export class KeyExtractor {
             this.extractTsNode(filename, src, ast, startLine)
         } catch (err: any) {
             log.warn('extractTsModule', `error parsing '${src.split(/\n/g)[err.loc.line - 1].trim()}' (${filename}:${err.loc.line})`)
-        }
-    }
-
-    extractAndroidStringsXml (filename: string, src: string, startLine: number = 1) {
-        const root = parse(src)
-        for (const elem of root.querySelectorAll(':scope > resources > string')) {
-            if (elem.attributes['translatable'] == 'false') {
-                continue
-            }
-
-            let content
-            if (elem.attributes['format'] == 'html') {
-                content = elem.innerHTML.trim()
-            } else {
-                content = elem.innerHTML.trim()
-                if (content.startsWith('<![CDATA[')) {
-                    content = content.substring(9, content.length - 3)
-                } else {
-                    content = decodeAndroidStrings(content)
-                    if (containsAndroidXmlSpecialChars(content)) {
-                        content = he.decode(content)
-                    }
-                }
-            }
-
-            const name = elem.attributes['name']
-            const line = getLineTo(src, elem.childNodes[0].range[0], startLine)
-            this.addMessage({filename, line}, content, {context: name, allowSpaceInId: true})
         }
     }
 
@@ -577,8 +554,16 @@ export class KeyExtractor {
     }
 
     addMessage ({filename, line}: {filename: string, line?: string | number}, key: string,
-                options?: { isPlural?: boolean, comment?: string | null, context?: string | null, allowSpaceInId?: boolean }) {
-        const {isPlural = false, comment = null, context = null, allowSpaceInId = false} = options ?? {}
+                options?: { isPlural?: boolean, comment?: string | null, context?: string | null }) {
+        let {isPlural = false, comment = null, context = null} = options ?? {}
+        if (context != null) {
+            if (context != context.trim()) {
+                throw new Error(`context has leading or trailing whitespace: "${context}"`)
+            }
+        }
+        if (key != key.trim()) {
+            throw new Error(`key has leading or trailing whitespace: "${key}"`)
+        }
         const keyEntry = this.keys.find(context, key)
         const builder = keyEntry ? KeyEntryBuilder.fromKeyEntry(keyEntry) : new KeyEntryBuilder(context, key, isPlural)
 
@@ -617,8 +602,14 @@ function buildKeywordMap(keywords: string[] | Set<string>): {[keyword: string]: 
     const keywordMap: {[keyword: string]: KeywordArgumentPositions} = {}
     for (const keyword of keywords) {
         const [name, keyPos, pluralCountPos] = keyword.split(':')
+        const keyPosDefined = keyPos != null
         const key = keyPos ? Number.parseInt(keyPos) : 0
-        const pluralCount = pluralCountPos ? Number.parseInt(pluralCountPos) : key + 1
+        let pluralCount: number | null
+        if (keyPos != null) {
+            pluralCount = pluralCountPos ? Number.parseInt(pluralCountPos) : null
+        } else {
+            pluralCount = key + 1
+        }
         keywordMap[name] = {key, pluralCount}
     }
     return keywordMap

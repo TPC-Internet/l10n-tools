@@ -23,21 +23,16 @@ export function compareKeyReference(a: KeyReference, b: KeyReference) {
 export type BaseEntry = {
     context: string | null
     key: string
-    isPlural: boolean
 }
 
 export type KeyEntry = BaseEntry & {
+    isPlural: boolean
     references: KeyReference[]
     comments: string[]
 }
 
-export type TransMessages = {
-    other?: string
-    zero?: string
-    one?: string
-    few?: string
-    many?: string
-}
+export type TransPluralKey = 'zero' | 'one' | 'two' | 'few' | 'many' | 'other'
+export type TransMessages = Partial<Record<TransPluralKey, string>>
 
 export type TransEntry = BaseEntry & {
     messages: TransMessages
@@ -48,7 +43,6 @@ export function toTransEntry(entry: KeyEntry): TransEntry {
     return {
         context: entry.context,
         key: entry.key,
-        isPlural: entry.isPlural,
         messages: {},
         flag: null
     }
@@ -93,7 +87,6 @@ export async function readTransEntries(file: string): Promise<TransEntry[]> {
         return {
             context: entry.context || null,
             key: entry.key || '',
-            isPlural: entry.isPlural || false,
             messages: entry.messages || {},
             flag: entry.flag || null
         }
@@ -115,6 +108,7 @@ export async function readAllTransEntries(transDir: string): Promise<{[locale: s
 export async function writeKeyEntries(file: string, entries: KeyEntry[]) {
     entries.sort(compareEntry)
     const output = JSON.stringify({
+        count: entries.length,
         keys: entries
     }, null, 2)
     await fs.writeFile(file, output, {encoding: 'utf-8'})
@@ -123,6 +117,7 @@ export async function writeKeyEntries(file: string, entries: KeyEntry[]) {
 export async function writeTransEntries(file: string, entries: TransEntry[]) {
     entries.sort(compareEntry)
     const output = JSON.stringify({
+        count: entries.length,
         translations: entries
     }, null, 2)
     await fs.writeFile(file, output, {encoding: 'utf-8'})
@@ -165,4 +160,25 @@ export function checkTransEntrySpecs(transEntry: TransEntry, specs: string[]): b
             }
         }
     })
+}
+
+export function getPluralKeys(locale: string): TransPluralKey[] {
+    const other: TransPluralKey[] = ['other']
+    const oneOther: TransPluralKey[] = ['one', 'other']
+    const oneFewManyOther: TransPluralKey[] = ['one', 'few', 'many', 'other']
+    const pluralMap: {[locale: string]: TransPluralKey[]} = {
+        ko: other,
+        cn: other,
+        en: oneOther,
+        id: other,
+        ja: other,
+        ru: oneFewManyOther,
+        es: oneOther,
+        th: other
+    }
+    const pluralKeys = pluralMap[locale.substring(0, 2)]
+    if (pluralKeys == null) {
+        throw new Error(`plural keys for ${locale} not supported`)
+    }
+    return pluralKeys
 }

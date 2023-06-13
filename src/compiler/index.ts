@@ -17,8 +17,13 @@ async function loadCompiler (type: CompilerType): Promise<CompilerFunc> {
         case 'vue-gettext':
             return (await import('./json.js')).compileToJson
         case 'json-dir':
+            return (await import('./json.js')).compileToJsonDir()
+        case 'vue-i18n':
+            return (await import('./json.js')).compileToJsonDir('vue-i18n')
+        case 'node-i18n':
+            return (await import('./json.js')).compileToJsonDir('node-i18n')
         case 'i18next':
-            return (await import('./json.js')).compileToJsonDir
+            return (await import('./json.js')).compileToJsonDir('i18next')
         case 'po-json':
             return (await import('./gettext.js')).compileToPoJson
         case 'mo':

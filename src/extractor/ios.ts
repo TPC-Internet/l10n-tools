@@ -3,9 +3,9 @@ import {KeyExtractor} from '../key-extractor.js'
 import * as fs from 'node:fs/promises'
 import * as path from 'path'
 import i18nStringsFiles from 'i18n-strings-files'
-import plist from 'plist'
+import plist, {type PlistObject} from 'plist'
 import {glob} from 'glob'
-import {execWithLog, getTempDir} from '../utils.js'
+import {execWithLog, fileExists, getTempDir} from '../utils.js'
 import shell from "shelljs"
 import {type DomainConfig} from '../config.js'
 import PQueue from 'p-queue';
@@ -25,27 +25,49 @@ export default async function (domainName: string, config: DomainConfig, keysPat
     shell.mkdir('-p', tempDir)
 
     const extractor = new KeyExtractor({})
+    const srcDir = config.getSrcDir()
 
     log.info('extractKeys', 'extracting from .swift files')
-    const srcDir = config.getSrcDir()
-    await execWithLog(`find "${srcDir}" -name "*.swift" -print0 | xargs -0 genstrings -q -u -SwiftUI -o "${tempDir}"`)
-    const stringsPath = path.join(tempDir, 'Localizable.strings')
-    const input = await fs.readFile(stringsPath, {encoding: 'utf16le'})
-    extractIosStrings(extractor, 'code', input)
+    const swiftQueue = new PQueue({concurrency: os.cpus().length})
+    async function extractFromSwift(swiftPath: string) {
+        log.verbose('extractKeys', `processing '${swiftPath}'`)
+        const baseName = path.basename(swiftPath, '.swift')
+        const stringsDir = path.join(tempDir, 'swift', baseName)
+        shell.mkdir('-p', stringsDir)
+
+        await execWithLog(`genstrings -q -u -SwiftUI -o "${stringsDir}" "${swiftPath}"`)
+        const stringsPath = path.join(stringsDir, 'Localizable.strings')
+        if (await fileExists(stringsPath, true)) {
+            const input = await fs.readFile(stringsPath, {encoding: 'utf16le'})
+            const swiftFile = swiftPath.substring(srcDir.length + 1)
+            return {input, swiftFile}
+        } else {
+            return {input: null, swiftFile: null}
+        }
+    }
+    const swiftPaths = await glob(`${srcDir}/**/*.swift`)
+    const swiftExtracted = await swiftQueue.addAll(
+        swiftPaths.map(swiftPath => () => extractFromSwift(swiftPath)),
+        {throwOnTimeout: true}
+    )
+    for (const {input, swiftFile} of swiftExtracted) {
+        if (input != null && swiftFile != null) {
+            extractIosStrings(extractor, swiftFile, input)
+        }
+    }
 
     log.info('extractKeys', 'extracting from info.plist')
     const infoPlistPath = await getInfoPlistPath(srcDir)
-    const infoPlist = plist.parse(await fs.readFile(infoPlistPath, {encoding: 'utf-8'}))
+    const infoPlist = plist.parse(await fs.readFile(infoPlistPath, {encoding: 'utf-8'})) as PlistObject
     for (const key of infoPlistKeys) {
         if (infoPlist.hasOwnProperty(key)) {
-            // @ts-ignore
-            extractor.addMessage({filename: 'info.plist', line: key}, infoPlist[key], {context: key})
+            extractor.addMessage({filename: 'info.plist', line: key}, infoPlist[key] as string, {context: key})
         }
     }
 
     log.info('extractKeys', 'extracting from .xib, .storyboard files')
-    const queue = new PQueue({concurrency: os.cpus().length})
-    async function extract(xibPath: string): Promise<{input: string, xibName: string}> {
+    const xibQueue = new PQueue({concurrency: os.cpus().length})
+    async function extractFromXib(xibPath: string): Promise<{input: string, xibName: string}> {
         log.verbose('extractKeys', `processing '${xibPath}'`)
         const extName = path.extname(xibPath)
         const baseName = path.basename(xibPath, extName)
@@ -57,9 +79,12 @@ export default async function (domainName: string, config: DomainConfig, keysPat
         return {input, xibName}
     }
     const xibPaths = await getXibPaths(srcDir)
-    const extracted = await queue.addAll(xibPaths.map(xibPath => () => extract(xibPath)), {throwOnTimeout: true})
+    const xibExtracted = await xibQueue.addAll(
+        xibPaths.map(xibPath => () => extractFromXib(xibPath)),
+        {throwOnTimeout: true}
+    )
 
-    for (const {input, xibName} of extracted) {
+    for (const {input, xibName} of xibExtracted) {
         extractIosStrings(extractor, xibName, input)
     }
 
@@ -96,9 +121,16 @@ function extractIosStrings(extractor: KeyExtractor, filename: string, src: strin
             continue
         }
         if (defaultValue) {
-            extractor.addMessage({filename, line: key}, defaultValue, {comment: value.comment, context: key})
+            extractor.addMessage({filename, line: key}, defaultValue, {context: key})
         } else {
-            extractor.addMessage({filename, line: key}, key, {comment: value.comment})
+            const comment = value.comment == 'No comment provided by engineer.' ? undefined : value.comment
+            if (comment) {
+                for (const line of comment.split('\n')) {
+                    extractor.addMessage({filename}, key, {comment: line})
+                }
+            } else {
+                extractor.addMessage({filename}, key)
+            }
         }
     }
 }

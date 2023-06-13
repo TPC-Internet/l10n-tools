@@ -63,10 +63,15 @@ export function findFirstTagNode(nodeList: XMLNodeList, tagName: string, attrs?:
     for (const node of nodeList) {
         if (isTagNode(node, tagName)) {
             if (attrs != null) {
+                let matchAttrs = true
                 for (const [attrName, attrValue] of Object.entries(attrs)) {
                     if (getAttrValue(node, attrName) != attrValue) {
-                        return null
+                        matchAttrs = false
+                        break
                     }
+                }
+                if (!matchAttrs) {
+                    continue
                 }
             }
             return node

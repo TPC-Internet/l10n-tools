@@ -1,4 +1,5 @@
 import {KeyExtractor} from './key-extractor.js'
+import {expectKeyEntry} from "./test/utils.js";
 
 describe('KeyExtractor', () => {
     describe('vue-i18n keywords', () => {
@@ -19,14 +20,14 @@ describe('KeyExtractor', () => {
                     `
                 if (key === 'js') {
                     extractor.extractJsModule('test-file', module)
-                    expect(extractor.keys.find(null, 'key-js')).toBeDefined()
+                    expectKeyEntry(extractor.keys, null, 'key-js', false)
                 } else if (key === 'ts') {
                     extractor.extractTsModule('test-file', module)
-                    expect(extractor.keys.find(null, 'key-ts')).toBeDefined()
+                    expectKeyEntry(extractor.keys, null, 'key-ts', false)
                 }
             }
             extractor.extractJsExpression('test-file', `${keyword}('key-jse')`)
-            expect(extractor.keys.find(null, 'key-jse')).toBeDefined()
+            expectKeyEntry(extractor.keys, null, 'key-jse', false)
         })
     })
 
@@ -45,16 +46,28 @@ describe('KeyExtractor', () => {
                 keywords: ['$t']
             })
             extractor.extractVue('test-file', module)
-            {
-                const keyEntry = extractor.keys.find(null, 'Apple & Banana')
-                expect(keyEntry).not.toBeNull()
-                expect(keyEntry!.references).toContainEqual({file: 'test-file', loc: '4'})
-            }
-            {
-                const keyEntry = extractor.keys.find(null, 'Hello')
-                expect(keyEntry).not.toBeNull()
-                expect(keyEntry!.references).toContainEqual({file: 'test-file', loc: '5'})
-            }
+            expectKeyEntry(extractor.keys, null, 'Apple & Banana', false, 'test-file', '4')
+            expectKeyEntry(extractor.keys, null, 'Hello', false, 'test-file', '5')
+        })
+    })
+
+    describe('vue-i18n keywords in vue file (plural)', () => {
+        it('extract $t in vue', () => {
+            const module = `
+                <template>
+                    <div>
+                        <span>{{ $t('Apple & Banana', 1) }}</span>
+                        <span>{{ $t('Hello', 2) }}</span>
+                    </div>
+                </template>
+            `
+            const extractor = new KeyExtractor({
+                markers: [{start: '{{', end: '}}'}],
+                keywords: ['$t']
+            })
+            extractor.extractVue('test-file', module)
+            expectKeyEntry(extractor.keys, null, 'Apple & Banana', true, 'test-file', '4')
+            expectKeyEntry(extractor.keys, null, 'Hello', true, 'test-file', '5')
         })
     })
 
@@ -70,16 +83,8 @@ describe('KeyExtractor', () => {
             `
             const extractor = new KeyExtractor({tagNames: ['i18n']})
             extractor.extractVue('test-file', module)
-            {
-                const keyEntry = extractor.keys.find(null, 'key-vue-i18n-path')
-                expect(keyEntry).not.toBeNull()
-                expect(keyEntry!.references).toContainEqual({file: 'test-file', loc: '4'})
-            }
-            {
-                const keyEntry = extractor.keys.find(null, 'key-vue-i18n-path-exp')
-                expect(keyEntry).not.toBeNull()
-                expect(keyEntry!.references).toContainEqual({file: 'test-file', loc: '5'})
-            }
+            expectKeyEntry(extractor.keys, null, 'key-vue-i18n-path', false, 'test-file', '4')
+            expectKeyEntry(extractor.keys, null, 'key-vue-i18n-path-exp', false, 'test-file', '5')
         })
 
         it('v-t attrs', () => {
@@ -91,16 +96,8 @@ describe('KeyExtractor', () => {
             `
             const extractor = new KeyExtractor({objectAttrs: {'v-t': ['', 'path']}})
             extractor.extractVue('test-file', module)
-            {
-                const keyEntry = extractor.keys.find(null, 'key-v-t')
-                expect(keyEntry).not.toBeNull()
-                expect(keyEntry!.references).toContainEqual({file: 'test-file', loc: '3'})
-            }
-            {
-                const keyEntry = extractor.keys.find(null, 'key-v-t-path')
-                expect(keyEntry).not.toBeNull()
-                expect(keyEntry!.references).toContainEqual({file: 'test-file', loc: '4'})
-            }
+            expectKeyEntry(extractor.keys, null, 'key-v-t', false, 'test-file', '3')
+            expectKeyEntry(extractor.keys, null, 'key-v-t-path', false, 'test-file', '4')
         })
     })
 
@@ -125,16 +122,8 @@ describe('KeyExtractor', () => {
             `
             const extractor = new KeyExtractor({keywords: ['this.$t']})
             extractor.extractVue('test-file', module)
-            {
-                const keyEntry = extractor.keys.find(null, 'key-js')
-                expect(keyEntry).not.toBeNull()
-                expect(keyEntry!.references).toContainEqual({file: 'test-file', loc: '6'})
-            }
-            {
-                const keyEntry = extractor.keys.find(null, 'key-ts')
-                expect(keyEntry).not.toBeNull()
-                expect(keyEntry!.references).toContainEqual({file: 'test-file', loc: '13'})
-            }
+            expectKeyEntry(extractor.keys, null, 'key-js', false, 'test-file', '6')
+            expectKeyEntry(extractor.keys, null, 'key-ts', false, 'test-file', '13')
         })
     })
 
@@ -144,14 +133,12 @@ describe('KeyExtractor', () => {
                 function translate(key, options) {}
                 const car = "MG Hector";
     
-                const specifications = {
-                    length : 4655,
-                    width : 1835,
-                    height : 1760
-                }
-    
-                const getDimensions = specifications => (
-                    translate('{length}(mm) {width}(mm) {height}(mm)', specifications)
+                const getDimensions = () => (
+                    translate('{length}(mm) {width}(mm) {height}(mm)', {
+                        length : 4655,
+                        width : 1835,
+                        height : 1760
+                    })
                 )
     
                 export default function Vehicles() {
@@ -166,68 +153,7 @@ describe('KeyExtractor', () => {
             const extractor = new KeyExtractor({keywords: ['translate']})
             extractor.extractReactJsModule('test-file', module)
             const key = '{length}(mm) {width}(mm) {height}(mm)'
-            {
-                const keyEntry = extractor.keys.find(null, key)
-                expect(keyEntry).not.toBeNull()
-                expect(keyEntry!.references).toContainEqual({file: 'test-file', loc: '12'})
-            }
-        })
-    })
-
-    describe('android strings.xml', () => {
-        it('extract with reference', () => {
-            const srcXml = `<?xml version="1.0" encoding="utf-8"?>
-<resources>
-    <string name="normal_key">LIKEY</string>
-    <string name="html_key_1" format="html">No Account? <font color="#FF424D">SignUp</font></string>
-    <string name="html_key_2" format="html">Agreed to <u>Terms</u> and <u>PP</u></string>
-    <string name="cdata_key_1"><![CDATA[관심사 & 해시태그]]></string>
-    <string name="html_key_3" format="html"><b>관심사!</b>\\n설정!\\n아래!</string>
-    <string name="no_trans_key" translatable="false">(+%1$s)</string>
-    <string name="cdata_key_2"><![CDATA[<b>%1$s</b> Present.]]></string>
-    <string name="escaped_key">&lt;font color="#FF424D"&gt;RENEW&lt;/font&gt;</string>
-    <plurals name="plural_key">
-        <item quantity="one">%d day</item>
-        <item quantity="other">%d days</item>
-    </plurals>
-</resources>`
-            const extractor = new KeyExtractor({})
-            extractor.extractAndroidStringsXml('test-file', srcXml)
-            {
-                const keyEntry = extractor.keys.find('normal_key', 'LIKEY')
-                expect(keyEntry).not.toBeNull()
-                expect(keyEntry!.references).toContainEqual({file: 'test-file', loc: '3'})
-            }
-            {
-                const keyEntry = extractor.keys.find('html_key_1', 'No Account? <font color="#FF424D">SignUp</font>')
-                expect(keyEntry).not.toBeNull()
-                expect(keyEntry!.references).toContainEqual({file: 'test-file', loc: '4'})
-            }
-            {
-                const keyEntry = extractor.keys.find('html_key_2', 'Agreed to <u>Terms</u> and <u>PP</u>')
-                expect(keyEntry).not.toBeNull()
-                expect(keyEntry!.references).toContainEqual({file: 'test-file', loc: '5'})
-            }
-            {
-                const keyEntry = extractor.keys.find('cdata_key_1', '관심사 & 해시태그')
-                expect(keyEntry).not.toBeNull()
-                expect(keyEntry!.references).toContainEqual({file: 'test-file', loc: '6'})
-            }
-            {
-                const keyEntry = extractor.keys.find('html_key_3', '<b>관심사!</b>\\n설정!\\n아래!')
-                expect(keyEntry).not.toBeNull()
-                expect(keyEntry!.references).toContainEqual({file: 'test-file', loc: '7'})
-            }
-            {
-                const keyEntry = extractor.keys.find('cdata_key_2', '<b>%1$s</b> Present.')
-                expect(keyEntry).not.toBeNull()
-                expect(keyEntry!.references).toContainEqual({file: 'test-file', loc: '9'})
-            }
-            {
-                const keyEntry = extractor.keys.find('escaped_key', '<font color="#FF424D">RENEW</font>')
-                expect(keyEntry).not.toBeNull()
-                expect(keyEntry!.references).toContainEqual({file: 'test-file', loc: '10'})
-            }
+            expectKeyEntry(extractor.keys, null, key, false, 'test-file', '6')
         })
     })
 })

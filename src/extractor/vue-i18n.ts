@@ -9,15 +9,15 @@ import {writeKeyEntries} from '../entry.js'
 export default async function (domainName: string, config: DomainConfig, keysPath: string) {
     const srcPaths = await getSrcPaths(config, ['.vue', '.js', '.ts'])
     const keywords = new Set(config.getKeywords())
-    keywords.add('$t')
-    keywords.add('t')
-    keywords.add('vm.$t')
-    keywords.add('this.$t')
-    keywords.add('app.i18n.t')
-    keywords.add('$tc')
-    keywords.add('vm.$tc')
-    keywords.add('this.$tc')
-    keywords.add('app.i18n.tc')
+    keywords.add('$t:0:1')
+    keywords.add('t:0:1')
+    keywords.add('vm.$t:0:1')
+    keywords.add('this.$t:0:1')
+    keywords.add('app.i18n.t:0:1')
+    keywords.add('$tc:0:1')
+    keywords.add('vm.$tc:0:1')
+    keywords.add('this.$tc:0:1')
+    keywords.add('app.i18n.tc:0:1')
 
     const extractor = new KeyExtractor({
         tagNames: ['i18n', 'i18n-t'],

@@ -130,10 +130,10 @@ async function run () {
                             process.stdout.write(`#, ${flag}\n`)
                         }
                         if (transEntry.context) {
-                            process.stdout.write(`msgctxt "${transEntry.context.replace(/\n/g, '\\n')}"\n`)
+                            process.stdout.write(`context "${transEntry.context.replace(/\n/g, '\\n')}"\n`)
                         }
-                        process.stdout.write(`msgid   "${transEntry.key.replace(/\n/g, '\\n')}"\n`)
-                        process.stdout.write(`msgstr  "${(transEntry.messages.other ?? '').replace(/\n/g, '\\n')}"\n\n`)
+                        process.stdout.write(`key     "${transEntry.key.replace(/\n/g, '\\n')}"\n`)
+                        process.stdout.write(`message "${JSON.stringify(transEntry.messages)}"\n\n`)
                     }
                 }
 
@@ -228,10 +228,10 @@ async function run () {
                         process.stdout.write(`#, ${flag}\n`)
                     }
                     if (transEntry.context) {
-                        process.stdout.write(`msgctxt "${transEntry.context.replace(/\n/g, '\\n')}"\n`)
+                        process.stdout.write(`context "${transEntry.context.replace(/\n/g, '\\n')}"\n`)
                     }
-                    process.stdout.write(`msgid   "${transEntry.key.replace(/\n/g, '\\n')}"\n`)
-                    process.stdout.write(`msgstr  "${(transEntry.messages.other ?? '').replace(/\n/g, '\\n')}"\n\n`)
+                    process.stdout.write(`key     "${transEntry.key.replace(/\n/g, '\\n')}"\n`)
+                    process.stdout.write(`message "${JSON.stringify(transEntry.messages)}"\n\n`)
                 }
             })
         })
