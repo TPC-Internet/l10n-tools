@@ -14,6 +14,7 @@ import PQueue from 'p-queue';
 import {addContext, containsContext, getContexts, removeContext} from './lokalise-context.js';
 import {addToArraySet, removeFromArraySet} from '../utils.js';
 import {EntryCollection} from '../entry-collection.js'
+import {addComment, containsComment} from './lokalise-comment.js'
 
 export async function syncTransToLokalise (config: L10nConfig, domainConfig: DomainConfig, tag: string, keyEntries: KeyEntry[], allTransData: {[locale: string]: TransEntry[]}, drySync: boolean) {
     const lokaliseConfig = config.getLokaliseConfig()
@@ -100,13 +101,14 @@ function reverseLocaleSyncMap(key: Key, invertedSyncMap: {[locale: string]: stri
     }
 }
 
-function createUpdateKeyDataByAdding(platform: SupportedPlatforms, tag: string, key: Key | UpdateKeyDataWithId, entry: BaseEntry): UpdateKeyDataWithId {
+function createUpdateKeyDataByAddingKeyEntry(platform: SupportedPlatforms, tag: string, key: Key | UpdateKeyDataWithId, entry: KeyEntry): UpdateKeyDataWithId {
     return {
         key_id: key.key_id,
         key_name: encodeKeyName(entry.key),
         platforms: addToArraySet(key.platforms ?? [], platform),
         tags: addToArraySet(key.tags ?? [], tag),
-        context: addContext(key.context, tag, entry.context)
+        context: addContext(key.context, tag, entry.context),
+        description: addComment(key.description, tag, entry.comments)
     }
 }
 
@@ -213,7 +215,11 @@ function updateKeyData(
         const key = updatingKeyMap[entryKey] ?? listedKeyMap[entryKey]
         if (key != null) {
             // 기존 키는 있는데
-            if (!key.tags?.includes(tag) || !key.platforms?.includes(platform) || !containsContext(key.context, tag, keyEntry.context)) {
+            if (!key.tags?.includes(tag) ||
+                !key.platforms?.includes(platform) ||
+                !containsContext(key.context, tag, keyEntry.context) ||
+                !containsComment(key.description, tag, keyEntry.comments)
+            ) {
                 // 태그, 플랫폼, context 가 없으면 업데이트
                 updatingKeyMap[entryKey] = createUpdateKeyDataByAdding(platform, tag, key, keyEntry)
             }
