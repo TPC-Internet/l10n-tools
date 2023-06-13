@@ -43,12 +43,12 @@
             "additionalProperties": {
                 "additionalProperties": false,
                 "properties": {
-                    "fallback-locale": {
-                        "description": "Fill translations from fallback locale if not exists",
+                    "cache-dir": {
+                        "description": "Location to save intermediate files",
                         "type": "string"
                     },
-                    "i18n-dir": {
-                        "description": "Location to save po files",
+                    "fallback-locale": {
+                        "description": "Fill translations from fallback locale if not exists",
                         "type": "string"
                     },
                     "keywords": {
@@ -153,7 +153,6 @@
                     }
                 },
                 "required": [
-                    "i18n-dir",
                     "locales",
                     "outputs",
                     "tag",

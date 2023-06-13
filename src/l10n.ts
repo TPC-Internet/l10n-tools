@@ -38,12 +38,12 @@ async function run () {
         .description('Update local translations')
         .action(async (opts, cmd) => {
             await runSubCommand(cmd.name(), async (domainName, config, domainConfig) => {
-                const i18nDir = domainConfig.getI18nDir()
+                const cacheDir = domainConfig.getCacheDir()
                 const locales = domainConfig.getLocales()
                 const validationConfig = config.getValidationConfig(program)
 
-                const keysPath = getKeysPath(path.join(i18nDir, domainName))
-                const transDir = path.join(i18nDir, domainName)
+                const keysPath = getKeysPath(path.join(cacheDir, domainName))
+                const transDir = path.join(cacheDir, domainName)
 
                 await extractKeys(domainName, domainConfig, keysPath)
                 await updateTrans(keysPath, transDir, transDir, locales, validationConfig)
@@ -56,12 +56,12 @@ async function run () {
         .description('Upload local changes to sync target (local files will not touched)')
         .action(async (opts, cmd) => {
             await runSubCommand(cmd.name(), async (domainName, config, domainConfig, drySync) => {
-                const i18nDir = domainConfig.getI18nDir()
+                const cacheDir = domainConfig.getCacheDir()
                 const locales = domainConfig.getLocales()
                 const tag = domainConfig.getTag()
                 const validationConfig = config.getValidationConfig(program)
 
-                const fromTransDir = path.join(i18nDir, domainName)
+                const fromTransDir = path.join(cacheDir, domainName)
                 const tempDir = path.join(getTempDir(), domainName)
                 const keysPath = getKeysPath(tempDir)
                 const transDir = tempDir
@@ -79,13 +79,13 @@ async function run () {
         .description('Synchronize local translations and sync target')
         .action(async (opts, cmd) => {
             await runSubCommand(cmd.name(), async (domainName, config, domainConfig, drySync) => {
-                const i18nDir = domainConfig.getI18nDir()
+                const cacheDir = domainConfig.getCacheDir()
                 const locales = domainConfig.getLocales()
                 const tag = domainConfig.getTag()
                 const validationConfig = config.getValidationConfig(program)
 
-                const keysPath = getKeysPath(path.join(i18nDir, domainName))
-                const transDir = path.join(i18nDir, domainName)
+                const keysPath = getKeysPath(path.join(cacheDir, domainName))
+                const transDir = path.join(cacheDir, domainName)
 
                 await extractKeys(domainName, domainConfig, keysPath)
                 await updateTrans(keysPath, transDir, transDir, locales, null)
@@ -98,15 +98,15 @@ async function run () {
 
     program.command('check')
         .description('Check all translated')
-        .option('-l, --locales [locales]', 'Locales to check, all if not speficied (comma separated)')
+        .option('-l, --locales [locales]', 'Locales to check, all if not specified (comma separated)')
         .action(async (opts, cmd) => {
             await runSubCommand(cmd.name(), async (domainName, config, domainConfig) => {
-                const i18nDir = domainConfig.getI18nDir()
+                const cacheDir = domainConfig.getCacheDir()
                 const locales = opts['locales'] ? opts['locales'].split(',') : domainConfig.getLocales()
                 const validationConfig = config.getValidationConfig(program)
 
                 const specs = ['untranslated']
-                const fromTransDir = path.join(i18nDir, domainName)
+                const fromTransDir = path.join(cacheDir, domainName)
                 const tempDir = path.join(getTempDir(), domainName)
                 const keysPath = getKeysPath(tempDir)
                 const transDir = tempDir
@@ -146,8 +146,8 @@ async function run () {
         .option('--keys-dir [keysDir]', 'Directory to save key files')
         .action(async (opts, cmd) => {
             await runSubCommand(cmd.name(), async (domainName, config, domainConfig) => {
-                const i18nDir = opts['keysDir'] || domainConfig.getI18nDir()
-                const keysPath = getKeysPath(path.join(i18nDir, domainName))
+                const cacheDir = opts['keysDir'] || domainConfig.getCacheDir()
+                const keysPath = getKeysPath(path.join(cacheDir, domainName))
 
                 await extractKeys(domainName, domainConfig, keysPath)
             })
@@ -160,14 +160,14 @@ async function run () {
         .option('--trans-dir [transDir]', 'Directory to save translation files')
         .action(async (opts, cmd) => {
             await runSubCommand(cmd.name(), async (domainName, config, domainConfig) => {
-                const i18nDir = domainConfig.getI18nDir()
+                const cacheDir = domainConfig.getCacheDir()
                 const locales = opts['locales'] ? opts['locales'].split(',') : domainConfig.getLocales()
                 config.getValidationConfig(program)
                 const validationConfig = config.getValidationConfig(program)
 
-                const keysPath = getKeysPath(path.join(opts['keysDir'] || i18nDir, domainName))
-                const fromTransDir = path.join(i18nDir, domainName)
-                const transDir = path.join(opts['transDir'] || i18nDir, domainName)
+                const keysPath = getKeysPath(path.join(opts['keysDir'] || cacheDir, domainName))
+                const fromTransDir = path.join(cacheDir, domainName)
+                const transDir = path.join(opts['transDir'] || cacheDir, domainName)
 
                 await updateTrans(keysPath, fromTransDir, transDir, locales, validationConfig)
             })
@@ -180,11 +180,11 @@ async function run () {
         .option('-s, --spec [spec]', 'Spec to count (required, negate if starting with !, comma separated) supported: total,translated,untranslated,<flag>')
         .action(async (opts, cmd) => {
             await runSubCommand(cmd.name(), async (domainName, config, domainConfig) => {
-                const i18nDir = domainConfig.getI18nDir()
+                const cacheDir = domainConfig.getCacheDir()
                 const locales: string[] = opts['locales'] ? opts['locales'].split(',') : domainConfig.getLocales()
                 const specs = opts['spec'] ? opts['spec'].split(',') : ['total']
 
-                const transDir = path.join(opts['transDir'] || i18nDir, domainName)
+                const transDir = path.join(opts['transDir'] || cacheDir, domainName)
                 const counts: string[] = []
                 for (const locale of locales) {
                     const transPath = getTransPath(transDir, locale)
@@ -211,11 +211,11 @@ async function run () {
                     cmd.help()
                 }
 
-                const i18nDir = domainConfig.getI18nDir()
+                const cacheDir = domainConfig.getCacheDir()
                 const locale = opts['locale']
                 const specs = opts['spec'] ? opts['spec'].split(',') : ['total']
 
-                const transDir = path.join(opts['transDir'] || i18nDir, domainName)
+                const transDir = path.join(opts['transDir'] || cacheDir, domainName)
                 const transPath = getTransPath(transDir, locale)
 
                 for (const transEntry of await readTransEntries(transPath)) {
@@ -240,8 +240,8 @@ async function run () {
         .description('(Internal) Write domain asset from translations')
         .action(async (opts, cmd) => {
             await runSubCommand(cmd.name(), async (domainName, config, domainConfig) => {
-                const i18nDir = domainConfig.getI18nDir()
-                const transDir = path.join(i18nDir, domainName)
+                const cacheDir = domainConfig.getCacheDir()
+                const transDir = path.join(cacheDir, domainName)
                 await compileAll(domainName, domainConfig, transDir)
             })
         })
@@ -251,10 +251,10 @@ async function run () {
         .action(async (opts, cmd) => {
             await runSubCommand(cmd.name(), async (domainName, config, domainConfig, drySync) => {
                 const tag = domainConfig.getTag()
-                const i18nDir = domainConfig.getI18nDir()
+                const cacheDir = domainConfig.getCacheDir()
 
-                const transDir = path.join(i18nDir, domainName)
-                const keysPath = getKeysPath(path.join(i18nDir, domainName))
+                const transDir = path.join(cacheDir, domainName)
+                const keysPath = getKeysPath(path.join(cacheDir, domainName))
 
                 await syncTransToTarget(config, domainConfig, tag, keysPath, transDir, drySync)
             })

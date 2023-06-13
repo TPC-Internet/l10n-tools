@@ -49,8 +49,8 @@ type DomainConf =  {
     locales: string[]
     /** Fill translations from fallback locale if not exists */
     'fallback-locale'?: string
-    /** Location to save po files */
-    'i18n-dir': string
+    /** Location to save intermediate files */
+    'cache-dir'?: string
     /** Location of source root (ios only) */
     'src-dir'?: string
     /**
@@ -140,8 +140,8 @@ export class DomainConfig {
         return this.dc['keywords'] ?? []
     }
 
-    getI18nDir(): string {
-        return this.dc['i18n-dir']
+    getCacheDir(): string {
+        return this.dc['cache-dir'] ?? '.l10n-tools'
     }
 
     // for ios only
