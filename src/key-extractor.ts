@@ -57,14 +57,15 @@ export class KeyExtractor {
         this.keywordMap = buildKeywordMap(this.options.keywords)
     }
 
-    private extractJsIdentifierNode (filename: string, src: string, ast: ts.SourceFile, startLine = 1) {
+    private extractJsIdentifierNode (filename: string, src: string, ast: ts.SourceFile, startLine: number,
+                                     options?: {isPlural?: boolean, comment?: string | null, context?: string | null}) {
         const visit = (node: ts.Node) => {
             if (ts.isExpressionStatement(node)) {
                 const pos = findNonSpace(src, node.pos)
                 try {
                     const keys = this.evaluateTsArgumentValues(node.expression)
                     for (const key of keys) {
-                        this.addMessage({filename, line: getLineTo(src, pos, startLine)}, key)
+                        this.addMessage({filename, line: getLineTo(src, pos, startLine)}, key, options)
                     }
                     return
                 } catch (err: any) {
@@ -188,12 +189,14 @@ export class KeyExtractor {
                 } else if (elem.rawTagName == 'i18n-t') {
                     if (elem.attributes['keypath']) {
                         const key = elem.attributes['keypath']
+                        const isPlural = elem.attributes['plural'] != null || elem.attributes[':plural'] != null
                         const line = getLineTo(src, elem.range[0], startLine)
-                        this.addMessage({filename, line}, key)
+                        this.addMessage({filename, line}, key, {isPlural})
                     } else if (elem.attributes[':keypath']) {
                         const source = elem.attributes[':keypath']
+                        const isPlural = elem.attributes['plural'] != null || elem.attributes[':plural'] != null
                         const line = getLineTo(src, elem.range[0], startLine)
-                        this.extractJsIdentifier(filename, source, line)
+                        this.extractJsIdentifier(filename, source, line, {isPlural})
                     }
                 }
             }
@@ -297,10 +300,11 @@ export class KeyExtractor {
         }
     }
 
-    private extractJsIdentifier (filename: string, src: string, startLine: number = 1) {
+    private extractJsIdentifier (filename: string, src: string, startLine: number,
+                                 options?: {isPlural?: boolean, comment?: string | null, context?: string | null}) {
         try {
             const ast = ts.createSourceFile(filename, `(${src})`, ts.ScriptTarget.Latest, true, ts.ScriptKind.JS)
-            this.extractJsIdentifierNode(filename, src, ast, startLine)
+            this.extractJsIdentifierNode(filename, src, ast, startLine, options)
         } catch (err: any) {
             log.warn('extractJsIdentifier', `error parsing '${src.split(/\n/g)[err.loc.line - 1].trim()}' (${filename}:${err.loc.line})`)
         }
@@ -554,7 +558,7 @@ export class KeyExtractor {
     }
 
     addMessage ({filename, line}: {filename: string, line?: string | number}, key: string,
-                options?: { isPlural?: boolean, comment?: string | null, context?: string | null }) {
+                options?: {isPlural?: boolean, comment?: string | null, context?: string | null}) {
         let {isPlural = false, comment = null, context = null} = options ?? {}
         if (context != null) {
             if (context != context.trim()) {

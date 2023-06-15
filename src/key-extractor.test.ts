@@ -49,10 +49,8 @@ describe('KeyExtractor', () => {
             expectKeyEntry(extractor.keys, null, 'Apple & Banana', false, 'test-file', '4')
             expectKeyEntry(extractor.keys, null, 'Hello', false, 'test-file', '5')
         })
-    })
 
-    describe('vue-i18n keywords in vue file (plural)', () => {
-        it('extract $t in vue', () => {
+        it('extract $t in vue (plural)', () => {
             const module = `
                 <template>
                     <div>
@@ -71,20 +69,47 @@ describe('KeyExtractor', () => {
         })
     })
 
-    describe('vue-i18n i18n tag', () => {
-        it('path and :path', () => {
+    describe('vue-i18n i18n, i18n-t tag', () => {
+        it('i18n tag path and :path', () => {
             const module = `
                 <template>
                     <div>
                         <i18n tag="span" path="key-vue-i18n-path"></i18n>
                         <i18n tag="span" :path="'key-vue-i18n-path-exp'"></i18n>
+                        <i18n-t keypath="{name}은{br}더 이상{br}실재하지 않습니다.">
+                            <template #name><img src="https://test.com/a.jpg"></template>
+                            <template #br><br></template>
+                        </i18n-t>
+                        <i18n-t keypath="사과 {count}개" :plural="count">
+                            <template #count><b>{{ count }}</b></template>
+                        </i18n-t>
                     </div>
                 </template>
             `
-            const extractor = new KeyExtractor({tagNames: ['i18n']})
+            const extractor = new KeyExtractor({tagNames: ['i18n', 'i18n-t']})
             extractor.extractVue('test-file', module)
             expectKeyEntry(extractor.keys, null, 'key-vue-i18n-path', false, 'test-file', '4')
             expectKeyEntry(extractor.keys, null, 'key-vue-i18n-path-exp', false, 'test-file', '5')
+        })
+
+        it('i18n-t tag keypath and :keypath', () => {
+            const module = `
+                <template>
+                    <div>
+                        <i18n-t keypath="{name}은{br}더 이상{br}실재하지 않습니다.">
+                            <template #name><img src="https://test.com/a.jpg"></template>
+                            <template #br><br></template>
+                        </i18n-t>
+                        <i18n-t :keypath="'사과 {count}개'" :plural="count">
+                            <template #count><b>{{ count }}</b></template>
+                        </i18n-t>
+                    </div>
+                </template>
+            `
+            const extractor = new KeyExtractor({tagNames: ['i18n', 'i18n-t']})
+            extractor.extractVue('test-file', module)
+            expectKeyEntry(extractor.keys, null, '{name}은{br}더 이상{br}실재하지 않습니다.', false, 'test-file', '4')
+            expectKeyEntry(extractor.keys, null, '사과 {count}개', true, 'test-file', '8')
         })
 
         it('v-t attrs', () => {
