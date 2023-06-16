@@ -36,9 +36,9 @@ export function execWithLog (cmd: string, logPrefix: string = ''): Promise<numbe
     })
 }
 
-export async function fileExists(filePath: string, readOnly: boolean): Promise<boolean> {
+export async function fileExists(filePath: string): Promise<boolean> {
     try {
-        await fs.access(filePath, readOnly ? fs.constants.R_OK : fs.constants.W_OK)
+        await fs.access(filePath)
         return true
     } catch (err) {
         return false

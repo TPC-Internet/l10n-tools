@@ -37,7 +37,7 @@ export default async function (domainName: string, config: DomainConfig, keysPat
 
         await execWithLog(`genstrings -q -u -SwiftUI -o "${stringsDir}" "${swiftPath}"`)
         const stringsPath = path.join(stringsDir, 'Localizable.strings')
-        if (await fileExists(stringsPath, true)) {
+        if (await fileExists(stringsPath)) {
             const input = await fs.readFile(stringsPath, {encoding: 'utf16le'})
             const swiftFile = swiftPath.substring(srcDir.length + 1)
             return {input, swiftFile}

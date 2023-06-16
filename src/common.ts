@@ -65,7 +65,7 @@ export async function updateTrans (keysPath: string, fromTransDir: string, trans
 
         const keyTransEntries = (await readKeyEntries(keysPath)).map(entry => toTransEntry(entry))
         // const valueCollection = KeyCollection.loadEntries<ValueEntry>(keyEntries.map(e => toValueEntry(e)))
-        if (await fileExists(fromTransPath, true)) {
+        if (await fileExists(fromTransPath)) {
             const fromTrans = EntryCollection.loadEntries<TransEntry>(await readTransEntries(fromTransPath))
             for (const keyTransEntry of keyTransEntries) {
                 const fromTransEntry = fromTrans.find(keyTransEntry.context, keyTransEntry.key)

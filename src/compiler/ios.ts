@@ -70,7 +70,7 @@ export async function compileToIosStrings(domainName: string, config: CompilerCo
                     if (transEntry && transEntry.messages['other']) {
                         strings[key].text = transEntry.messages['other']
                         if (Object.keys(transEntry.messages).length > 1) {
-                            if (!await fileExists(stringsDictPath, false)) {
+                            if (!await fileExists(stringsDictPath)) {
                                 throw new Error(`[${locale}] Add ${stringsName}.stringsdict file to project to utilize plural translation`)
                             }
                             const messages = Object.fromEntries(
@@ -105,7 +105,7 @@ export async function compileToIosStrings(domainName: string, config: CompilerCo
                 const basePath = path.dirname(path.dirname(stringsPath))
                 for (const extName of ['.xib', '.storyboard']) {
                     const xibPath = path.join(basePath, 'Base.lproj', stringsName + extName)
-                    if (await fileExists(xibPath, true)) {
+                    if (await fileExists(xibPath)) {
                         const tempStringsPath = path.join(tempDir, stringsName + '.strings')
                         await execWithLog(`ibtool --export-strings-file "${tempStringsPath}" "${xibPath}"`)
                         const strings = i18nStringsFiles.readFileSync(tempStringsPath, {encoding: 'utf16le', wantsComments: true})
