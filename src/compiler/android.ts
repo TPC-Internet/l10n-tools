@@ -188,7 +188,7 @@ function createValueNode(node: XMLTagNode, children: XMLNode[], value: string) {
     } else {
         // CDATA 노드인 경우 CDATA를 그대로 살려서 스트링만 교체
         if (children.some(node => isCDataNode(node))) {
-            return createTextNode(value, true)
+            return createCDataNode(value, true)
         } else if (containsAndroidXmlSpecialChars(value)) {
             return createCDataNode(value, false)
         } else {
