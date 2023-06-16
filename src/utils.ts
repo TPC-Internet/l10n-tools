@@ -41,8 +41,15 @@ export async function fileExists(filePath: string): Promise<boolean> {
         await fs.access(filePath)
         return true
     } catch (err) {
-        return false
+        if (isErrnoException(err) && err.code == 'ENOENT') {
+            return false
+        }
+        throw err
     }
+}
+
+function isErrnoException(err: unknown): err is NodeJS.ErrnoException {
+    return typeof err === 'object' && err != null && 'errno' in err && 'code' in err
 }
 
 export const requireCmd = {
