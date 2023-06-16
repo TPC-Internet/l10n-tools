@@ -10,6 +10,7 @@ import {
     containsAndroidXmlSpecialChars,
     createCDataNode,
     createTextNode,
+    encodeAndroidStrings,
     findFirstTagNode,
     getAndroidXmlBuilder,
     getAndroidXmlParser,
@@ -184,16 +185,16 @@ function createValueNode(node: XMLTagNode, children: XMLNode[], value: string) {
     const format = getAttrValue(node, 'format')
     // html format 은 번역 텍스트 그대로 사용
     if (format === 'html') {
-        return createTextNode(value, true)
+        return createTextNode(encodeAndroidStrings(value, true))
     } else {
         // CDATA 노드인 경우 CDATA를 그대로 살려서 스트링만 교체
         if (children.some(node => isCDataNode(node))) {
-            return createCDataNode(value, true)
+            return createCDataNode(value)
         } else if (containsAndroidXmlSpecialChars(value)) {
-            return createCDataNode(value, false)
+            return createCDataNode(encodeAndroidStrings(value, false))
         } else {
             // 그 외의 경우는 android string encoding 하여 사용
-            return createTextNode(value, false)
+            return createTextNode(encodeAndroidStrings(value, false))
         }
     }
 }

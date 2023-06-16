@@ -55,9 +55,9 @@ describe('android compiler test', () => {
         <item quantity="other">%d days</item>
     </plurals>
 </resources>`
-        const dstXml = `<?xml version="1.0" encoding="utf-8"?>
+        const targetXml = `<?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="sign_up_ask_comment_v2" format="html">Don't have an account? <font color="#FF424D">Sign up</font></string>
+    <string name="sign_up_ask_comment_v2" format="html">Don\\'t have an account? <font color="#FF424D">Sign up</font></string>
     <string name="sign_up_form_policy_agreement_desc_v2" format="html"><u>서비스 이용약관</u>과 <u>개인정보 처리방침</u>에 동의합니다.</string>
     <string name="user_interest_form_title"><![CDATA[관심사 & 해시태그]]></string>
     <string name="user_interest_edit_req_desc_for_fan" format="html"><b>관심사 선택 기능이 새로 나왔습니다!</b>\\n관심사를 설정하시면 나와 맞는 크리에이터들을 추천해드릴께요!\\n아래에서 최소 3개 이상을 선택해주세요!</string>
@@ -68,7 +68,8 @@ describe('android compiler test', () => {
     </plurals>
 </resources>`
 
+        const dstXml = '<?xml version="1.0" encoding="utf-8"?>\n<resources></resources>'
         const newDstXml = await generateAndroidXml('en', transEntries, srcXml, dstXml)
-        expect(newDstXml).toBe(dstXml)
+        expect(newDstXml).toBe(targetXml)
     })
 })

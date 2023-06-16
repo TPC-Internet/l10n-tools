@@ -48,7 +48,7 @@ export function parseAndroidXml(parser: XMLParser, src: string): XMLNodeList {
     let srcJson = parser.parse(src) as any[]
     for (const [i, child] of srcJson.entries()) {
         if (child['?xml']) {
-            srcJson.splice(i + 1, 0, createTextNode('\n', true))
+            srcJson.splice(i + 1, 0, createTextNode('\n'))
             break
         }
     }
@@ -96,16 +96,17 @@ export function getAttrValue(node: XMLTagNode, attrName: string): string | null 
     return node[':@']?.[`@_${attrName}`] ?? null
 }
 
-export function createTextNode(text: string, isRaw: boolean): XMLTextNode {
-    return {'#text': isRaw ? text : encodeAndroidStrings(text)}
+export function createTextNode(text: string): XMLTextNode {
+    return {'#text': text}
 }
 
-export function createCDataNode(text: string, isRaw: boolean): XMLCDataNode {
-    return {'#cdata': [createTextNode(text, isRaw)]}
+export function createCDataNode(text: string): XMLCDataNode {
+    return {'#cdata': [createTextNode(text)]}
 }
 
-export function encodeAndroidStrings(value: string): string {
-    value = value.replace(/[\n'"@]/g, m => {
+export function encodeAndroidStrings(value: string, isHtml: boolean): string {
+    const searchRegex = isHtml ? /'/g : /[\n'"@]/g
+    value = value.replace(searchRegex, m => {
         switch (m) {
             case '"':
             case '\'':
