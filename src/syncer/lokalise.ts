@@ -285,7 +285,7 @@ function updateTransEntries(
                 // 해당 언어 번역이 있는 경우
                 const trans = EntryCollection.loadEntries(allTransEntries[locale])
                 const transEntries: TransEntry[] = []
-                for (const keyContext of getContexts(key.context, tag, true)) {
+                for (const keyContext of [...getContexts(key.context, tag, false), null]) {
                     const transEntry = trans.find(keyContext, keyName)
                     if (transEntry) {
                         transEntries.push(transEntry)
