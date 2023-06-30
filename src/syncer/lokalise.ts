@@ -305,29 +305,37 @@ function updateTransEntries(
                         transEntry.flag = null
                     }
 
-                    if (skipNotReviewed && !tr.is_reviewed) {
-                        log.info('updateTransEntries', `skipping not reviewed: ${locale} of ${entryKey}`)
-                        continue
+                    function updateIfNotSkipped(update: () => void) {
+                        if (skipNotReviewed && !tr.is_reviewed) {
+                            log.info('updateTransEntries', `skipping not reviewed: ${locale} of ${entryKey}`)
+                            return
+                        }
+                        if (skipUnverified && tr.is_unverified) {
+                            log.info('updateTransEntries', `skipping unverified: ${locale} of ${entryKey}`)
+                            return
+                        }
+                        update()
                     }
-                    if (skipUnverified && tr.is_unverified) {
-                        log.info('updateTransEntries', `skipping unverified: ${locale} of ${entryKey}`)
-                        continue
-                    }
+
                     if (tr.translation) {
                         if (key.is_plural) {
                             try {
                                 const translations = pickBy(JSON.parse(tr.translation), value => !!value)
                                 if (!isEqual(transEntry.messages, translations)) {
-                                    log.notice('updateTransEntries', `updating ${locale} value of ${entryKey}: ${JSON.stringify(transEntry.messages)} -> ${tr.translation}`)
-                                    transEntry.messages = translations
+                                    updateIfNotSkipped(() => {
+                                        log.notice('updateTransEntries', `updating ${locale} value of ${entryKey}: ${JSON.stringify(transEntry.messages)} -> ${tr.translation}`)
+                                        transEntry.messages = translations
+                                    })
                                 }
                             } catch (err) {
                                 log.warn('updateTransEntries', `cannot parse translation object: ${tr.translation}`)
                             }
                         } else {
                             if (tr.translation !== transEntry.messages['other']) {
-                                log.notice('updateTransEntries', `updating ${locale} value of ${entryKey}: ${transEntry.messages['other']} -> ${tr.translation}`)
-                                transEntry.messages = {other: tr.translation}
+                                updateIfNotSkipped(() => {
+                                    log.notice('updateTransEntries', `updating ${locale} value of ${entryKey}: ${transEntry.messages['other']} -> ${tr.translation}`)
+                                    transEntry.messages = {other: tr.translation}
+                                })
                             }
                         }
                     }
