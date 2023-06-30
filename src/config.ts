@@ -373,7 +373,7 @@ export class LokaliseConfig {
     }
 
     skipUnverified(): boolean {
-        return this.lc['skip-unverified'] ?? false
+        return this.lc['skip-unverified'] ?? true
     }
 
     skipNotReviewed(): boolean {
