@@ -375,7 +375,8 @@ async function uploadToLokalise(
                 log.notice('drySync', 'create keys', JSON.stringify(keys, undefined, 2))
             } else {
                 await lokaliseApi.keys().create({
-                    keys: keys
+                    keys: keys,
+                    use_automations: true
                 }, {
                     project_id: projectId
                 })
@@ -394,7 +395,8 @@ async function uploadToLokalise(
                 log.notice('drySync', 'updating keys', JSON.stringify(keys, undefined, 2))
             } else {
                 await lokaliseApi.keys().bulk_update({
-                    keys: keys
+                    keys: keys,
+                    use_automations: true
                 }, {
                     project_id: projectId
                 })
