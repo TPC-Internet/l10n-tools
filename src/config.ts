@@ -350,6 +350,8 @@ export class GoogleDocsConfig {
 type LokaliseConf = {
     token: string
     projectId: string
+    /** fill key to specified locale */
+    'fill-key-to-locale'?: string,
     /** Skip applying unverified translations */
     'skip-unverified'?: boolean
     /** Skip applying not-reviewed translations */
@@ -378,6 +380,10 @@ export class LokaliseConfig {
 
     skipNotReviewed(): boolean {
         return this.lc['skip-not-reviewed'] ?? false
+    }
+
+    fillKeyToLocale(): string | null {
+        return this.lc['fill-key-to-locale'] ?? null
     }
 
     getLocaleSyncMap(inverted: boolean): {[locale: string]: string} | undefined {

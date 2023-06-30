@@ -359,6 +359,18 @@ async function uploadToLokalise(
     for (let keys of chunk(Object.values(creatingKeyMap), 500)) {
         try {
             keys = keys.map(key => applyLocaleSyncMap(key, localeSyncMap))
+            const fillLocale = config.fillKeyToLocale()
+            if (fillLocale != null) {
+                keys = keys.map(key => {
+                    if (key.translations == null) {
+                        key.translations = []
+                    }
+                    if (key.translations.find(translation => translation.language_iso == fillLocale) == null) {
+                        key.translations.push(createTranslationData(fillLocale, key.is_plural == true, {other: key.key_name as string}))
+                    }
+                    return key
+                })
+            }
             if (drySync) {
                 log.notice('drySync', 'create keys', JSON.stringify(keys, undefined, 2))
             } else {

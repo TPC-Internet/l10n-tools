@@ -190,6 +190,10 @@
         "lokalise": {
             "additionalProperties": false,
             "properties": {
+                "fill-key-to-locale": {
+                    "description": "fill key to specified locale",
+                    "type": "string"
+                },
                 "locale-sync-map": {
                     "additionalProperties": {
                         "type": "string"
