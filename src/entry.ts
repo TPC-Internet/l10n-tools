@@ -163,18 +163,19 @@ export function checkTransEntrySpecs(transEntry: TransEntry, specs: string[]): b
 }
 
 export function getPluralKeys(locale: string): TransPluralKey[] {
-    const other: TransPluralKey[] = ['other']
+    const otherOnly: TransPluralKey[] = ['other']
     const oneOther: TransPluralKey[] = ['one', 'other']
     const oneFewManyOther: TransPluralKey[] = ['one', 'few', 'many', 'other']
     const pluralMap: {[locale: string]: TransPluralKey[]} = {
-        ko: other,
-        cn: other,
+        ko: otherOnly,
+        cn: otherOnly,
         en: oneOther,
-        id: other,
-        ja: other,
+        fr: oneOther,
+        id: otherOnly,
+        ja: otherOnly,
         ru: oneFewManyOther,
         es: oneOther,
-        th: other
+        th: otherOnly
     }
     const pluralKeys = pluralMap[locale.substring(0, 2)]
     if (pluralKeys == null) {
