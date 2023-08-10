@@ -132,7 +132,7 @@ export function decodeAndroidStrings(value: string): string {
     if (value.startsWith('"') && value.endsWith('"')) {
         value = value.substring(1, value.length - 1)
     }
-    return value.replace(/\\(.)/g, (m, p1) => {
+    return value.replace(/\\(["'@nu])([0-9A-F]{4})?/g, (m, p1, p2) => {
         switch (p1) {
             case '"':
             case '\'':
@@ -140,6 +140,11 @@ export function decodeAndroidStrings(value: string): string {
                 return p1
             case 'n':
                 return '\n'
+            case 'u':
+                if (!p2 || p2.length != 4) {
+                    throw new Error(`invalid android unicode escape code: ${p1}${p2} of '${value}'`)
+                }
+                return String.fromCharCode(parseInt(p2, 16))
             default:
                 throw new Error(`unknown android escape code: ${p1} of '${value}'`)
         }
