@@ -41,15 +41,19 @@ export async function fileExists(filePath: string): Promise<boolean> {
         await fs.access(filePath)
         return true
     } catch (err) {
-        if (isErrnoException(err) && err.code == 'ENOENT') {
+        if (isErrnoException(err, 'ENOENT')) {
             return false
         }
         throw err
     }
 }
 
-function isErrnoException(err: unknown): err is NodeJS.ErrnoException {
-    return typeof err === 'object' && err != null && 'errno' in err && 'code' in err
+export function isErrnoException(err: unknown, code?: string): err is NodeJS.ErrnoException {
+    if (typeof err === 'object' && err != null && 'errno' in err && 'code' in err) {
+        return code == null || err.code == code
+    } else {
+        return false
+    }
 }
 
 export const requireCmd = {
