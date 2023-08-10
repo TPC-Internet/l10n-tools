@@ -23,7 +23,7 @@ import {
     type XMLTagNode,
     type XMLTextNode,
 } from './android-xml-utils.js';
-import {extractLocaleFromTransPath, listTransPaths} from '../utils.js'
+import {extractLocaleFromTransPath, isErrnoException, listTransPaths} from '../utils.js'
 
 export async function compileToAndroidXml(domainName: string, config: CompilerConfig, transDir: string) {
     const resDir = config.getResDir()
@@ -47,7 +47,7 @@ export async function compileToAndroidXml(domainName: string, config: CompilerCo
             await writeXml(buildAndroidXml(builder, srcXmlJson), resDir, null)
         } else {
             const transEntries = await readTransEntries(transPath)
-            const dstXml = await readXml(resDir, locale)
+            const dstXml = await readXml(resDir, locale, '<?xml version="1.0" encoding="utf-8"?>\n<resources></resources>')
             const newDstXml = await generateAndroidXml(locale, transEntries, srcXml, dstXml)
             await writeXml(newDstXml, resDir, locale)
         }
@@ -199,7 +199,7 @@ function createValueNode(node: XMLTagNode, children: XMLNode[], value: string) {
     }
 }
 
-async function readXml(resDir: string, locale: string | null): Promise<string> {
+async function readXml(resDir: string, locale: string | null, fallback?: string): Promise<string> {
     let targetPath: string
     if (locale == null) {
         targetPath = path.join(resDir, 'values', 'strings.xml')
@@ -207,7 +207,14 @@ async function readXml(resDir: string, locale: string | null): Promise<string> {
         targetPath = path.join(resDir, 'values-' + locale, 'strings.xml')
     }
 
-    return await fs.readFile(targetPath, {encoding: 'utf-8'})
+    try {
+        return await fs.readFile(targetPath, {encoding: 'utf-8'})
+    } catch (err) {
+        if (fallback !== undefined && isErrnoException(err, 'ENOENT')) {
+            return fallback
+        }
+        throw err
+    }
 }
 
 async function writeXml(xml: string, resDir: string, locale: string | null) {
