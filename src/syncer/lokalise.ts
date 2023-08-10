@@ -372,8 +372,9 @@ async function uploadToLokalise(
                 })
             }
             if (drySync) {
-                log.notice('drySync', 'create keys', JSON.stringify(keys, undefined, 2))
+                log.notice('drySync', 'creating keys', JSON.stringify(keys, undefined, 2))
             } else {
+                log.notice('lokaliseApi', 'creating keys...', keys.length)
                 await lokaliseApi.keys().create({
                     keys: keys,
                     use_automations: true
@@ -394,6 +395,7 @@ async function uploadToLokalise(
             if (drySync) {
                 log.notice('drySync', 'updating keys', JSON.stringify(keys, undefined, 2))
             } else {
+                log.notice('lokaliseApi', 'updating keys...', keys.length)
                 await lokaliseApi.keys().bulk_update({
                     keys: keys,
                     use_automations: true
