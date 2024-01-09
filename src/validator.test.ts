@@ -1,7 +1,7 @@
 import {
     FormatNotFoundError,
+    NoOrdinalFormatError,
     TagNotFoundError,
-    TooManyFormatError,
     UnexpectedFormatError,
     UnexpectedTagError,
     validateMsg
@@ -15,10 +15,10 @@ describe('validate message', () => {
         expect(() => validateMsg('Hello', '안녕 %s')).toThrow(UnexpectedFormatError)
         expect(() => validateMsg('Hello %s', '안녕 %d')).toThrow(FormatNotFoundError)
         expect(() => validateMsg('Hello %.2f', '안녕 %.1f')).toThrow(FormatNotFoundError)
-        expect(() => validateMsg('Hello %s, %f', '안녕 %s, %f')).toThrow(TooManyFormatError)
+        expect(() => validateMsg('Hello %s, %f', '안녕 %s, %f')).toThrow(NoOrdinalFormatError)
     })
 
-    it('ordered C string format', () => {
+    it('ordinal C string format', () => {
         expect(() => validateMsg('Hello %1$s', '안녕 %1$s')).not.toThrow()
         expect(() => validateMsg('Hello %1$s', '안녕')).toThrow(FormatNotFoundError)
         expect(() => validateMsg('Hello', '안녕 %1$s')).toThrow(UnexpectedFormatError)

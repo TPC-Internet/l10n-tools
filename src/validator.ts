@@ -5,7 +5,7 @@ export class ValidateError extends Error {}
 
 export class UnexpectedFormatError extends ValidateError {}
 export class FormatNotFoundError extends ValidateError {}
-export class TooManyFormatError extends ValidateError {}
+export class NoOrdinalFormatError extends ValidateError {}
 
 type FormatDef = {
     type: string
@@ -14,7 +14,7 @@ type FormatDef = {
 
 const formatDefs: FormatDef[] = [
     {type: 'c-format', regex: /%-?[0-9]*\.?[0-9]*(?:c|d|e|E|f|g|G|hi|hu|i|l|ld|li|lf|Lf|lu|lli|lld|llu|o|p|s|u|x|X|n|@)/g},
-    {type: 'c-format-ordered', regex: /%[1-9]+\$-?[0-9]*\.?[0-9]*(?:c|d|e|E|f|g|G|hi|hu|i|l|ld|li|lf|Lf|lu|lli|lld|llu|o|p|s|u|x|X|n|@)/g},
+    {type: 'c-format-ordinal', regex: /%[1-9]+\$-?[0-9]*\.?[0-9]*(?:c|d|e|E|f|g|G|hi|hu|i|l|ld|li|lf|Lf|lu|lli|lld|llu|o|p|s|u|x|X|n|@)/g},
     {type: 'single-brace-named', regex: /\{[A-Za-z_][A-Za-z0-9_]*}/g}
 ]
 
@@ -44,7 +44,7 @@ function validateFormat(baseMsg: string, msg: string, def: FormatDef) {
     const baseFormats = baseMsg.match(def.regex)
     const formats = msg.match(def.regex)
     if (def.type === 'c-format' && baseFormats != null && baseFormats.length > 1) {
-        throw new TooManyFormatError(`Use order parameter in c-format for more then one formats in \`${baseMsg.replace('\n', '\\n')}'`)
+        throw new NoOrdinalFormatError(`Use ordinal parameter (e.g. %$1s) in c-format for more then one formats in \`${baseMsg.replace('\n', '\\n')}'`)
     }
 
     const baseFormatSet = new Set(baseFormats)
