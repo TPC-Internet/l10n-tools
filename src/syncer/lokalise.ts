@@ -49,7 +49,7 @@ async function listLokaliseKeys(lokaliseApi: LokaliseApi, projectId: string, con
     const totalCount = await getTotalKeyCount(lokaliseApi, projectId)
     const numPages = Math.ceil(totalCount / 500)
 
-    const queue = new PQueue({interval: 500, intervalCap: 1})
+    const queue = new PQueue({interval: 500, intervalCap: 1, concurrency: 2})
     const chunkPromises: Promise<Key[]>[] = []
     for (let page = 1; page <= numPages; page++) {
         chunkPromises.push(queue.add(async () => {
