@@ -1,3 +1,5 @@
+import {describe, it} from 'node:test'
+import {expect} from 'expect'
 import {
     FormatNotFoundError,
     NoOrdinalFormatError,
@@ -6,7 +8,6 @@ import {
     UnexpectedTagError,
     validateMsg
 } from './validator.js'
-import exp from 'constants'
 
 describe('validate message', () => {
     it('C string format', () => {

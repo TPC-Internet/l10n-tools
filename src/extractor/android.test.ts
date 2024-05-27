@@ -1,3 +1,4 @@
+import {describe, it} from 'node:test'
 import {KeyExtractor} from "../key-extractor.js";
 import {extractAndroidStringsXml} from "./android.js";
 import {expectKeyEntry} from "../test/utils.js";

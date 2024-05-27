@@ -11,7 +11,7 @@
     "watch": "swc -w src -d dist -s --strip-leading-paths",
     "schema": "typescript-json-schema --required --noExtraProps --strictNullChecks tsconfig.json L10nConf > l10nrc.schema.json",
     "tsc": "tsc --noEmit",
-    "test": "jest",
+    "test": "node --no-warnings=ExperimentalWarning --loader ts-node/esm --test **/*.test.ts",
     "prepare": "npm run build",
     "prepublishOnly": "npm run tsc && npm test"
   },
@@ -48,10 +48,8 @@
   "devDependencies": {
     "@swc/cli": "^0.3.12",
     "@swc/core": "^1.5.7",
-    "@swc/jest": "^0.2.36",
     "@types/command-exists": "^1.2.3",
     "@types/he": "^1.2.3",
-    "@types/jest": "^29.5.12",
     "@types/jsonfile": "^6.1.4",
     "@types/lodash-es": "^4.17.12",
     "@types/node": "^18.19.33",
@@ -59,7 +57,8 @@
     "@types/plist": "^3.0.5",
     "@types/shelljs": "^0.8.15",
     "chokidar": "^3.6.0",
-    "jest": "^29.7.0",
+    "expect": "^29.7.0",
+    "ts-node": "^10.9.2",
     "typescript-json-schema": "^0.63.0"
   }
 }

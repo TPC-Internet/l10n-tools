@@ -1,3 +1,4 @@
+import {expect} from 'expect'
 import {EntryCollection} from "../entry-collection.js";
 import {type KeyEntry} from "../entry.js";
 

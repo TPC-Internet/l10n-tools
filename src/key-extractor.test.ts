@@ -1,13 +1,15 @@
+import {describe, it} from 'node:test'
 import {KeyExtractor} from './key-extractor.js'
 import {expectKeyEntry} from "./test/utils.js";
 
 describe('KeyExtractor', () => {
     describe('vue-i18n keywords', () => {
-        const keywords = ['$t', 'vm.$t', 'this.$t', 'app.i18n.t', '$tc', 'vm.$tc', 'this.$tc', 'app.i18n.tc']
-        it.each([...keywords])('extract %s', (keyword) => {
-            const extractor = new KeyExtractor({keywords: [keyword]})
-            for (const key of ['js', 'ts']) {
-                const module = `
+        it('extract', () => {
+            const keywords = ['$t', 'vm.$t', 'this.$t', 'app.i18n.t', '$tc', 'vm.$tc', 'this.$tc', 'app.i18n.tc']
+            for (const keyword of keywords) {
+                const extractor = new KeyExtractor({keywords: [keyword]})
+                for (const key of ['js', 'ts']) {
+                    const module = `
                     let $t = () => {};
                     let $tc = () => {};
                     let vm = {$t: () => {}, $tc: () => {}};
@@ -18,16 +20,17 @@ describe('KeyExtractor', () => {
                        ${keyword}('key-${key}');
                     }
                     `
-                if (key === 'js') {
-                    extractor.extractJsModule('test-file', module)
-                    expectKeyEntry(extractor.keys, null, 'key-js', false)
-                } else if (key === 'ts') {
-                    extractor.extractTsModule('test-file', module)
-                    expectKeyEntry(extractor.keys, null, 'key-ts', false)
+                    if (key === 'js') {
+                        extractor.extractJsModule('test-file', module)
+                        expectKeyEntry(extractor.keys, null, 'key-js', false)
+                    } else if (key === 'ts') {
+                        extractor.extractTsModule('test-file', module)
+                        expectKeyEntry(extractor.keys, null, 'key-ts', false)
+                    }
                 }
+                extractor.extractJsExpression('test-file', `${keyword}('key-jse')`)
+                expectKeyEntry(extractor.keys, null, 'key-jse', false)
             }
-            extractor.extractJsExpression('test-file', `${keyword}('key-jse')`)
-            expectKeyEntry(extractor.keys, null, 'key-jse', false)
         })
     })
 

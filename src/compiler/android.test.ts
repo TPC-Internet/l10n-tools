@@ -1,3 +1,5 @@
+import {describe, it} from 'node:test'
+import {expect} from 'expect'
 import type {TransEntry} from '../entry.js'
 import {generateAndroidXml} from './android.js'
 
