@@ -3,9 +3,8 @@
 import {Command} from 'commander'
 import log from 'npmlog'
 import {checkTransEntrySpecs, readTransEntries} from './entry.js'
-import {getKeysPath, getTempDir, getTransPath} from './utils.js'
+import {fileExists, getKeysPath, getTransPath} from './utils.js'
 import {updateTrans} from './common.js'
-import shell from 'shelljs'
 import {syncTransToTarget} from './syncer/index.js';
 import * as path from 'path'
 import {DomainConfig, L10nConfig} from './config.js'
@@ -61,17 +60,13 @@ async function run () {
                 const tag = domainConfig.getTag()
                 const validationConfig = config.getValidationConfig(program)
 
-                const fromTransDir = path.join(cacheDir, domainName)
-                const tempDir = path.join(getTempDir(), domainName)
-                const keysPath = getKeysPath(tempDir)
-                const transDir = tempDir
+                const keysPath = getKeysPath(path.join(cacheDir, domainName))
+                const transDir = path.join(cacheDir, domainName)
 
-                log.info('l10n', `temp dir: '${tempDir}'`)
-                shell.rm('-rf', tempDir)
                 await extractKeys(domainName, domainConfig, keysPath)
-                await updateTrans(keysPath, fromTransDir, transDir, locales, validationConfig)
+                await updateTrans(keysPath, transDir, transDir, locales, null)
                 await syncTransToTarget(config, domainConfig, tag, keysPath, transDir, drySync)
-                shell.rm('-rf', tempDir)
+                await updateTrans(keysPath, transDir, transDir, locales, validationConfig)
             })
         })
 
@@ -99,22 +94,24 @@ async function run () {
     program.command('check')
         .description('Check all translated')
         .option('-l, --locales [locales]', 'Locales to check, all if not specified (comma separated)')
+        .option('--force-sync', 'sync even if cached')
         .action(async (opts, cmd) => {
-            await runSubCommand(cmd.name(), async (domainName, config, domainConfig) => {
+            await runSubCommand(cmd.name(), async (domainName, config, domainConfig, drySync) => {
                 const cacheDir = domainConfig.getCacheDir()
                 const locales = opts['locales'] ? opts['locales'].split(',') : domainConfig.getLocales()
+                const tag = domainConfig.getTag()
                 const validationConfig = config.getValidationConfig(program)
 
                 const specs = ['untranslated']
-                const fromTransDir = path.join(cacheDir, domainName)
-                const tempDir = path.join(getTempDir(), domainName)
-                const keysPath = getKeysPath(tempDir)
-                const transDir = tempDir
+                const keysPath = getKeysPath(path.join(cacheDir, domainName))
+                const transDir = path.join(cacheDir, domainName)
 
-                log.info('l10n', `temp dir: '${tempDir}'`)
-                shell.rm('-rf', tempDir)
                 await extractKeys(domainName, domainConfig, keysPath)
-                await updateTrans(keysPath, fromTransDir, transDir, locales, validationConfig)
+                if (opts['forceSync'] || !await fileExists(transDir)) {
+                    await updateTrans(keysPath, transDir, transDir, locales, null)
+                    await syncTransToTarget(config, domainConfig, tag, keysPath, transDir, drySync)
+                }
+                await updateTrans(keysPath, transDir, transDir, locales, validationConfig)
 
                 for (const locale of locales) {
                     const transPath = getTransPath(transDir, locale)
@@ -136,8 +133,6 @@ async function run () {
                         process.stdout.write(`message "${JSON.stringify(transEntry.messages)}"\n\n`)
                     }
                 }
-
-                shell.rm('-rf', tempDir)
             })
         })
 
