@@ -340,24 +340,24 @@ function updateTransEntries(tag: string, keyEntries: KeyEntry[], allTransEntries
                     sheetEntry.tags.add(tag)
                     if (target === '$$no translation$$') {
                         if (transEntry.flag !== 'no-translation') {
-                            log.notice('updateTransEntries', `mark 'no-translation' flag of ${locale} of ${entryKey}`)
+                            log.verbose('updateTransEntries', `mark 'no-translation' flag of ${locale} of ${entryKey}`)
                             transEntry.flag = 'no-translation'
                         }
                     } else if (target === '$$needs translation$$') {
                         if (transEntry.flag !== 'needs-translation') {
-                            log.notice('updateTransEntries', `mark 'needs-translation' flag of ${locale} of ${entryKey}`)
+                            log.verbose('updateTransEntries', `mark 'needs-translation' flag of ${locale} of ${entryKey}`)
                             transEntry.flag = 'needs-translation'
                         }
                     } else if (target.startsWith('$$needs review$$')) {
                         // do not update po msgstr
                     } else {
                         if (transEntry.flag) {
-                            log.notice('updateTransEntries', `remove mark of ${locale} of ${entryKey}`)
+                            log.verbose('updateTransEntries', `remove mark of ${locale} of ${entryKey}`)
                             transEntry.flag = null
                         }
 
                         if (target && target !== transEntry.messages.other) {
-                            log.notice('updateTransEntries', `updating value of ${entryKey}: ${transEntry.messages.other} -> ${target}`)
+                            log.verbose('updateTransEntries', `updating value of ${entryKey}: ${transEntry.messages.other} -> ${target}`)
                             transEntry.messages.other = target
                         }
                     }
