@@ -323,7 +323,7 @@ function updateTransEntries(
                                 const translations = pickBy(JSON.parse(tr.translation), value => !!value)
                                 if (!isEqual(transEntry.messages, translations)) {
                                     updateIfNotSkipped(() => {
-                                        log.notice('updateTransEntries', `updating ${locale} value of ${entryKey}: ${JSON.stringify(transEntry.messages)} -> ${tr.translation}`)
+                                        log.verbose('updateTransEntries', `updating ${locale} value of ${entryKey}: ${JSON.stringify(transEntry.messages)} -> ${tr.translation}`)
                                         transEntry.messages = translations
                                     })
                                 }
@@ -333,7 +333,7 @@ function updateTransEntries(
                         } else {
                             if (tr.translation !== transEntry.messages['other']) {
                                 updateIfNotSkipped(() => {
-                                    log.notice('updateTransEntries', `updating ${locale} value of ${entryKey}: ${transEntry.messages['other']} -> ${tr.translation}`)
+                                    log.verbose('updateTransEntries', `updating ${locale} value of ${entryKey}: ${transEntry.messages['other']} -> ${tr.translation}`)
                                     transEntry.messages = {other: tr.translation}
                                 })
                             }
