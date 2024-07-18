@@ -141,13 +141,13 @@ export function checkTransEntrySpecs(transEntry: TransEntry, specs: string[]): b
         if (spec === 'total') {
             return positive
         } else if (spec === 'untranslated') {
-            if (!transEntry.messages.other) {
-                return positive
-            } else {
+            if (transEntry.messages.other && transEntry.flag !== 'unverified') {
                 return !positive
+            } else {
+                return positive
             }
         } else if (spec === 'translated') {
-            if (transEntry.messages.other) {
+            if (transEntry.messages.other && transEntry.flag !== 'unverified') {
                 return positive
             } else {
                 return !positive
