@@ -275,11 +275,11 @@ function updateTransEntries(
     allTransEntries: {[locale: string]: TransEntry[]},
     listedKeyMap: {[keyName: string]: Key}
 ) {
-    const skipUnverified = config.skipUnverified()
     const skipNotReviewed = config.skipNotReviewed()
     for (const [keyName, key] of Object.entries(listedKeyMap)) {
         for (const tr of key.translations) {
             const locale = tr.language_iso
+            const useUnverified = config.useUnverified(locale)
             // lokalise 에 있는 번역에 대해서
             if (allTransEntries[locale] != null) {
                 // 해당 언어 번역이 있는 경우
@@ -310,7 +310,7 @@ function updateTransEntries(
                             log.info('updateTransEntries', `skipping not reviewed: ${locale} of ${entryKey}`)
                             return
                         }
-                        if (skipUnverified && tr.is_unverified) {
+                        if (!useUnverified && tr.is_unverified) {
                             log.info('updateTransEntries', `skipping unverified: ${locale} of ${entryKey}`)
                             return
                         }

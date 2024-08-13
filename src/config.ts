@@ -352,8 +352,8 @@ type LokaliseConf = {
     projectId: string
     /** fill key to specified locale */
     'fill-key-to-locale'?: string,
-    /** Skip applying unverified translations */
-    'skip-unverified'?: boolean
+    /** Locales to use unverified translations */
+    'locales-to-use-unverified'?: string[]
     /** Skip applying not-reviewed translations */
     'skip-not-reviewed'?: boolean
     /** Locale map to pass to syncer */
@@ -374,8 +374,8 @@ export class LokaliseConfig {
         return this.lc['projectId']
     }
 
-    skipUnverified(): boolean {
-        return this.lc['skip-unverified'] ?? true
+    useUnverified(locale: string): boolean {
+        return this.lc['locales-to-use-unverified']?.includes(locale) ?? false
     }
 
     skipNotReviewed(): boolean {
