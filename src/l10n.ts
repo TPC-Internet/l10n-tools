@@ -115,8 +115,9 @@ async function run () {
 
                 for (const locale of locales) {
                     const transPath = getTransPath(transDir, locale)
+                    const useUnverified = config.useUnverified(locale)
                     for (const transEntry of await readTransEntries(transPath)) {
-                        if (!checkTransEntrySpecs(transEntry, specs)) {
+                        if (!checkTransEntrySpecs(transEntry, specs, useUnverified)) {
                             continue
                         }
                         process.exitCode = 1
@@ -183,9 +184,10 @@ async function run () {
                 const counts: string[] = []
                 for (const locale of locales) {
                     const transPath = getTransPath(transDir, locale)
+                    const useUnverified = config.useUnverified(locale)
                     let count = 0
                     for (const transEntry of await readTransEntries(transPath)) {
-                        if (checkTransEntrySpecs(transEntry, specs)) {
+                        if (checkTransEntrySpecs(transEntry, specs, useUnverified)) {
                             count++
                         }
                     }
@@ -213,8 +215,9 @@ async function run () {
                 const transDir = path.join(opts['transDir'] || cacheDir, domainName)
                 const transPath = getTransPath(transDir, locale)
 
+                const useUnverified = config.useUnverified(locale)
                 for (const transEntry of await readTransEntries(transPath)) {
-                    if (!checkTransEntrySpecs(transEntry, specs)) {
+                    if (!checkTransEntrySpecs(transEntry, specs, useUnverified)) {
                         continue
                     }
 

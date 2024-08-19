@@ -116,6 +116,13 @@ export class L10nConfig {
         }
         return new LokaliseConfig(lc)
     }
+
+    useUnverified(locale: string): boolean {
+        if (this.getSyncTarget() !== 'lokalise') {
+            return false
+        }
+        return this.getLokaliseConfig().useUnverified(locale)
+    }
 }
 
 export class DomainConfig {

@@ -131,23 +131,24 @@ export async function writeAllTransEntries(transDir: string, allTransEntries: {[
     }
 }
 
-export function checkTransEntrySpecs(transEntry: TransEntry, specs: string[]): boolean {
+export function checkTransEntrySpecs(transEntry: TransEntry, specs: string[], useUnverified: boolean): boolean {
     return specs.every(spec => {
         const positive = !spec.startsWith('!')
         if (!positive) {
             spec = spec.substr(1)
         }
+        const isVerified = useUnverified || transEntry.flag !== 'unverified'
 
         if (spec === 'total') {
             return positive
         } else if (spec === 'untranslated') {
-            if (transEntry.messages.other && transEntry.flag !== 'unverified') {
+            if (transEntry.messages.other && isVerified) {
                 return !positive
             } else {
                 return positive
             }
         } else if (spec === 'translated') {
-            if (transEntry.messages.other && transEntry.flag !== 'unverified') {
+            if (transEntry.messages.other && isVerified) {
                 return positive
             } else {
                 return !positive
