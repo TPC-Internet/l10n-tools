@@ -1,4 +1,4 @@
-import fs from 'node:fs/promises'
+import fsp from 'node:fs/promises'
 import log from 'npmlog'
 import * as path from 'path'
 import {getSrcPaths} from '../common.js'
@@ -28,10 +28,10 @@ export default async function (domainName: string, config: DomainConfig, keysPat
         log.verbose('extractKeys', `processing '${srcPath}'`)
         const ext = path.extname(srcPath)
         if (ext === '.vue') {
-            const input = await fs.readFile(srcPath, {encoding: 'utf-8'})
+            const input = await fsp.readFile(srcPath, {encoding: 'utf-8'})
             extractor.extractVue(srcPath, input)
         } else if (ext === '.js') {
-            const input = await fs.readFile(srcPath, {encoding: 'utf-8'})
+            const input = await fsp.readFile(srcPath, {encoding: 'utf-8'})
             extractor.extractJsModule(srcPath, input)
         } else {
             log.warn('extractKeys', `skipping '${srcPath}': unknown extension`)

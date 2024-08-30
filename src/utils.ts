@@ -2,7 +2,7 @@ import {spawn} from 'child_process'
 import commandExists from 'command-exists'
 import log from 'npmlog'
 import os from 'node:os'
-import fs from 'node:fs/promises'
+import fsp from 'node:fs/promises'
 import path from 'path'
 import {glob} from 'glob'
 
@@ -38,7 +38,7 @@ export function execWithLog (cmd: string, logPrefix: string = ''): Promise<numbe
 
 export async function fileExists(filePath: string): Promise<boolean> {
     try {
-        await fs.access(filePath)
+        await fsp.access(filePath)
         return true
     } catch (err) {
         if (isErrnoException(err, 'ENOENT')) {

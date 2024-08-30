@@ -1,6 +1,5 @@
-import fs from 'node:fs/promises'
+import fsp from 'node:fs/promises'
 import log from 'npmlog'
-import shell from 'shelljs'
 import * as path from 'path'
 import {EntryCollection} from '../entry-collection.js'
 import {readTransEntries, type TransEntry} from '../entry.js'
@@ -208,7 +207,7 @@ async function readXml(resDir: string, locale: string | null, fallback?: string)
     }
 
     try {
-        return await fs.readFile(targetPath, {encoding: 'utf-8'})
+        return await fsp.readFile(targetPath, {encoding: 'utf-8'})
     } catch (err) {
         if (fallback !== undefined && isErrnoException(err, 'ENOENT')) {
             return fallback
@@ -224,6 +223,6 @@ async function writeXml(xml: string, resDir: string, locale: string | null) {
     } else {
         targetPath = path.join(resDir, 'values-' + locale, 'strings.xml')
     }
-    shell.mkdir('-p', path.dirname(targetPath))
-    await fs.writeFile(targetPath, xml, {encoding: 'utf-8'})
+    await fsp.mkdir(path.dirname(targetPath), {recursive: true})
+    await fsp.writeFile(targetPath, xml, {encoding: 'utf-8'})
 }

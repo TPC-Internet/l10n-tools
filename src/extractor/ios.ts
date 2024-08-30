@@ -1,12 +1,11 @@
 import log from 'npmlog'
 import {KeyExtractor} from '../key-extractor.js'
-import * as fs from 'node:fs/promises'
+import fsp from 'node:fs/promises'
 import * as path from 'path'
 import i18nStringsFiles from 'i18n-strings-files'
 import plist, {type PlistObject} from 'plist'
 import {glob} from 'glob'
 import {execWithLog, fileExists, getTempDir} from '../utils.js'
-import shell from "shelljs"
 import {type DomainConfig} from '../config.js'
 import PQueue from 'p-queue';
 import os from 'os';
@@ -22,7 +21,7 @@ const infoPlistKeys = [
 
 export default async function (domainName: string, config: DomainConfig, keysPath: string) {
     const tempDir = path.join(getTempDir(), 'extractor')
-    shell.mkdir('-p', tempDir)
+    await fsp.mkdir(tempDir, {recursive: true})
 
     const extractor = new KeyExtractor({})
     const srcDir = config.getSrcDir()
@@ -33,12 +32,12 @@ export default async function (domainName: string, config: DomainConfig, keysPat
         log.verbose('extractKeys', `processing '${swiftPath}'`)
         const baseName = path.basename(swiftPath, '.swift')
         const stringsDir = path.join(tempDir, 'swift', baseName)
-        shell.mkdir('-p', stringsDir)
+        await fsp.mkdir(stringsDir, {recursive: true})
 
         await execWithLog(`genstrings -q -u -SwiftUI -o "${stringsDir}" "${swiftPath}"`)
         const stringsPath = path.join(stringsDir, 'Localizable.strings')
         if (await fileExists(stringsPath)) {
-            const input = await fs.readFile(stringsPath, {encoding: 'utf16le'})
+            const input = await fsp.readFile(stringsPath, {encoding: 'utf16le'})
             const swiftFile = swiftPath.substring(srcDir.length + 1)
             return {input, swiftFile}
         } else {
@@ -58,7 +57,7 @@ export default async function (domainName: string, config: DomainConfig, keysPat
 
     log.info('extractKeys', 'extracting from info.plist')
     const infoPlistPath = await getInfoPlistPath(srcDir)
-    const infoPlist = plist.parse(await fs.readFile(infoPlistPath, {encoding: 'utf-8'})) as PlistObject
+    const infoPlist = plist.parse(await fsp.readFile(infoPlistPath, {encoding: 'utf-8'})) as PlistObject
     for (const key of infoPlistKeys) {
         if (infoPlist.hasOwnProperty(key)) {
             extractor.addMessage({filename: 'info.plist', line: key}, infoPlist[key] as string, {context: key})
@@ -74,7 +73,7 @@ export default async function (domainName: string, config: DomainConfig, keysPat
         const stringsPath = path.join(tempDir, `${baseName}.strings`)
 
         await execWithLog(`ibtool --export-strings-file "${stringsPath}" "${xibPath}"`)
-        const input = await fs.readFile(stringsPath, {encoding: 'utf16le'})
+        const input = await fsp.readFile(stringsPath, {encoding: 'utf16le'})
         const xibName = path.basename(xibPath)
         return {input, xibName}
     }
@@ -89,7 +88,7 @@ export default async function (domainName: string, config: DomainConfig, keysPat
     }
 
     await writeKeyEntries(keysPath, extractor.keys.toEntries())
-    shell.rm('-rf', tempDir)
+    await fsp.rm(tempDir, {force: true, recursive: true})
 }
 
 async function getInfoPlistPath(srcDir: string) {

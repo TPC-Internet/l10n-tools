@@ -5,11 +5,10 @@ import * as path from 'path'
 import querystring from 'querystring'
 import url from 'url'
 import {type KeyEntry, type TransEntry} from '../entry.js'
-import fs from 'node:fs/promises'
+import fsp from 'node:fs/promises'
 import {drive_v3, google, sheets_v4} from 'googleapis'
 import {OAuth2Client} from 'google-auth-library'
 import open from 'open'
-import shell from 'shelljs'
 import {type DomainConfig, type GoogleCredentials, GoogleDocsConfig, type L10nConfig} from '../config.js'
 import {EntryCollection} from '../entry-collection.js'
 
@@ -69,13 +68,13 @@ async function getToken(oauth2Client: OAuth2Client) {
 
     // Check if we have previously stored a token.
     try {
-        return JSON.parse(await fs.readFile(tokenPath, {encoding: 'utf-8'}))
+        return JSON.parse(await fsp.readFile(tokenPath, {encoding: 'utf-8'}))
     } catch (err) {
         const code = await readAuthCode(oauth2Client)
         log.info('getToken', `code is ${code}`)
         const r = await oauth2Client.getToken(code)
-        shell.mkdir('-p', path.dirname(tokenPath))
-        await fs.writeFile(tokenPath, JSON.stringify(r.tokens))
+        await fsp.mkdir(path.dirname(tokenPath), {recursive: true})
+        await fsp.writeFile(tokenPath, JSON.stringify(r.tokens))
         log.info('getToken', `token stored to ${tokenPath}`)
         return r.tokens
     }

@@ -1,9 +1,8 @@
 import log from 'npmlog'
 import {type CompilerConfig} from '../config.js'
 import {getPluralKeys, readTransEntries} from '../entry.js'
-import shell from 'shelljs'
 import path from 'path'
-import fs from 'node:fs/promises'
+import fsp from 'node:fs/promises'
 import {extractLocaleFromTransPath, listTransPaths} from '../utils.js'
 
 export async function compileToJson(domainName: string, config: CompilerConfig, transDir: string) {
@@ -16,7 +15,7 @@ export async function compileToJson(domainName: string, config: CompilerConfig, 
         const locale = extractLocaleFromTransPath(transPath)
         translations[locale] = await exportTransToJson(locale, transPath)
     }
-    await fs.writeFile(targetPath, JSON.stringify(translations, null, 2))
+    await fsp.writeFile(targetPath, JSON.stringify(translations, null, 2))
 }
 
 type JsonPluralType = 'vue-i18n' | 'node-i18n' | 'i18next'
@@ -27,16 +26,16 @@ export function compileToJsonDir(pluralType?: JsonPluralType) {
         const useLocaleKey = config.useLocaleKey()
         log.info('compile', `generating json files '${targetDir}/{locale}.json' (locale key: ${useLocaleKey})`)
 
-        shell.mkdir('-p', targetDir)
+        await fsp.mkdir(targetDir, {recursive: true})
         const transPaths = await listTransPaths(transDir)
         for (const transPath of transPaths) {
             const locale = extractLocaleFromTransPath(transPath)
             const json = await exportTransToJson(locale, transPath, pluralType)
             const jsonPath = path.join(targetDir, locale + '.json')
             if (useLocaleKey) {
-                await fs.writeFile(jsonPath, JSON.stringify({[locale]: json}, null, 2))
+                await fsp.writeFile(jsonPath, JSON.stringify({[locale]: json}, null, 2))
             } else {
-                await fs.writeFile(jsonPath, JSON.stringify(json, null, 2))
+                await fsp.writeFile(jsonPath, JSON.stringify(json, null, 2))
             }
         }
     }

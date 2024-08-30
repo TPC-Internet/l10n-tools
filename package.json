@@ -42,7 +42,6 @@
     "p-queue": "^8.0.1",
     "php-parser": "^3.1.5",
     "plist": "^3.1.0",
-    "shelljs": "^0.8.5",
     "typescript": "^5.5.4"
   },
   "devDependencies": {
@@ -54,7 +53,6 @@
     "@types/node": "^18.19.47",
     "@types/npmlog": "^7.0.0",
     "@types/plist": "^3.0.5",
-    "@types/shelljs": "^0.8.15",
     "chokidar": "^3.6.0",
     "expect": "^29.7.0",
     "ts-node": "^10.9.2",

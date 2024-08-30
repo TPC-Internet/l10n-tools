@@ -1,7 +1,6 @@
-import fs from 'node:fs/promises'
+import fsp from 'node:fs/promises'
 import {glob} from 'glob'
 import log from 'npmlog'
-import shell from 'shelljs'
 import * as path from 'path'
 import i18nStringsFiles, {type CommentedI18nStringsMsg, type I18nStringsMsg} from 'i18n-strings-files'
 import {EntryCollection} from '../entry-collection.js'
@@ -30,7 +29,7 @@ type StringsDictValue = {
 
 export async function compileToIosStrings(domainName: string, config: CompilerConfig, transDir: string) {
     const tempDir = path.join(getTempDir(), 'compiler')
-    shell.mkdir('-p', tempDir)
+    await fsp.mkdir(tempDir, {recursive: true})
     const srcDir = config.getSrcDir()
 
     log.info('compile', `generating .strings files`)
@@ -59,7 +58,7 @@ export async function compileToIosStrings(domainName: string, config: CompilerCo
                 }
 
                 const output = generateStringsFile(strings)
-                await fs.writeFile(stringsPath, output, {encoding: 'utf-8'})
+                await fsp.writeFile(stringsPath, output, {encoding: 'utf-8'})
             } else if (stringsName === 'Localizable') {
                 await execWithLog(`find "${srcDir}" -name "*.swift" -print0 | xargs -0 genstrings -q -u -SwiftUI -o "${tempDir}"`)
                 const strings = i18nStringsFiles.readFileSync(path.join(tempDir, 'Localizable.strings'), {encoding: 'utf16le', wantsComments: true})
@@ -99,8 +98,8 @@ export async function compileToIosStrings(domainName: string, config: CompilerCo
                 const output = generateStringsFile(strings)
                 const stringsDictOutput = plist.build(stringsDict)
 
-                await fs.writeFile(stringsPath, output, {encoding: 'utf-8'})
-                await fs.writeFile(stringsDictPath, stringsDictOutput, {encoding: 'utf-8'})
+                await fsp.writeFile(stringsPath, output, {encoding: 'utf-8'})
+                await fsp.writeFile(stringsDictPath, stringsDictOutput, {encoding: 'utf-8'})
             } else {
                 const basePath = path.dirname(path.dirname(stringsPath))
                 for (const extName of ['.xib', '.storyboard']) {
@@ -119,7 +118,7 @@ export async function compileToIosStrings(domainName: string, config: CompilerCo
                         }
 
                         const output = generateStringsFile(strings)
-                        await fs.writeFile(stringsPath, output, {encoding: 'utf-8'})
+                        await fsp.writeFile(stringsPath, output, {encoding: 'utf-8'})
                         break
                     }
                 }
@@ -128,7 +127,7 @@ export async function compileToIosStrings(domainName: string, config: CompilerCo
         const stringsPaths = await getStringsPaths(srcDir, locale)
         await queue.addAll(stringsPaths.map(stringsPath => () => compile(stringsPath)), {throwOnTimeout: true})
     }
-    shell.rm('-rf', tempDir)
+    await fsp.rm(tempDir, {force: true, recursive: true})
 }
 
 async function getStringsPaths(srcDir: string, locale: string): Promise<string[]> {

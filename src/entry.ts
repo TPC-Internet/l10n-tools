@@ -1,4 +1,4 @@
-import fs from 'node:fs/promises'
+import fsp from 'node:fs/promises'
 import {extractLocaleFromTransPath, getTransPath, listTransPaths} from './utils.js'
 
 export type KeyReference = {
@@ -67,7 +67,7 @@ export function compareEntry(a: BaseEntry, b: BaseEntry) {
 }
 
 export async function readKeyEntries(file: string): Promise<KeyEntry[]> {
-    const input = await fs.readFile(file, {encoding: 'utf-8'})
+    const input = await fsp.readFile(file, {encoding: 'utf-8'})
     const {keys: entries} = JSON.parse(input)
     return entries.map((entry: any) => {
         return {
@@ -81,7 +81,7 @@ export async function readKeyEntries(file: string): Promise<KeyEntry[]> {
 }
 
 export async function readTransEntries(file: string): Promise<TransEntry[]> {
-    const input = await fs.readFile(file, {encoding: 'utf-8'})
+    const input = await fsp.readFile(file, {encoding: 'utf-8'})
     const {translations: entries} = JSON.parse(input) as {translations: TransEntry[]}
     return entries.map((entry: any) => {
         return {
@@ -111,7 +111,7 @@ export async function writeKeyEntries(file: string, entries: KeyEntry[]) {
         count: entries.length,
         keys: entries
     }, null, 2)
-    await fs.writeFile(file, output, {encoding: 'utf-8'})
+    await fsp.writeFile(file, output, {encoding: 'utf-8'})
 }
 
 export async function writeTransEntries(file: string, entries: TransEntry[]) {
@@ -120,7 +120,7 @@ export async function writeTransEntries(file: string, entries: TransEntry[]) {
         count: entries.length,
         translations: entries
     }, null, 2)
-    await fs.writeFile(file, output, {encoding: 'utf-8'})
+    await fsp.writeFile(file, output, {encoding: 'utf-8'})
 }
 
 export async function writeAllTransEntries(transDir: string, allTransEntries: {[locale: string]: TransEntry[]}) {

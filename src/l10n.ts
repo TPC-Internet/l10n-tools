@@ -10,7 +10,7 @@ import * as path from 'path'
 import {DomainConfig, L10nConfig} from './config.js'
 import {extractKeys} from './extractor/index.js'
 import {compileAll} from './compiler/index.js'
-import fs from 'node:fs/promises'
+import fsp from 'node:fs/promises'
 import {cosmiconfig} from 'cosmiconfig'
 import {fileURLToPath} from 'url'
 import Ajv from 'ajv'
@@ -19,7 +19,7 @@ const program = new Command('l10n-tools')
 const dirname = path.dirname(fileURLToPath(import.meta.url))
 
 async function run () {
-    const pkg = JSON.parse(await fs.readFile(path.join(dirname, '..', 'package.json'), {encoding: 'utf-8'}))
+    const pkg = JSON.parse(await fsp.readFile(path.join(dirname, '..', 'package.json'), {encoding: 'utf-8'}))
     program.version(pkg.version)
         .description(pkg.description)
         .option('-r, --rcfile <rcfile>', '설정 파일 지정, 기본값은 .l10nrc')
@@ -290,7 +290,7 @@ async function loadConfig(rcPath: string): Promise<L10nConfig> {
     const explorer = cosmiconfig('l10n')
     const rc = await explorer.load(rcPath)
     const ajv = new Ajv.default()
-    const schema = JSON.parse(await fs.readFile(path.join(dirname, '..', 'l10nrc.schema.json'), {encoding: 'utf-8'}))
+    const schema = JSON.parse(await fsp.readFile(path.join(dirname, '..', 'l10nrc.schema.json'), {encoding: 'utf-8'}))
     const validate = ajv.compile(schema)
     const valid = validate(rc?.config)
     if (!valid) {

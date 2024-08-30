@@ -1,5 +1,5 @@
 import {type Command} from 'commander';
-import fs from 'node:fs/promises'
+import fsp from 'node:fs/promises'
 import {type SupportedPlatforms} from '@lokalise/node-api';
 import {invert} from 'lodash-es';
 
@@ -342,7 +342,7 @@ export class GoogleDocsConfig {
     async getCredentials(): Promise<GoogleCredentials> {
         const clientSecretPath = this.gdc['client-secret-path']
         if (clientSecretPath != null) {
-            const input = await fs.readFile(clientSecretPath, {encoding: 'utf-8'})
+            const input = await fsp.readFile(clientSecretPath, {encoding: 'utf-8'})
             return JSON.parse(input)['installed']
         }
         const clientId = this.gdc['client-id']

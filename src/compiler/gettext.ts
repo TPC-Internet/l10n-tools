@@ -1,10 +1,9 @@
 import log from 'npmlog'
-import shell from "shelljs"
 import {type CompilerConfig} from '../config.js'
 import * as path from "path"
 import * as gettextParser from "gettext-parser"
 import {type GetTextTranslation, type GetTextTranslations} from 'gettext-parser'
-import fs from 'node:fs/promises'
+import fsp from 'node:fs/promises'
 import {getPluralKeys, readTransEntries, type TransEntry} from '../entry.js'
 import {fileURLToPath} from 'url'
 import {extractLocaleFromTransPath, listTransPaths} from '../utils.js'
@@ -12,22 +11,22 @@ import {extractLocaleFromTransPath, listTransPaths} from '../utils.js'
 export async function compileToPoJson(domainName: string, config: CompilerConfig, transDir: string) {
     const targetDir = config.getTargetDir()
     log.info('compile', `generating json files to '${targetDir}/${domainName}/{locale}.json'`)
-    shell.mkdir('-p', targetDir)
+    await fsp.mkdir(targetDir, {recursive: true})
     const transPaths = await listTransPaths(transDir)
     for (const transPath of transPaths) {
         const locale = extractLocaleFromTransPath(transPath)
         const jsonPath = path.join(targetDir, locale + '.json')
         const po = await createPo(domainName, locale, await readTransEntries(transPath))
 
-        shell.mkdir('-p', targetDir)
-        await fs.writeFile(jsonPath, JSON.stringify(po, null, 2))
+        await fsp.mkdir(targetDir, {recursive: true})
+        await fsp.writeFile(jsonPath, JSON.stringify(po, null, 2))
     }
 }
 
 export async function compileToMo(domainName: string, config: CompilerConfig, transDir: string) {
     const targetDir = config.getTargetDir()
     log.info('compile', `generating mo files to '${targetDir}/{locale}/LC_MESSAGES/${domainName}.mo'`)
-    shell.mkdir('-p', targetDir)
+    await fsp.mkdir(targetDir, {recursive: true})
     const transPaths = await listTransPaths(transDir)
     for (const transPath of transPaths) {
         const locale = extractLocaleFromTransPath(transPath)
@@ -37,14 +36,14 @@ export async function compileToMo(domainName: string, config: CompilerConfig, tr
         const po = await createPo(domainName, locale, await readTransEntries(transPath))
         const output = gettextParser.mo.compile(po, {sort})
 
-        shell.mkdir('-p', moDir)
-        await fs.writeFile(moPath, output)
+        await fsp.mkdir(moDir, {recursive: true})
+        await fsp.writeFile(moPath, output)
     }
 }
 
 async function createPo(domainName: string, locale: string, transEntries: TransEntry[]): Promise<GetTextTranslations> {
     const dirname = path.dirname(fileURLToPath(import.meta.url))
-    const pkg = JSON.parse(await fs.readFile(path.join(dirname, '../..', 'package.json'), {encoding: 'utf-8'}))
+    const pkg = JSON.parse(await fsp.readFile(path.join(dirname, '../..', 'package.json'), {encoding: 'utf-8'}))
     const po: GetTextTranslations = {
         charset: 'utf-8',
         headers: {

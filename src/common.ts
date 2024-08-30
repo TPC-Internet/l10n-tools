@@ -1,7 +1,7 @@
 import {glob} from 'glob'
 import log from 'npmlog'
 import * as path from 'path'
-import shell from 'shelljs'
+import fsp from 'node:fs/promises'
 import {execWithLog, fileExists, getTransPath, requireCmd} from './utils.js'
 import {
     readKeyEntries,
@@ -49,7 +49,7 @@ export async function xgettext (domainName: string, language: string, keywords: 
 }
 
 export async function updateTrans (keysPath: string, fromTransDir: string, transDir: string, locales: string[], validationConfig: ValidationConfig | null) {
-    shell.mkdir('-p', transDir)
+    await fsp.mkdir(transDir, {recursive: true})
     let baseTrans: EntryCollection<TransEntry> | null = null
     const baseLocale = validationConfig?.getBaseLocale() ?? null
     if (baseLocale != null) {
