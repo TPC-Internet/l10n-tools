@@ -45,6 +45,7 @@
     "typescript": "^5.5.4"
   },
   "devDependencies": {
+    "@faker-js/faker": "^8.4.1",
     "@swc/cli": "^0.4.0",
     "@swc/core": "^1.7.21",
     "@types/command-exists": "^1.2.3",

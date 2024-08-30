@@ -107,3 +107,7 @@ export function getKeysPath(keysDir: string): string {
 export function getTransPath(transDir: string, locale: string): string {
     return path.join(transDir, `trans-${locale}.json`)
 }
+
+export function isPureKey(keyName: string, prefixes: string[]): boolean {
+    return prefixes.some(prefix => keyName.startsWith(prefix))
+}

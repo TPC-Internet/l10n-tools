@@ -12,7 +12,7 @@ import {
 import {chunk, isEqual, pickBy} from 'lodash-es'
 import PQueue from 'p-queue';
 import {addContext, containsContext, getContexts, removeContext} from './lokalise-context.js';
-import {addToArraySet, removeFromArraySet} from '../utils.js';
+import {addToArraySet, isPureKey, removeFromArraySet} from '../utils.js';
 import {EntryCollection} from '../entry-collection.js'
 import {addComment, containsComment} from './lokalise-comment.js'
 
@@ -356,16 +356,20 @@ async function uploadToLokalise(
     drySync: boolean
 ) {
     const localeSyncMap = config.getLocaleSyncMap(false)
+    const prefixes = config.getPureKeyPrefixes()
     for (let keys of chunk(Object.values(creatingKeyMap), 500)) {
         try {
             keys = keys.map(key => applyLocaleSyncMap(key, localeSyncMap))
             const fillLocale = config.fillKeyToLocale()
             if (fillLocale != null) {
                 keys = keys.map(key => {
-                    if (key.translations == null) {
-                        key.translations = []
+                    if (isPureKey(key.key_name as string, prefixes)) {
+                        return key
                     }
-                    if (key.translations.find(translation => translation.language_iso == fillLocale) == null) {
+                    if (!key.translations?.some(translation => translation.language_iso == fillLocale)) {
+                        if (!key.translations) {
+                            key.translations = []
+                        }
                         key.translations.push(createTranslationData(fillLocale, key.is_plural == true, {other: key.key_name as string}))
                     }
                     return key

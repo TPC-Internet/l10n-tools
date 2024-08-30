@@ -359,6 +359,8 @@ type LokaliseConf = {
     projectId: string
     /** fill key to specified locale */
     'fill-key-to-locale'?: string,
+    /** key prefixes which 'fill-key-to-locale' option exclusion */
+    'pure-key-prefixes'?: string[]
     /** Locales to use unverified translations */
     'locales-to-use-unverified'?: string[]
     /** Skip applying not-reviewed translations */
@@ -391,6 +393,10 @@ export class LokaliseConfig {
 
     fillKeyToLocale(): string | null {
         return this.lc['fill-key-to-locale'] ?? null
+    }
+
+    getPureKeyPrefixes(): string[] {
+        return this.lc['pure-key-prefixes'] ?? []
     }
 
     getLocaleSyncMap(inverted: boolean): {[locale: string]: string} | undefined {
