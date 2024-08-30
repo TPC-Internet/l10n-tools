@@ -211,6 +211,13 @@
                 "projectId": {
                     "type": "string"
                 },
+                "pure-key-prefixes": {
+                    "description": "key prefixes which 'fill-key-to-locale' option exclusion",
+                    "items": {
+                        "type": "string"
+                    },
+                    "type": "array"
+                },
                 "skip-not-reviewed": {
                     "description": "Skip applying not-reviewed translations",
                     "type": "boolean"
