@@ -1,5 +1,12 @@
 # Changelog
 
+## [4.4.5](https://github.com/TPC-Internet/l10n-tools/compare/v4.4.4...v4.4.5) (2025-05-21)
+
+
+### Continuous Integration
+
+* fix npm publish ([#37](https://github.com/TPC-Internet/l10n-tools/issues/37)) ([36424ab](https://github.com/TPC-Internet/l10n-tools/commit/36424abf39eca4740396dacc5e0aae9ec58539c2))
+
 ## [4.4.4](https://github.com/TPC-Internet/l10n-tools/compare/v4.4.3...v4.4.4) (2025-05-21)
 
 
