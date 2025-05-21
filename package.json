@@ -40,7 +40,7 @@
     "i18n-strings-files": "^2.0.0",
     "lodash-es": "^4.17.21",
     "npmlog": "^7.0.1",
-    "open": "^10.1.0",
+    "open": "^10.1.2",
     "p-queue": "^8.1.0",
     "php-parser": "^3.2.2",
     "plist": "^3.1.0",
