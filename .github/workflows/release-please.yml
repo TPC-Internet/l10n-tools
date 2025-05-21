@@ -18,3 +18,22 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           target-branch: ${{ github.ref_name }}
+  
+  publish:
+    runs-on: ubuntu-latest
+    concurrency: publish
+    needs: release-please
+    if: ${{ needs.release-please.outputs.releases_created == 'true' }}
+  
+    steps:
+    - uses: actions/checkout@v4
+    - name: Setup node with cached node_modules
+        uses: ./.github/actions/setup-node-cached
+      with:
+        node-version: 18
+    - name: Prepare
+      run: npm run prepare
+    - name: Publish
+      env:
+        NODE_AUTH_TOKEN: ${{ secrets.NPM_PUBLISH_TOKEN }}
+      run: npm publish
