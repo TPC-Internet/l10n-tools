@@ -17,7 +17,10 @@
   },
   "author": "Eungkyu Song <eungkyu@gmail.com>",
   "license": "MIT",
-  "repository": "https://github.com/TPC-Internet/l10n-tools",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/TPC-Internet/l10n-tools"
+  },
   "bin": {
     "l10n": "dist/l10n.js"
   },
