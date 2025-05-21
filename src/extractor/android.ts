@@ -63,7 +63,7 @@ function getAndroidXmlStringContent(src: string, elem: Element) {
     if (elem.attribs['format'] == 'html') {
         return elem.children.find(isText)?.data.trim() ?? ''
     } else {
-        let content = getElementContent(src, elem)
+        let content = getElementContent(src, elem).trim()
         if (content.startsWith('<![CDATA[')) {
             content = content.substring(9, content.length - 3)
         } else {
