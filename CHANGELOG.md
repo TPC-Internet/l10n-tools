@@ -1,5 +1,12 @@
 # Changelog
 
+## [4.4.6](https://github.com/TPC-Internet/l10n-tools/compare/v4.4.5...v4.4.6) (2025-05-21)
+
+
+### Continuous Integration
+
+* fix repo url ([5c1a23e](https://github.com/TPC-Internet/l10n-tools/commit/5c1a23e235df918648bf4bb34436a7adbbb1b16f))
+
 ## [4.4.5](https://github.com/TPC-Internet/l10n-tools/compare/v4.4.4...v4.4.5) (2025-05-21)
 
 
