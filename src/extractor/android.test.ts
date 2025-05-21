@@ -20,6 +20,7 @@ describe('android extractor test', () => {
         <item quantity="one">%d day</item>
         <item quantity="other">%d days</item>
     </plurals>
+    <string name="spaced_key">SPACED KEY </string>
 </resources>`
             const extractor = new KeyExtractor({})
             extractAndroidStringsXml(extractor, 'test-file', srcXml)
@@ -31,6 +32,7 @@ describe('android extractor test', () => {
             expectKeyEntry(extractor.keys, 'cdata_key_2', '<b>%1$s</b> Present.', false, 'test-file', '9')
             expectKeyEntry(extractor.keys, 'escaped_key', '<font color="#FF424D">RENEW</font>', false, 'test-file', '10')
             expectKeyEntry(extractor.keys, 'plural_key', '%d days', true, 'test-file', '11')
+            expectKeyEntry(extractor.keys, 'spaced_key', 'SPACED KEY', false, 'test-file', '15')
         })
     })
 })
