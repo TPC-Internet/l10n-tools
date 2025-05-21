@@ -1,4 +1,5 @@
-import {parse} from 'node-html-parser';
+import {parseDocument} from 'htmlparser2';
+import {Element} from 'domhandler';
 import log from 'npmlog'
 import {KeyEntryBuilder} from './key-entry-builder.js'
 import {EntryCollection} from './entry-collection.js'
@@ -125,23 +126,27 @@ export class KeyExtractor {
     }
 
     extractVue (filename: string, src: string, startLine: number = 1) {
-        const root = parse(src)
-        for (const elem of root.querySelectorAll(':scope > *')) {
-            if (elem.rawTagName == 'template') {
-                const content = elem.innerHTML
+        const root = parseDocument(src, {withStartIndices: true, withEndIndices: true})
+        for (const elem of root.children) {
+            if (!(elem instanceof Element)) {
+                continue
+            }
+            if (elem.name == 'template') {
+                const content = getElementContent(src, elem)
                 if (content) {
-                    const line = getLineTo(src, elem.childNodes[0].range[0], startLine)
+                    const line = getLineTo(src, getElementContentIndex(elem), startLine)
                     this.extractTemplate(filename, content, line)
                 }
-            } else if (elem.rawTagName === 'script') {
-                const content = elem.innerHTML
+            } else if (elem.name === 'script') {
+                const content = getElementContent(src, elem)
                 if (content) {
-                    const {lang, type} = elem.attrs
+                    const lang = elem.attribs['lang']
+                    const type = elem.attribs['type']
                     if (lang === 'ts') {
-                        const line = getLineTo(src, elem.childNodes[0].range[0], startLine)
+                        const line = getLineTo(src, getElementContentIndex(elem), startLine)
                         this.extractTsModule(filename, content, line)
                     } else if (!type || type === 'text/javascript') {
-                        const line = getLineTo(src, elem.childNodes[0].range[0], startLine)
+                        const line = getLineTo(src, getElementContentIndex(elem), startLine)
                         this.extractJsModule(filename, content, line)
                     }
                 }
@@ -150,111 +155,116 @@ export class KeyExtractor {
     }
 
     private extractTemplate (filename: string, src: string, startLine: number = 1) {
-        const root = parse(src)
-        for (const elem of root.querySelectorAll('*')) {
-            if (elem.rawTagName == 'script') {
-                const content = elem.innerHTML
+        const root = parseDocument(src, {withStartIndices: true, withEndIndices: true})
+        for (const elem of root.childNodes) {
+            if (!(elem instanceof Element)) {
+                continue
+            }
+            if (elem.name == 'script') {
+                const content = getElementContent(src, elem)
                 if (content) {
-                    const type = elem.attributes['type']
+                    const type = elem.attribs['type']
                     if (!type || type == 'text/javascript') {
-                        const line = getLineTo(src, elem.childNodes[0].range[0], startLine)
+                        const line = getLineTo(src, getElementContentIndex(elem), startLine)
                         this.extractJsModule(filename, content, line)
                     } else if (type === 'text/ng-template') {
-                        const line = getLineTo(src, elem.childNodes[0].range[0], startLine)
+                        const line = getLineTo(src, getElementContentIndex(elem), startLine)
                         this.extractTemplate(filename, content, line)
                     }
                 }
             }
 
-            if (this.options.tagNames.includes(elem.rawTagName)) {
-                if (elem.rawTagName == 'translate') {
-                    const key = elem.innerHTML.trim()
+            if (this.options.tagNames.includes(elem.name)) {
+                if (elem.name == 'translate') {
+                    const {content, index} = getElementInfo(src, elem)
+                    const key = content.trim()
                     if (key) {
-                        const line = getLineTo(src, elem.childNodes[0].range[0], startLine)
-                        const plural = elem.attributes['translate-plural'] || null
-                        const comment = elem.attributes['translate-comment'] || null
-                        const context = elem.attributes['translate-context'] || null
+                        const line = getLineTo(src, index, startLine)
+                        const plural = elem.attribs['translate-plural'] || null
+                        const comment = elem.attribs['translate-comment'] || null
+                        const context = elem.attribs['translate-context'] || null
                         this.addMessage({filename, line}, key, {isPlural: plural != null, comment, context})
                     }
-                } else if (elem.rawTagName == 'i18n') {
-                    if (elem.attributes['path']) {
-                        const key = elem.attributes['path']
-                        const line = getLineTo(src, elem.range[0], startLine)
+                } else if (elem.name == 'i18n') {
+                    if (elem.attribs['path']) {
+                        const key = elem.attribs['path']
+                        const line = getLineTo(src, getElementContentIndex(elem), startLine)
                         this.addMessage({filename, line}, key)
-                    } else if (elem.attributes[':path']) {
-                        const source = elem.attributes[':path']
-                        const line = getLineTo(src, elem.range[0], startLine)
+                    } else if (elem.attribs[':path']) {
+                        const source = elem.attribs[':path']
+                        const line = getLineTo(src, getElementContentIndex(elem), startLine)
                         this.extractJsIdentifier(filename, source, line)
                     }
-                } else if (elem.rawTagName == 'i18n-t') {
-                    if (elem.attributes['keypath']) {
-                        const key = elem.attributes['keypath']
-                        const isPlural = elem.attributes['plural'] != null || elem.attributes[':plural'] != null
-                        const line = getLineTo(src, elem.range[0], startLine)
+                } else if (elem.name == 'i18n-t') {
+                    if (elem.attribs['keypath']) {
+                        const key = elem.attribs['keypath']
+                        const isPlural = elem.attribs['plural'] != null || elem.attribs[':plural'] != null
+                        const line = getLineTo(src, getElementContentIndex(elem), startLine)
                         this.addMessage({filename, line}, key, {isPlural})
-                    } else if (elem.attributes[':keypath']) {
-                        const source = elem.attributes[':keypath']
-                        const isPlural = elem.attributes['plural'] != null || elem.attributes[':plural'] != null
-                        const line = getLineTo(src, elem.range[0], startLine)
+                    } else if (elem.attribs[':keypath']) {
+                        const source = elem.attribs[':keypath']
+                        const isPlural = elem.attribs['plural'] != null || elem.attribs[':plural'] != null
+                        const line = getLineTo(src, getElementContentIndex(elem), startLine)
                         this.extractJsIdentifier(filename, source, line, {isPlural})
                     }
                 }
             }
 
-            if (this.options.attrNames.some(attrName => elem.attributes[attrName])) {
-                const key = elem.innerHTML.trim()
+            if (this.options.attrNames.some(attrName => elem.attribs[attrName])) {
+                const key = getElementContent(src, elem).trim()
                 if (key) {
-                    const line = getLineTo(src, elem.childNodes[0].range[0], startLine)
-                    const plural = elem.attributes['translate-plural'] || null
-                    const comment = elem.attributes['translate-comment'] || null
-                    const context = elem.attributes['translate-context'] || null
+                    const line = getLineTo(src, getElementContentIndex(elem), startLine)
+                    const plural = elem.attribs['translate-plural'] || null
+                    const comment = elem.attribs['translate-comment'] || null
+                    const context = elem.attribs['translate-context'] || null
                     this.addMessage({filename, line}, key, {isPlural: plural != null, comment, context})
                 }
             }
 
-            for (const [attr, content] of Object.entries(elem.attributes)) {
+            for (const [attr, content] of Object.entries(elem.attribs)) {
                 if (content) {
+                    const index = getElementContentIndex(elem)
                     if (this.options.exprAttrs.some(pattern => attr.match(pattern))) {
                         let contentIndex = 0
-                        const attrIndex = src.substring(elem.range[0]).indexOf(attr)
+                        const attrIndex = src.substring(index).indexOf(attr)
                         if (attrIndex >= 0) {
                             contentIndex = attrIndex + attr.length
-                            while (/[=\s]/.test(src.substring(elem.range[0] + contentIndex)[0])) {
+                            while (/[=\s]/.test(src.substring(index + contentIndex)[0])) {
                                 contentIndex++
                             }
-                            if (['\'', '"'].includes(src.substring(elem.range[0] + contentIndex)[0])) {
+                            if (['\'', '"'].includes(src.substring(index + contentIndex)[0])) {
                                 contentIndex++
                             }
                         }
-                        const line = getLineTo(src, elem.range[0] + contentIndex, startLine)
+                        const line = getLineTo(src, index + contentIndex, startLine)
                         this.extractJsExpression(filename, content, line)
                     } else if (this.options.valueAttrNames.some(pattern => attr.match(pattern))) {
                         let contentIndex = 0
-                        const attrIndex = src.substring(elem.range[0]).indexOf(attr)
+                        const attrIndex = src.substring(index).indexOf(attr)
                         if (attrIndex >= 0) {
                             contentIndex = attrIndex + attr.length
-                            while (/[=\s]/.test(src.substring(elem.range[0] + contentIndex)[0])) {
+                            while (/[=\s]/.test(src.substring(index + contentIndex)[0])) {
                                 contentIndex++
                             }
-                            if (['\'', '"'].includes(src.substring(elem.range[0] + contentIndex)[0])) {
+                            if (['\'', '"'].includes(src.substring(index + contentIndex)[0])) {
                                 contentIndex++
                             }
                         }
-                        const line = getLineTo(src, elem.range[0] + contentIndex, startLine)
+                        const line = getLineTo(src, index + contentIndex, startLine)
                         this.extractJsIdentifier(filename, content, line)
                     } else if (Object.keys(this.options.objectAttrs).includes(attr)) {
                         let contentIndex = 0
-                        const attrIndex = src.substring(elem.range[0]).indexOf(attr)
+                        const attrIndex = src.substring(index).indexOf(attr)
                         if (attrIndex >= 0) {
                             contentIndex = attrIndex + attr.length
-                            while (/[=\s]/.test(src.substring(elem.range[0] + contentIndex)[0])) {
+                            while (/[=\s]/.test(src.substring(index + contentIndex)[0])) {
                                 contentIndex++
                             }
-                            if (['\'', '"'].includes(src.substring(elem.range[0] + contentIndex)[0])) {
+                            if (['\'', '"'].includes(src.substring(index + contentIndex)[0])) {
                                 contentIndex++
                             }
                         }
-                        const line = getLineTo(src, elem.range[0] + contentIndex, startLine)
+                        const line = getLineTo(src, index + contentIndex, startLine)
                         this.extractJsObjectPaths(filename, content, this.options.objectAttrs[attr], line)
                     }
                 }
@@ -634,4 +644,26 @@ export function getLineTo(src: string, index: number, startLine: number = 1): nu
         return startLine
     }
     return startLine + matches.length
+}
+
+function getElementInfo(src: string, elem: Element) {
+    const content = getElementContent(src, elem)
+    const index = getElementContentIndex(elem)
+    return {content, index}
+}
+
+function getElementContent(src: string, elem: Element) {
+    if (elem.children.length === 0) {
+        return ''
+    }
+    const start = elem.children.at(0)!.startIndex!
+    const end = elem.children.at(-1)!.endIndex!
+    return src.substring(start, end + 1)
+}
+
+function getElementContentIndex(elem: Element) {
+    if (elem.children.length === 0) {
+        return elem.endIndex! + 1
+    }
+    return elem.children.at(0)!.startIndex!
 }

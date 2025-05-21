@@ -53,6 +53,37 @@ describe('KeyExtractor', () => {
             expectKeyEntry(extractor.keys, null, 'Hello', false, 'test-file', '5')
         })
 
+        it('extract $t in vue (space in tag)', () => {
+            const module = `
+                <template>
+                   <span
+                        >{{ $t('Apple & Banana') }}</span>
+                </template>
+            `
+            const extractor = new KeyExtractor({
+                markers: [{start: '{{', end: '}}'}],
+                keywords: ['$t']
+            })
+            extractor.extractVue('test-file', module)
+            expectKeyEntry(extractor.keys, null, 'Apple & Banana', false, 'test-file', '4')
+        })
+
+        it('extract $t in vue (space after marker)', () => {
+            const module = `
+                <template>
+                   <span>{{
+                   $t(
+                   'Apple & Banana') }}</span>
+                </template>
+            `
+            const extractor = new KeyExtractor({
+                markers: [{start: '{{', end: '}}'}],
+                keywords: ['$t']
+            })
+            extractor.extractVue('test-file', module)
+            expectKeyEntry(extractor.keys, null, 'Apple & Banana', false, 'test-file', '4')
+        })
+
         it('extract $t in vue (plural)', () => {
             const module = `
                 <template>
