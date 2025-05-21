@@ -28,7 +28,7 @@ jobs:
     steps:
     - uses: actions/checkout@v4
     - name: Setup node with cached node_modules
-        uses: ./.github/actions/setup-node-cached
+      uses: ./.github/actions/setup-node-cached
       with:
         node-version: 18
     - name: Prepare
