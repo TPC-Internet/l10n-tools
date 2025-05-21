@@ -9,7 +9,7 @@ jobs:
     name: Test
     runs-on: ubuntu-latest
     concurrency:
-      group: tsc-lint-pr${{ github.event.number }}
+      group: tsc-lint-pr${{ github.event.number }}-${{ matrix.version }}
       cancel-in-progress: true
     timeout-minutes: 15
 
