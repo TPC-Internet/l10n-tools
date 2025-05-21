@@ -27,6 +27,8 @@
     "command-exists": "^1.2.9",
     "commander": "^12.1.0",
     "cosmiconfig": "^9.0.0",
+    "domhandler": "^5.0.3",
+    "domutils": "^3.2.2",
     "fast-xml-parser": "^5.0.6",
     "gettext-parser": "^8.0.0",
     "glob": "^10.4.5",

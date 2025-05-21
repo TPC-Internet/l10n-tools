@@ -1,5 +1,7 @@
 import {parseDocument} from 'htmlparser2';
-import {Element} from 'domhandler';
+import {isTag} from 'domhandler';
+import {findAll} from 'domutils';
+import {getElementContent, getElementContentIndex} from './element-utils.js';
 import log from 'npmlog'
 import {KeyEntryBuilder} from './key-entry-builder.js'
 import {EntryCollection} from './entry-collection.js'
@@ -128,7 +130,7 @@ export class KeyExtractor {
     extractVue (filename: string, src: string, startLine: number = 1) {
         const root = parseDocument(src, {withStartIndices: true, withEndIndices: true})
         for (const elem of root.children) {
-            if (!(elem instanceof Element)) {
+            if (!isTag(elem)) {
                 continue
             }
             if (elem.name == 'template') {
@@ -156,10 +158,7 @@ export class KeyExtractor {
 
     private extractTemplate (filename: string, src: string, startLine: number = 1) {
         const root = parseDocument(src, {withStartIndices: true, withEndIndices: true})
-        for (const elem of root.childNodes) {
-            if (!(elem instanceof Element)) {
-                continue
-            }
+        for (const elem of findAll(() => true, root)) {
             if (elem.name == 'script') {
                 const content = getElementContent(src, elem)
                 if (content) {
@@ -176,10 +175,10 @@ export class KeyExtractor {
 
             if (this.options.tagNames.includes(elem.name)) {
                 if (elem.name == 'translate') {
-                    const {content, index} = getElementInfo(src, elem)
+                    const content = getElementContent(src, elem)
                     const key = content.trim()
                     if (key) {
-                        const line = getLineTo(src, index, startLine)
+                        const line = getLineTo(src, getElementContentIndex(elem), startLine)
                         const plural = elem.attribs['translate-plural'] || null
                         const comment = elem.attribs['translate-comment'] || null
                         const context = elem.attribs['translate-context'] || null
@@ -223,48 +222,48 @@ export class KeyExtractor {
 
             for (const [attr, content] of Object.entries(elem.attribs)) {
                 if (content) {
-                    const index = getElementContentIndex(elem)
+                    const startIndex = elem.startIndex!
                     if (this.options.exprAttrs.some(pattern => attr.match(pattern))) {
                         let contentIndex = 0
-                        const attrIndex = src.substring(index).indexOf(attr)
+                        const attrIndex = src.substring(startIndex).indexOf(attr)
                         if (attrIndex >= 0) {
                             contentIndex = attrIndex + attr.length
-                            while (/[=\s]/.test(src.substring(index + contentIndex)[0])) {
+                            while (/[=\s]/.test(src.substring(startIndex + contentIndex)[0])) {
                                 contentIndex++
                             }
-                            if (['\'', '"'].includes(src.substring(index + contentIndex)[0])) {
+                            if (['\'', '"'].includes(src.substring(startIndex + contentIndex)[0])) {
                                 contentIndex++
                             }
                         }
-                        const line = getLineTo(src, index + contentIndex, startLine)
+                        const line = getLineTo(src, startIndex + contentIndex, startLine)
                         this.extractJsExpression(filename, content, line)
                     } else if (this.options.valueAttrNames.some(pattern => attr.match(pattern))) {
                         let contentIndex = 0
-                        const attrIndex = src.substring(index).indexOf(attr)
+                        const attrIndex = src.substring(startIndex).indexOf(attr)
                         if (attrIndex >= 0) {
                             contentIndex = attrIndex + attr.length
-                            while (/[=\s]/.test(src.substring(index + contentIndex)[0])) {
+                            while (/[=\s]/.test(src.substring(startIndex + contentIndex)[0])) {
                                 contentIndex++
                             }
-                            if (['\'', '"'].includes(src.substring(index + contentIndex)[0])) {
+                            if (['\'', '"'].includes(src.substring(startIndex + contentIndex)[0])) {
                                 contentIndex++
                             }
                         }
-                        const line = getLineTo(src, index + contentIndex, startLine)
+                        const line = getLineTo(src, startIndex + contentIndex, startLine)
                         this.extractJsIdentifier(filename, content, line)
                     } else if (Object.keys(this.options.objectAttrs).includes(attr)) {
                         let contentIndex = 0
-                        const attrIndex = src.substring(index).indexOf(attr)
+                        const attrIndex = src.substring(startIndex).indexOf(attr)
                         if (attrIndex >= 0) {
                             contentIndex = attrIndex + attr.length
-                            while (/[=\s]/.test(src.substring(index + contentIndex)[0])) {
+                            while (/[=\s]/.test(src.substring(startIndex + contentIndex)[0])) {
                                 contentIndex++
                             }
-                            if (['\'', '"'].includes(src.substring(index + contentIndex)[0])) {
+                            if (['\'', '"'].includes(src.substring(startIndex + contentIndex)[0])) {
                                 contentIndex++
                             }
                         }
-                        const line = getLineTo(src, index + contentIndex, startLine)
+                        const line = getLineTo(src, startIndex + contentIndex, startLine)
                         this.extractJsObjectPaths(filename, content, this.options.objectAttrs[attr], line)
                     }
                 }
@@ -644,26 +643,4 @@ export function getLineTo(src: string, index: number, startLine: number = 1): nu
         return startLine
     }
     return startLine + matches.length
-}
-
-function getElementInfo(src: string, elem: Element) {
-    const content = getElementContent(src, elem)
-    const index = getElementContentIndex(elem)
-    return {content, index}
-}
-
-function getElementContent(src: string, elem: Element) {
-    if (elem.children.length === 0) {
-        return ''
-    }
-    const start = elem.children.at(0)!.startIndex!
-    const end = elem.children.at(-1)!.endIndex!
-    return src.substring(start, end + 1)
-}
-
-function getElementContentIndex(elem: Element) {
-    if (elem.children.length === 0) {
-        return elem.endIndex! + 1
-    }
-    return elem.children.at(0)!.startIndex!
 }
