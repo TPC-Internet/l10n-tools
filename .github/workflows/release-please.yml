@@ -31,6 +31,7 @@ jobs:
       uses: ./.github/actions/setup-node-cached
       with:
         node-version: 18
+        registry-url: https://registry.npmjs.org/
     - name: Prepare
       run: npm run prepare
     - name: Publish
