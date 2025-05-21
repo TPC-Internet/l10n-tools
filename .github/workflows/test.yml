@@ -1,0 +1,29 @@
+name: Test
+
+on:
+  pull_request:
+    types: [opened, synchronize, ready_for_review]
+
+jobs:
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    concurrency:
+      group: tsc-lint-pr${{ github.event.number }}
+      cancel-in-progress: true
+    timeout-minutes: 15
+
+    strategy:
+      matrix:
+        version: [18, 20, 22]
+
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup node with cached node_modules
+        uses: TPC-Internet/workflow-storage/setup-node-cached@main
+        with:
+          node-version: ${{ matrix.version }}
+      - name: Tsc
+        run: npm run tsc
+      - name: Test
+        run: npm run test
