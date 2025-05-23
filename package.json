@@ -32,7 +32,7 @@
     "cosmiconfig": "^9.0.0",
     "domhandler": "^5.0.3",
     "domutils": "^3.2.2",
-    "fast-xml-parser": "^5.0.6",
+    "fast-xml-parser": "^5.2.3",
     "gettext-parser": "^8.0.0",
     "glob": "^10.4.5",
     "google-auth-library": "^9.15.1",
