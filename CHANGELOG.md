@@ -1,5 +1,21 @@
 # Changelog
 
+## [4.4.7](https://github.com/TPC-Internet/l10n-tools/compare/v4.4.6...v4.4.7) (2025-05-23)
+
+
+### Miscellaneous Chores
+
+* **deps-dev:** bump @faker-js/faker from 9.5.0 to 9.8.0 ([#32](https://github.com/TPC-Internet/l10n-tools/issues/32)) ([fd3ab54](https://github.com/TPC-Internet/l10n-tools/commit/fd3ab5430691418c057e5782f017ec17605e22fc))
+* **deps-dev:** bump @swc/cli from 0.6.0 to 0.7.7 ([#29](https://github.com/TPC-Internet/l10n-tools/issues/29)) ([933ab4f](https://github.com/TPC-Internet/l10n-tools/commit/933ab4fe9a629541ef3e32d049f2393fc7452dc8))
+* **deps:** bump @lokalise/node-api from 13.2.1 to 14.7.0 ([#30](https://github.com/TPC-Internet/l10n-tools/issues/30)) ([444715e](https://github.com/TPC-Internet/l10n-tools/commit/444715e793400042ba3f6a68ac590607212d8b8d))
+* **deps:** bump fast-xml-parser from 5.0.6 to 5.2.3 ([#33](https://github.com/TPC-Internet/l10n-tools/issues/33)) ([211afc0](https://github.com/TPC-Internet/l10n-tools/commit/211afc0114902d642c4b26f18934e0aa8a9bb5ba))
+* **deps:** bump open from 10.1.0 to 10.1.2 ([#31](https://github.com/TPC-Internet/l10n-tools/issues/31)) ([58c3687](https://github.com/TPC-Internet/l10n-tools/commit/58c36878bc14e7478f8b265428cea1bab5244a78))
+
+
+### Bug Fixes
+
+* npm pkg fix ([72f986c](https://github.com/TPC-Internet/l10n-tools/commit/72f986c0c6ff1128700b57c9de6f5c9757c30a59))
+
 ## [4.4.6](https://github.com/TPC-Internet/l10n-tools/compare/v4.4.5...v4.4.6) (2025-05-21)
 
 
