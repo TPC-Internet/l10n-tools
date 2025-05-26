@@ -34,7 +34,7 @@
     "domutils": "^3.2.2",
     "fast-xml-parser": "^5.2.3",
     "gettext-parser": "^8.0.0",
-    "glob": "^10.4.5",
+    "glob": "^11.0.2",
     "google-auth-library": "^9.15.1",
     "googleapis": "^144.0.0",
     "he": "^1.2.0",
