@@ -36,7 +36,7 @@
     "gettext-parser": "^8.0.0",
     "glob": "^10.4.5",
     "google-auth-library": "^9.15.1",
-    "googleapis": "^144.0.0",
+    "googleapis": "^149.0.0",
     "he": "^1.2.0",
     "htmlparser2": "^10.0.0",
     "http-shutdown": "^1.2.2",
