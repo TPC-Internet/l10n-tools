@@ -1,5 +1,12 @@
 # Changelog
 
+## [4.6.0](https://github.com/TPC-Internet/l10n-tools/compare/v4.5.0...v4.6.0) (2025-05-27)
+
+
+### Features
+
+* add ignore-patterns to exclude from extract ([#47](https://github.com/TPC-Internet/l10n-tools/issues/47)) ([d7b70ea](https://github.com/TPC-Internet/l10n-tools/commit/d7b70eadfcc1fa688d00e85e598ccb5c7bfc1d42))
+
 ## [4.5.0](https://github.com/TPC-Internet/l10n-tools/compare/v4.4.6...v4.5.0) (2025-05-27)
 
 
