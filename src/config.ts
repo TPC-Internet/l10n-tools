@@ -63,6 +63,8 @@ type DomainConf =  {
      * Used with src-dirs
      */
     'src-patterns'?: string[]
+    /** List of glob patterns of location of source root to ignore */
+    'ignore-patterns'?: string[]
     /** Location of res (android only) */
     'res-dir'?: string
     /** Lokalise platform to use */
@@ -166,6 +168,10 @@ export class DomainConfig {
 
     getSrcPatterns(): string[] {
         return this.dc['src-patterns'] ?? []
+    }
+
+    getIgnorePatterns(): string[] {
+        return this.dc['ignore-patterns'] ?? []
     }
 
     // for android only

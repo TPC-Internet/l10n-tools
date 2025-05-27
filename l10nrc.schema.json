@@ -53,6 +53,13 @@
                         "description": "Fill translations from fallback locale if not exists",
                         "type": "string"
                     },
+                    "ignore-patterns": {
+                        "description": "List of glob patterns of location of source root to ignore",
+                        "items": {
+                            "type": "string"
+                        },
+                        "type": "array"
+                    },
                     "keywords": {
                         "description": "Extracting function name and index of key argument list",
                         "examples": [
