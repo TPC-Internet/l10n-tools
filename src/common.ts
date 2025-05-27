@@ -18,6 +18,7 @@ import {EntryCollection} from './entry-collection.js'
 export async function getSrcPaths (config: DomainConfig, exts: string[]): Promise<string[]> {
     const srcDirs = config.getSrcDirs()
     const srcPatterns = config.getSrcPatterns()
+    const ignorePatterns = config.getIgnorePatterns()
     if (srcDirs.length === 0 && srcPatterns.length === 0) {
         throw new Error('domain config has no src-dirs nor src-patterns')
     }
@@ -30,7 +31,7 @@ export async function getSrcPaths (config: DomainConfig, exts: string[]): Promis
 
     const srcPaths: string[] = []
     for (const srcPattern of srcPatterns) {
-        srcPaths.push(...await glob(srcPattern))
+        srcPaths.push(...await glob(srcPattern, {ignore: ignorePatterns}))
     }
     return srcPaths
 }
