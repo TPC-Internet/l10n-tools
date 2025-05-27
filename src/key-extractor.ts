@@ -118,12 +118,21 @@ export class KeyExtractor {
         }
     }
 
-    extractReactJsModule (filename: string, src: string, startLine: number = 1) {
+    extractJsxModule (filename: string, src: string, startLine: number = 1) {
         try {
             const ast = ts.createSourceFile(filename, src, ts.ScriptTarget.Latest, true, ts.ScriptKind.JSX)
             this.extractTsNode(filename, src, ast, startLine)
         } catch (err: any) {
-            log.warn('extractReactJsModule', `error parsing '${src.split(/\n/g)[err.loc.line - 1].trim()}' (${filename}:${err.loc.line})`)
+            log.warn('extractJsxModule', `error parsing '${src.split(/\n/g)[err.loc.line - 1].trim()}' (${filename}:${err.loc.line})`)
+        }
+    }
+
+    extractTsxModule (filename: string, src: string, startLine: number = 1) {
+        try {
+            const ast = ts.createSourceFile(filename, src, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
+            this.extractTsNode(filename, src, ast, startLine)
+        } catch (err: any) {
+            log.warn('extractTsxModule', `error parsing '${src.split(/\n/g)[err.loc.line - 1].trim()}' (${filename}:${err.loc.line})`)
         }
     }
 
