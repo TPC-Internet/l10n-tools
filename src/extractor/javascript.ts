@@ -7,7 +7,7 @@ import {type DomainConfig} from '../config.js'
 import {writeKeyEntries} from '../entry.js'
 
 export default async function (domainName: string, config: DomainConfig, keysPath: string) {
-    const srcPaths = await getSrcPaths(config, ['.js', '.ts', '.jsx'])
+    const srcPaths = await getSrcPaths(config, ['.js', '.ts', '.jsx', '.tsx'])
     const keywords = config.getKeywords()
 
     const extractor = new KeyExtractor({keywords})
@@ -23,7 +23,10 @@ export default async function (domainName: string, config: DomainConfig, keysPat
             extractor.extractTsModule(srcPath, input)
         } else if (ext === '.jsx') {
             const input = await fsp.readFile(srcPath, {encoding: 'utf-8'})
-            extractor.extractReactJsModule(srcPath, input)
+            extractor.extractJsxModule(srcPath, input)
+        } else if (ext === '.tsx') {
+            const input = await fsp.readFile(srcPath, {encoding: 'utf-8'})
+            extractor.extractTsxModule(srcPath, input)
         } else {
             log.warn('extractKeys', `skipping '${srcPath}': unknown extension`)
         }

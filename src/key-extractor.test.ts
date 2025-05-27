@@ -210,7 +210,7 @@ describe('KeyExtractor', () => {
                 }
             `
             const extractor = new KeyExtractor({keywords: ['translate']})
-            extractor.extractReactJsModule('test-file', module)
+            extractor.extractJsxModule('test-file', module)
             const key = '{length}(mm) {width}(mm) {height}(mm)'
             expectKeyEntry(extractor.keys, null, key, false, 'test-file', '6')
         })
