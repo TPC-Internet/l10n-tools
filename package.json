@@ -47,7 +47,7 @@
     "p-queue": "^8.1.0",
     "php-parser": "^3.2.3",
     "plist": "^3.1.0",
-    "typescript": "^5.5.4"
+    "typescript": "^5.8.3"
   },
   "devDependencies": {
     "@faker-js/faker": "^9.8.0",
