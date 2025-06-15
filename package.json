@@ -7,14 +7,14 @@
     "node": ">=18.0.0"
   },
   "scripts": {
+    "tsc": "tsc --noEmit",
+    "lint": "eslint",
+    "test": "node --no-warnings=ExperimentalWarning --loader ts-node/esm --test **/*.test.ts",
     "build": "swc src -d dist -s --strip-leading-paths",
     "watch": "swc -w src -d dist -s --strip-leading-paths",
     "schema": "typescript-json-schema --required --noExtraProps --strictNullChecks tsconfig.json L10nConf > l10nrc.schema.json",
-    "tsc": "tsc --noEmit",
-    "test": "node --no-warnings=ExperimentalWarning --loader ts-node/esm --test **/*.test.ts",
-    "lint": "eslint",
     "prepare": "npm run build",
-    "prepublishOnly": "npm run tsc && npm test"
+    "prepublishOnly": "npm run tsc && npm run lint && npm test"
   },
   "author": "Eungkyu Song <eungkyu@gmail.com>",
   "license": "MIT",
