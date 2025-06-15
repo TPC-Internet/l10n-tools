@@ -1,270 +1,290 @@
 {
-    "$schema": "http://json-schema.org/draft-07/schema#",
-    "additionalProperties": false,
-    "definitions": {
-        "CompilerType": {
-            "description": "json (vue-gettext): Single JSON all locales merged\njson-dir: JSON file per locale (plural not supported)\nnode-i18n: JSON file per locale with node-i18n plural type\nvue-i18n: JSON file per locale with vue-i18n plural type\ni18next: JSON file per locale with i18next plural type\npo-json: JSON PO file per locale\nmo (python): MO file per locale\nnode-gettext: PO file per locale\nandroid: Generate Android strings.xml\nios: Merge into iOS strings file",
-            "enum": [
-                "android",
-                "i18next",
-                "ios",
-                "json",
-                "json-dir",
-                "mo",
-                "node-gettext",
-                "node-i18n",
-                "po-json",
-                "python",
-                "vue-gettext",
-                "vue-i18n"
-            ],
-            "type": "string"
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "additionalProperties": false,
+  "definitions": {
+    "CompilerConf": {
+      "additionalProperties": false,
+      "properties": {
+        "default-locale": {
+          "type": "string"
         },
-        "DomainType": {
-            "description": "vue-gettext: Extract from $gettext like function, translate tag, and v-translate attrs\nvue-i18n: Extract from $t like function, i18n, i18n-t tag, v-t attrs and more\ntypescript (javascript, react, i18next): Extract from .js, .ts, .jsx file with keyword definitions\npython: Extract from python gettext functions\nandroid: Extract from android strings.xml res files\nios: Extract from iOS swift files, storyboard, and xib files\nphp-gettext: Extract from php gettext functions",
-            "enum": [
-                "android",
-                "i18next",
-                "ios",
-                "javascript",
-                "php-gettext",
-                "python",
-                "react",
-                "typescript",
-                "vue-gettext",
-                "vue-i18n"
-            ],
-            "type": "string"
+        "res-dir": {
+          "description": "Location of res (android)",
+          "type": "string"
+        },
+        "src-dir": {
+          "description": "Location of source root (ios)",
+          "type": "string"
+        },
+        "target-dir": {
+          "description": "Location of JSON files to be saved (json-dir, po-json, mo, node-gettext)",
+          "type": "string"
+        },
+        "target-path": {
+          "description": "Path of JSON file to be saved (json)",
+          "type": "string"
+        },
+        "type": {
+          "$ref": "#/definitions/CompilerType"
+        },
+        "use-locale-key": {
+          "description": "Use locale as root key of json file if true (json-dir)",
+          "type": "boolean"
         }
+      },
+      "required": [
+        "type"
+      ],
+      "type": "object"
     },
-    "properties": {
-        "$schema": {
+    "CompilerType": {
+      "description": "json (vue-gettext): Single JSON all locales merged json-dir: JSON file per locale (plural not supported) node-i18n: JSON file per locale with node-i18n plural type vue-i18n: JSON file per locale with vue-i18n plural type i18next: JSON file per locale with i18next plural type po-json: JSON PO file per locale mo (python): MO file per locale node-gettext: PO file per locale android: Generate Android strings.xml ios: Merge into iOS strings file",
+      "enum": [
+        "json",
+        "vue-gettext",
+        "json-dir",
+        "node-i18n",
+        "vue-i18n",
+        "i18next",
+        "po-json",
+        "mo",
+        "python",
+        "node-gettext",
+        "android",
+        "ios"
+      ],
+      "type": "string"
+    },
+    "DomainConf": {
+      "additionalProperties": false,
+      "properties": {
+        "cache-dir": {
+          "description": "Location to save intermediate files",
+          "type": "string"
+        },
+        "fallback-locale": {
+          "description": "Fill translations from fallback locale if not exists",
+          "type": "string"
+        },
+        "ignore-patterns": {
+          "description": "List of glob patterns of location of source root to ignore",
+          "items": {
             "type": "string"
+          },
+          "type": "array"
         },
-        "domains": {
-            "additionalProperties": {
-                "additionalProperties": false,
-                "properties": {
-                    "cache-dir": {
-                        "description": "Location to save intermediate files",
-                        "type": "string"
-                    },
-                    "fallback-locale": {
-                        "description": "Fill translations from fallback locale if not exists",
-                        "type": "string"
-                    },
-                    "ignore-patterns": {
-                        "description": "List of glob patterns of location of source root to ignore",
-                        "items": {
-                            "type": "string"
-                        },
-                        "type": "array"
-                    },
-                    "keywords": {
-                        "description": "Extracting function name and index of key argument list",
-                        "examples": [
-                            "translate:1",
-                            "translateAll:0"
-                        ],
-                        "items": {
-                            "type": "string"
-                        },
-                        "type": "array"
-                    },
-                    "locales": {
-                        "description": "Locales to translate",
-                        "items": {
-                            "type": "string"
-                        },
-                        "type": "array"
-                    },
-                    "lokalise-platform": {
-                        "description": "Lokalise platform to use",
-                        "enum": [
-                            "android",
-                            "ios",
-                            "other",
-                            "web"
-                        ],
-                        "type": "string"
-                    },
-                    "outputs": {
-                        "description": "List of output formats",
-                        "items": {
-                            "additionalProperties": false,
-                            "properties": {
-                                "default-locale": {
-                                    "type": "string"
-                                },
-                                "res-dir": {
-                                    "description": "Location of res (android)",
-                                    "type": "string"
-                                },
-                                "src-dir": {
-                                    "description": "Location of source root (ios)",
-                                    "type": "string"
-                                },
-                                "target-dir": {
-                                    "description": "Location of JSON files to be saved (json-dir, po-json, mo, node-gettext)",
-                                    "type": "string"
-                                },
-                                "target-path": {
-                                    "description": "Path of JSON file to be saved (json)",
-                                    "type": "string"
-                                },
-                                "type": {
-                                    "$ref": "#/definitions/CompilerType"
-                                },
-                                "use-locale-key": {
-                                    "description": "Use locale as root key of json file if true (json-dir)",
-                                    "type": "boolean"
-                                }
-                            },
-                            "required": [
-                                "type"
-                            ],
-                            "type": "object"
-                        },
-                        "type": "array"
-                    },
-                    "res-dir": {
-                        "description": "Location of res (android only)",
-                        "type": "string"
-                    },
-                    "src-dir": {
-                        "description": "Location of source root (ios only)",
-                        "type": "string"
-                    },
-                    "src-dirs": {
-                        "description": "List of location of source root.\nUsed with src-patterns",
-                        "items": {
-                            "type": "string"
-                        },
-                        "type": "array"
-                    },
-                    "src-patterns": {
-                        "description": "List of glob patterns of location of source root\nUsed with src-dirs",
-                        "items": {
-                            "type": "string"
-                        },
-                        "type": "array"
-                    },
-                    "tag": {
-                        "description": "Tag name for upload and download",
-                        "type": "string"
-                    },
-                    "type": {
-                        "$ref": "#/definitions/DomainType"
-                    }
-                },
-                "required": [
-                    "locales",
-                    "outputs",
-                    "tag",
-                    "type"
-                ],
-                "type": "object"
-            },
-            "type": "object"
-        },
-        "google-docs": {
-            "additionalProperties": false,
-            "properties": {
-                "client-id": {
-                    "type": "string"
-                },
-                "client-secret": {
-                    "type": "string"
-                },
-                "client-secret-path": {
-                    "type": "string"
-                },
-                "doc-id": {
-                    "type": "string"
-                },
-                "doc-name": {
-                    "type": "string"
-                },
-                "sheet-name": {
-                    "type": "string"
-                }
-            },
-            "required": [
-                "sheet-name"
-            ],
-            "type": "object"
-        },
-        "lokalise": {
-            "additionalProperties": false,
-            "properties": {
-                "fill-key-to-locale": {
-                    "description": "fill key to specified locale",
-                    "type": "string"
-                },
-                "locale-sync-map": {
-                    "additionalProperties": {
-                        "type": "string"
-                    },
-                    "description": "Locale map to pass to syncer",
-                    "type": "object"
-                },
-                "locales-to-use-unverified": {
-                    "description": "Locales to use unverified translations",
-                    "items": {
-                        "type": "string"
-                    },
-                    "type": "array"
-                },
-                "projectId": {
-                    "type": "string"
-                },
-                "pure-key-prefixes": {
-                    "description": "key prefixes which 'fill-key-to-locale' option exclusion",
-                    "items": {
-                        "type": "string"
-                    },
-                    "type": "array"
-                },
-                "skip-not-reviewed": {
-                    "description": "Skip applying not-reviewed translations",
-                    "type": "boolean"
-                },
-                "token": {
-                    "type": "string"
-                }
-            },
-            "required": [
-                "projectId",
-                "token"
-            ],
-            "type": "object"
-        },
-        "sync-target": {
-            "enum": [
-                "google-docs",
-                "lokalise"
-            ],
+        "keywords": {
+          "description": "Extracting function name and index of key argument list",
+          "examples": [
+            "translate:1",
+            "translateAll:0"
+          ],
+          "items": {
             "type": "string"
+          },
+          "type": "array"
         },
-        "validation": {
-            "additionalProperties": false,
-            "description": "Validation Config",
-            "properties": {
-                "base-locale": {
-                    "description": "Which locale is base text for validation (use key if not specified)",
-                    "type": "string"
-                },
-                "skip": {
-                    "description": "If true, do not stop script on error occurs",
-                    "type": "boolean"
-                }
-            },
-            "type": "object"
+        "locales": {
+          "description": "Locales to translate",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "lokalise-platform": {
+          "$ref": "#/definitions/SupportedPlatforms",
+          "description": "Lokalise platform to use"
+        },
+        "outputs": {
+          "description": "List of output formats",
+          "items": {
+            "$ref": "#/definitions/CompilerConf"
+          },
+          "type": "array"
+        },
+        "res-dir": {
+          "description": "Location of res (android only)",
+          "type": "string"
+        },
+        "src-dir": {
+          "description": "Location of source root (ios only)",
+          "type": "string"
+        },
+        "src-dirs": {
+          "description": "List of location of source root. Used with src-patterns",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "src-patterns": {
+          "description": "List of glob patterns of location of source root Used with src-dirs",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "tag": {
+          "description": "Tag name for upload and download",
+          "type": "string"
+        },
+        "type": {
+          "$ref": "#/definitions/DomainType"
         }
+      },
+      "required": [
+        "type",
+        "tag",
+        "locales",
+        "outputs"
+      ],
+      "type": "object"
     },
-    "required": [
-        "domains"
-    ],
-    "type": "object"
+    "DomainType": {
+      "description": "vue-gettext: Extract from $gettext like function, translate tag, and v-translate attrs vue-i18n: Extract from $t like function, i18n, i18n-t tag, v-t attrs and more typescript (javascript, react, i18next): Extract from .js, .ts, .jsx file with keyword definitions python: Extract from python gettext functions android: Extract from android strings.xml res files ios: Extract from iOS swift files, storyboard, and xib files php-gettext: Extract from php gettext functions",
+      "enum": [
+        "vue-gettext",
+        "vue-i18n",
+        "react",
+        "javascript",
+        "typescript",
+        "i18next",
+        "python",
+        "android",
+        "ios",
+        "php-gettext"
+      ],
+      "type": "string"
+    },
+    "GoogleDocsConf": {
+      "additionalProperties": false,
+      "properties": {
+        "client-id": {
+          "type": "string"
+        },
+        "client-secret": {
+          "type": "string"
+        },
+        "client-secret-path": {
+          "type": "string"
+        },
+        "doc-id": {
+          "type": "string"
+        },
+        "doc-name": {
+          "type": "string"
+        },
+        "sheet-name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "sheet-name"
+      ],
+      "type": "object"
+    },
+    "LokaliseConf": {
+      "additionalProperties": false,
+      "properties": {
+        "fill-key-to-locale": {
+          "description": "fill key to specified locale",
+          "type": "string"
+        },
+        "locale-sync-map": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "Locale map to pass to syncer",
+          "type": "object"
+        },
+        "locales-to-use-unverified": {
+          "description": "Locales to use unverified translations",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "projectId": {
+          "type": "string"
+        },
+        "pure-key-prefixes": {
+          "description": "key prefixes which 'fill-key-to-locale' option exclusion",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "skip-not-reviewed": {
+          "description": "Skip applying not-reviewed translations",
+          "type": "boolean"
+        },
+        "token": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "token",
+        "projectId"
+      ],
+      "type": "object"
+    },
+    "SupportedPlatforms": {
+      "enum": [
+        "ios",
+        "android",
+        "web",
+        "other"
+      ],
+      "type": "string"
+    },
+    "SyncTarget": {
+      "enum": [
+        "google-docs",
+        "lokalise"
+      ],
+      "type": "string"
+    },
+    "ValidationConf": {
+      "additionalProperties": false,
+      "properties": {
+        "base-locale": {
+          "description": "Which locale is base text for validation (use key if not specified)",
+          "type": "string"
+        },
+        "skip": {
+          "description": "If true, do not stop script on error occurs",
+          "type": "boolean"
+        }
+      },
+      "type": "object"
+    }
+  },
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "domains": {
+      "additionalProperties": {
+        "$ref": "#/definitions/DomainConf"
+      },
+      "type": "object"
+    },
+    "google-docs": {
+      "$ref": "#/definitions/GoogleDocsConf"
+    },
+    "lokalise": {
+      "$ref": "#/definitions/LokaliseConf"
+    },
+    "sync-target": {
+      "$ref": "#/definitions/SyncTarget"
+    },
+    "validation": {
+      "$ref": "#/definitions/ValidationConf",
+      "description": "Validation Config"
+    }
+  },
+  "required": [
+    "domains"
+  ],
+  "type": "object"
 }
-
