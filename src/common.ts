@@ -1,46 +1,46 @@
-import {glob} from 'glob'
+import { glob } from 'glob'
 import log from 'npmlog'
 import * as path from 'path'
 import fsp from 'node:fs/promises'
-import {execWithLog, fileExists, getTransPath, requireCmd} from './utils.js'
+import { execWithLog, fileExists, getTransPath, requireCmd } from './utils.js'
 import {
-    readKeyEntries,
-    readTransEntries,
-    toTransEntry,
-    type TransEntry,
-    type TransMessages,
-    writeTransEntries,
+  readKeyEntries,
+  readTransEntries,
+  toTransEntry,
+  type TransEntry,
+  type TransMessages,
+  writeTransEntries,
 } from './entry.js'
-import {type DomainConfig, ValidationConfig} from './config.js'
-import {validateMessages} from './validator.js'
-import {EntryCollection} from './entry-collection.js'
+import type { DomainConfig, ValidationConfig } from './config.js'
+import { validateMessages } from './validator.js'
+import { EntryCollection } from './entry-collection.js'
 
-export async function getSrcPaths (config: DomainConfig, exts: string[]): Promise<string[]> {
-    const srcDirs = config.getSrcDirs()
-    const srcPatterns = config.getSrcPatterns()
-    const ignorePatterns = config.getIgnorePatterns()
-    if (srcDirs.length === 0 && srcPatterns.length === 0) {
-        throw new Error('domain config has no src-dirs nor src-patterns')
-    }
+export async function getSrcPaths(config: DomainConfig, exts: string[]): Promise<string[]> {
+  const srcDirs = config.getSrcDirs()
+  const srcPatterns = config.getSrcPatterns()
+  const ignorePatterns = config.getIgnorePatterns()
+  if (srcDirs.length === 0 && srcPatterns.length === 0) {
+    throw new Error('domain config has no src-dirs nor src-patterns')
+  }
 
-    for (const srcDir of srcDirs) {
-        for (const ext of exts) {
-            srcPatterns.push(path.join(srcDir, '**', '*' + ext))
-        }
+  for (const srcDir of srcDirs) {
+    for (const ext of exts) {
+      srcPatterns.push(path.join(srcDir, '**', '*' + ext))
     }
+  }
 
-    const srcPaths: string[] = []
-    for (const srcPattern of srcPatterns) {
-        srcPaths.push(...await glob(srcPattern, {ignore: ignorePatterns}))
-    }
-    return srcPaths
+  const srcPaths: string[] = []
+  for (const srcPattern of srcPatterns) {
+    srcPaths.push(...await glob(srcPattern, { ignore: ignorePatterns }))
+  }
+  return srcPaths
 }
 
-export async function xgettext (domainName: string, language: string, keywords: string[], potPath: string, srcPaths: string[], merge: boolean) {
-    await requireCmd.brew('xgettext', 'gettext', true)
-    log.info('xgettext', `from ${language} source`)
-    await execWithLog(
-        `xgettext --language="${language}" \
+export async function xgettext(domainName: string, language: string, keywords: string[], potPath: string, srcPaths: string[], merge: boolean) {
+  await requireCmd.brew('xgettext', 'gettext', true)
+  log.info('xgettext', `from ${language} source`)
+  await execWithLog(
+    `xgettext --language="${language}" \
             ${keywords.map(keyword => `--keyword="${keyword}"`).join(' ')} \
             --from-code=UTF-8 --no-wrap \
             ${merge ? '--join-existing' : ''} \
@@ -49,56 +49,56 @@ export async function xgettext (domainName: string, language: string, keywords: 
             ${srcPaths.join(' ')}`, 'xgettext')
 }
 
-export async function updateTrans (keysPath: string, fromTransDir: string, transDir: string, locales: string[], validationConfig: ValidationConfig | null) {
-    await fsp.mkdir(transDir, {recursive: true})
-    let baseTrans: EntryCollection<TransEntry> | null = null
-    const baseLocale = validationConfig?.getBaseLocale() ?? null
-    if (baseLocale != null) {
-        try {
-            const transEntries = await readTransEntries(getTransPath(fromTransDir, baseLocale))
-            baseTrans = EntryCollection.loadEntries(transEntries)
-        } catch (err) {
-            log.warn('updateTrans', 'Failed to read validation base locale file')
-        }
+export async function updateTrans(keysPath: string, fromTransDir: string, transDir: string, locales: string[], validationConfig: ValidationConfig | null) {
+  await fsp.mkdir(transDir, { recursive: true })
+  let baseTrans: EntryCollection<TransEntry> | null = null
+  const baseLocale = validationConfig?.getBaseLocale() ?? null
+  if (baseLocale != null) {
+    try {
+      const transEntries = await readTransEntries(getTransPath(fromTransDir, baseLocale))
+      baseTrans = EntryCollection.loadEntries(transEntries)
+    } catch (err) {
+      log.warn('updateTrans', 'Failed to read validation base locale file', err)
     }
-    for (const locale of locales) {
-        const fromTransPath = getTransPath(fromTransDir, locale)
+  }
+  for (const locale of locales) {
+    const fromTransPath = getTransPath(fromTransDir, locale)
 
-        const keyTransEntries = (await readKeyEntries(keysPath)).map(entry => toTransEntry(entry))
-        // const valueCollection = KeyCollection.loadEntries<ValueEntry>(keyEntries.map(e => toValueEntry(e)))
-        if (await fileExists(fromTransPath)) {
-            const fromTrans = EntryCollection.loadEntries<TransEntry>(await readTransEntries(fromTransPath))
-            for (const keyTransEntry of keyTransEntries) {
-                const fromTransEntry = fromTrans.find(keyTransEntry.context, keyTransEntry.key)
-                if (fromTransEntry != null) {
-                    keyTransEntry.messages = {...fromTransEntry.messages}
-                    if (validationConfig != null && baseLocale != locale) {
-                        try {
-                            let baseMessages: TransMessages
-                            if (baseTrans == null) {
-                                baseMessages = keyTransEntry.messages
-                            } else {
-                                const baseTransEntry = baseTrans.findByEntry(keyTransEntry)
-                                baseMessages = baseTransEntry?.messages ?? keyTransEntry.messages
-                            }
-                            validateMessages(baseMessages, keyTransEntry.messages)
-                        } catch (err: any) {
-                            log.warn('validation', `[${locale}] ${err.constructor.name}: ${err.message}`)
-                            if (keyTransEntry.context) {
-                                log.warn('validation', `context: \`${keyTransEntry.context}'`)
-                            }
-                            log.warn('validation', `key: \`${keyTransEntry.key}'`)
-                            if (!validationConfig.getSkip()) {
-                                throw err
-                            }
-                        }
-                    }
-                    keyTransEntry.flag = fromTransEntry.flag
-                }
+    const keyTransEntries = (await readKeyEntries(keysPath)).map(entry => toTransEntry(entry))
+    // const valueCollection = KeyCollection.loadEntries<ValueEntry>(keyEntries.map(e => toValueEntry(e)))
+    if (await fileExists(fromTransPath)) {
+      const fromTrans = EntryCollection.loadEntries<TransEntry>(await readTransEntries(fromTransPath))
+      for (const keyTransEntry of keyTransEntries) {
+        const fromTransEntry = fromTrans.find(keyTransEntry.context, keyTransEntry.key)
+        if (fromTransEntry != null) {
+          keyTransEntry.messages = { ...fromTransEntry.messages }
+          if (validationConfig != null && baseLocale != locale) {
+            try {
+              let baseMessages: TransMessages
+              if (baseTrans == null) {
+                baseMessages = keyTransEntry.messages
+              } else {
+                const baseTransEntry = baseTrans.findByEntry(keyTransEntry)
+                baseMessages = baseTransEntry?.messages ?? keyTransEntry.messages
+              }
+              validateMessages(baseMessages, keyTransEntry.messages)
+            } catch (err: any) {
+              log.warn('validation', `[${locale}] ${err.constructor.name}: ${err.message}`)
+              if (keyTransEntry.context) {
+                log.warn('validation', `context: \`${keyTransEntry.context}'`)
+              }
+              log.warn('validation', `key: \`${keyTransEntry.key}'`)
+              if (!validationConfig.getSkip()) {
+                throw err
+              }
             }
+          }
+          keyTransEntry.flag = fromTransEntry.flag
         }
-
-        const transPath = getTransPath(transDir, locale)
-        await writeTransEntries(transPath, keyTransEntries)
+      }
     }
+
+    const transPath = getTransPath(transDir, locale)
+    await writeTransEntries(transPath, keyTransEntries)
+  }
 }

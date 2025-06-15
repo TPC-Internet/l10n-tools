@@ -12,6 +12,7 @@
     "schema": "typescript-json-schema --required --noExtraProps --strictNullChecks tsconfig.json L10nConf > l10nrc.schema.json",
     "tsc": "tsc --noEmit",
     "test": "node --no-warnings=ExperimentalWarning --loader ts-node/esm --test **/*.test.ts",
+    "lint": "eslint",
     "prepare": "npm run build",
     "prepublishOnly": "npm run tsc && npm test"
   },
@@ -50,18 +51,27 @@
     "typescript": "^5.5.4"
   },
   "devDependencies": {
+    "@eslint/js": "^9.29.0",
     "@faker-js/faker": "^9.8.0",
+    "@stylistic/eslint-plugin": "^4.4.1",
     "@swc/cli": "^0.7.7",
     "@swc/core": "^1.11.29",
     "@types/command-exists": "^1.2.3",
+    "@types/gettext-parser": "^8.0.0",
     "@types/he": "^1.2.3",
     "@types/lodash-es": "^4.17.12",
     "@types/node": "^18.19.76",
     "@types/npmlog": "^7.0.0",
     "@types/plist": "^3.0.5",
+    "@typescript-eslint/parser": "^8.34.0",
     "chokidar": "^4.0.3",
+    "eslint": "^9.29.0",
+    "eslint-import-resolver-typescript": "^4.4.3",
+    "eslint-plugin-import-newlines": "^1.4.0",
+    "eslint-plugin-import-x": "^4.15.2",
     "expect": "^29.7.0",
     "ts-node": "^10.9.2",
+    "typescript-eslint": "^8.34.0",
     "typescript-json-schema": "^0.65.1"
   }
 }
