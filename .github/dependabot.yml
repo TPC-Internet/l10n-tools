@@ -5,3 +5,19 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
+    groups:
+      google-cloud:
+        patterns:
+          - "googleapis"
+          - "google-auth-library"
+      swc:
+        patterns:
+          - "@swc/*"
+      eslint:
+        patterns:
+          - "@eslint/*"
+          - "@stylistic/*"
+          - "eslint"
+          - "eslint-*"
+          - "typescript-eslint"
+          - "@typescript-eslint/*"
