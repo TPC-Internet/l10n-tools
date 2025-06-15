@@ -12,7 +12,7 @@ describe('Util', () => {
 
     it('returns by prefix matching', () => {
       const matchedKey = '$' + faker.string.sample()
-      const unmatchedKey = faker.string.sample()
+      const unmatchedKey = faker.string.alphanumeric(1) + faker.string.sample()
       const prefix = '$'
       expect(isPureKey(matchedKey, [prefix])).toBe(true)
       expect(isPureKey(unmatchedKey, [prefix])).toBe(false)
