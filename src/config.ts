@@ -1,16 +1,16 @@
-import {type Command} from 'commander';
+import type { Command } from 'commander'
 import fsp from 'node:fs/promises'
-import {type SupportedPlatforms} from '@lokalise/node-api';
-import {invert} from 'lodash-es';
+import type { SupportedPlatforms } from '@lokalise/node-api'
+import { invert } from 'lodash-es'
 
 type L10nConf = {
-    $schema?: string,
-    domains: {[name: string]: DomainConf}
-    /** Validation Config */
-    validation?: ValidationConf
-    'sync-target'?: SyncTarget
-    'google-docs'?: GoogleDocsConf
-    lokalise?: LokaliseConf
+  '$schema'?: string,
+  'domains': { [name: string]: DomainConf },
+  /** Validation Config */
+  'validation'?: ValidationConf,
+  'sync-target'?: SyncTarget,
+  'google-docs'?: GoogleDocsConf,
+  'lokalise'?: LokaliseConf,
 }
 
 export type SyncTarget = 'google-docs' | 'lokalise'
@@ -25,175 +25,175 @@ export type SyncTarget = 'google-docs' | 'lokalise'
  * php-gettext: Extract from php gettext functions
  */
 export type DomainType =
-    'vue-gettext' |
-    'vue-i18n' |
-    'react' |
-    'javascript' |
-    'typescript' |
-    'i18next' |
-    'python' |
-    'android' |
-    'ios' |
-    'php-gettext'
+  'vue-gettext' |
+  'vue-i18n' |
+  'react' |
+  'javascript' |
+  'typescript' |
+  'i18next' |
+  'python' |
+  'android' |
+  'ios' |
+  'php-gettext'
 
-type DomainConf =  {
-    type: DomainType
-    /**
+type DomainConf = {
+  'type': DomainType,
+  /**
      * Extracting function name and index of key argument list
      * @examples ["translate:1", "translateAll:0"]
      */
-    keywords?: string[]
-    /** Tag name for upload and download */
-    tag: string
-    /** Locales to translate */
-    locales: string[]
-    /** Fill translations from fallback locale if not exists */
-    'fallback-locale'?: string
-    /** Location to save intermediate files */
-    'cache-dir'?: string
-    /** Location of source root (ios only) */
-    'src-dir'?: string
-    /**
+  'keywords'?: string[],
+  /** Tag name for upload and download */
+  'tag': string,
+  /** Locales to translate */
+  'locales': string[],
+  /** Fill translations from fallback locale if not exists */
+  'fallback-locale'?: string,
+  /** Location to save intermediate files */
+  'cache-dir'?: string,
+  /** Location of source root (ios only) */
+  'src-dir'?: string,
+  /**
      * List of location of source root.
      * Used with src-patterns
      */
-    'src-dirs'?: string[]
-    /**
+  'src-dirs'?: string[],
+  /**
      * List of glob patterns of location of source root
      * Used with src-dirs
      */
-    'src-patterns'?: string[]
-    /** List of glob patterns of location of source root to ignore */
-    'ignore-patterns'?: string[]
-    /** Location of res (android only) */
-    'res-dir'?: string
-    /** Lokalise platform to use */
-    'lokalise-platform'?: SupportedPlatforms
-    /** List of output formats */
-    outputs: CompilerConf[]
+  'src-patterns'?: string[],
+  /** List of glob patterns of location of source root to ignore */
+  'ignore-patterns'?: string[],
+  /** Location of res (android only) */
+  'res-dir'?: string,
+  /** Lokalise platform to use */
+  'lokalise-platform'?: SupportedPlatforms,
+  /** List of output formats */
+  'outputs': CompilerConf[],
 }
 
 export class L10nConfig {
-    private readonly rc: L10nConf
-    constructor (rc: any) {
-        this.rc = rc
-    }
+  private readonly rc: L10nConf
+  constructor(rc: any) {
+    this.rc = rc
+  }
 
-    getDomainNames(): string[] {
-        return Object.keys(this.rc.domains)
-    }
+  getDomainNames(): string[] {
+    return Object.keys(this.rc.domains)
+  }
 
-    getDomainConfig(domain: string): DomainConfig | null {
-        const conf = this.rc.domains[domain]
-        if (conf == null) {
-            return null
-        }
-        return new DomainConfig(conf)
+  getDomainConfig(domain: string): DomainConfig | null {
+    const conf = this.rc.domains[domain]
+    if (conf == null) {
+      return null
     }
+    return new DomainConfig(conf)
+  }
 
-    getValidationConfig(program: Command): ValidationConfig {
-        const opts: ValidationConf = {
-            'base-locale': program.opts().validationBaseLocale,
-            skip: program.opts().skipValidation
-        }
-        return new ValidationConfig(this.rc.validation, opts)
+  getValidationConfig(program: Command): ValidationConfig {
+    const opts: ValidationConf = {
+      'base-locale': program.opts().validationBaseLocale,
+      'skip': program.opts().skipValidation,
     }
+    return new ValidationConfig(this.rc.validation, opts)
+  }
 
-    getSyncTarget(): SyncTarget {
-        return this.rc['sync-target'] ?? 'google-docs'
-    }
+  getSyncTarget(): SyncTarget {
+    return this.rc['sync-target'] ?? 'google-docs'
+  }
 
-    getGoogleDocsConfig(): GoogleDocsConfig {
-        const gdc = this.rc['google-docs']
-        if (gdc == null) {
-            throw new Error('no google-docs in rc')
-        }
-        return new GoogleDocsConfig(gdc)
+  getGoogleDocsConfig(): GoogleDocsConfig {
+    const gdc = this.rc['google-docs']
+    if (gdc == null) {
+      throw new Error('no google-docs in rc')
     }
+    return new GoogleDocsConfig(gdc)
+  }
 
-    getLokaliseConfig(): LokaliseConfig {
-        const lc = this.rc['lokalise']
-        if (lc == null) {
-            throw new Error('no lokalise in rc')
-        }
-        return new LokaliseConfig(lc)
+  getLokaliseConfig(): LokaliseConfig {
+    const lc = this.rc['lokalise']
+    if (lc == null) {
+      throw new Error('no lokalise in rc')
     }
+    return new LokaliseConfig(lc)
+  }
 
-    useUnverified(locale: string): boolean {
-        if (this.getSyncTarget() !== 'lokalise') {
-            return false
-        }
-        return this.getLokaliseConfig().useUnverified(locale)
+  useUnverified(locale: string): boolean {
+    if (this.getSyncTarget() !== 'lokalise') {
+      return false
     }
+    return this.getLokaliseConfig().useUnverified(locale)
+  }
 }
 
 export class DomainConfig {
-    private readonly dc: DomainConf
-    constructor(dc: DomainConf) {
-        this.dc = dc
-    }
+  private readonly dc: DomainConf
+  constructor(dc: DomainConf) {
+    this.dc = dc
+  }
 
-    getType(): DomainType {
-        return this.dc['type']
-    }
+  getType(): DomainType {
+    return this.dc['type']
+  }
 
-    getTag(): string {
-        return this.dc['tag']
-    }
+  getTag(): string {
+    return this.dc['tag']
+  }
 
-    getLocales(): string[] {
-        return this.dc['locales']
-    }
+  getLocales(): string[] {
+    return this.dc['locales']
+  }
 
-    getKeywords(): string[] {
-        return this.dc['keywords'] ?? []
-    }
+  getKeywords(): string[] {
+    return this.dc['keywords'] ?? []
+  }
 
-    getCacheDir(): string {
-        return this.dc['cache-dir'] ?? '.l10n-tools'
-    }
+  getCacheDir(): string {
+    return this.dc['cache-dir'] ?? '.l10n-tools'
+  }
 
-    // for ios only
-    getSrcDir(): string {
-        const srcDir = this.dc['src-dir']
-        if (srcDir == null) {
-            throw new Error('src-dir is required for this domain')
-        }
-        return srcDir
+  // for ios only
+  getSrcDir(): string {
+    const srcDir = this.dc['src-dir']
+    if (srcDir == null) {
+      throw new Error('src-dir is required for this domain')
     }
+    return srcDir
+  }
 
-    getSrcDirs(): string[] {
-        return this.dc['src-dirs'] ?? []
-    }
+  getSrcDirs(): string[] {
+    return this.dc['src-dirs'] ?? []
+  }
 
-    getSrcPatterns(): string[] {
-        return this.dc['src-patterns'] ?? []
-    }
+  getSrcPatterns(): string[] {
+    return this.dc['src-patterns'] ?? []
+  }
 
-    getIgnorePatterns(): string[] {
-        return this.dc['ignore-patterns'] ?? []
-    }
+  getIgnorePatterns(): string[] {
+    return this.dc['ignore-patterns'] ?? []
+  }
 
-    // for android only
-    getResDir(): string {
-        const resDir = this.dc['res-dir']
-        if (resDir == null) {
-            throw new Error('res-dir is required for this output')
-        }
-        return resDir
+  // for android only
+  getResDir(): string {
+    const resDir = this.dc['res-dir']
+    if (resDir == null) {
+      throw new Error('res-dir is required for this output')
     }
+    return resDir
+  }
 
-    getLokalisePlatform(): SupportedPlatforms {
-        const platform = this.dc['lokalise-platform']
-        if (platform == null) {
-            throw new Error('lokalise-platform is required')
-        }
-        return platform
+  getLokalisePlatform(): SupportedPlatforms {
+    const platform = this.dc['lokalise-platform']
+    if (platform == null) {
+      throw new Error('lokalise-platform is required')
     }
+    return platform
+  }
 
-    getCompilerConfigs(): CompilerConfig[] {
-        return this.dc['outputs'].map(output => new CompilerConfig(output)) ?? []
-    }
+  getCompilerConfigs(): CompilerConfig[] {
+    return this.dc['outputs'].map(output => new CompilerConfig(output)) ?? []
+  }
 }
 
 /**
@@ -209,211 +209,211 @@ export class DomainConfig {
  * ios: Merge into iOS strings file
  */
 export type CompilerType =
-    'json' |
-    'vue-gettext' |
-    'json-dir' |
-    'node-i18n' |
-    'vue-i18n' |
-    'i18next' |
-    'po-json' |
-    'mo' |
-    'python' |
-    'node-gettext' |
-    'android' |
-    'ios'
+  'json' |
+  'vue-gettext' |
+  'json-dir' |
+  'node-i18n' |
+  'vue-i18n' |
+  'i18next' |
+  'po-json' |
+  'mo' |
+  'python' |
+  'node-gettext' |
+  'android' |
+  'ios'
 type CompilerConf = {
-    type: CompilerType
-    /** Location of JSON files to be saved (json-dir, po-json, mo, node-gettext) */
-    'target-dir'?: string
-    /** Path of JSON file to be saved (json) */
-    'target-path'?: string
-    /** Location of source root (ios) */
-    'src-dir'?: string
-    /** Location of res (android) */
-    'res-dir'?: string
-    'default-locale'?: string
-    /** Use locale as root key of json file if true (json-dir) */
-    'use-locale-key'?: boolean
+  'type': CompilerType,
+  /** Location of JSON files to be saved (json-dir, po-json, mo, node-gettext) */
+  'target-dir'?: string,
+  /** Path of JSON file to be saved (json) */
+  'target-path'?: string,
+  /** Location of source root (ios) */
+  'src-dir'?: string,
+  /** Location of res (android) */
+  'res-dir'?: string,
+  'default-locale'?: string,
+  /** Use locale as root key of json file if true (json-dir) */
+  'use-locale-key'?: boolean,
 }
 
 export class CompilerConfig {
-    private readonly cc: CompilerConf
-    constructor(cc: CompilerConf) {
-        this.cc = cc
-    }
+  private readonly cc: CompilerConf
+  constructor(cc: CompilerConf) {
+    this.cc = cc
+  }
 
-    getType(): CompilerType {
-        return this.cc.type
-    }
+  getType(): CompilerType {
+    return this.cc.type
+  }
 
-    // for ios only
-    getSrcDir(): string {
-        const srcDir = this.cc['src-dir']
-        if (srcDir == null) {
-            throw new Error('src-dir is required for this output')
-        }
-        return srcDir
+  // for ios only
+  getSrcDir(): string {
+    const srcDir = this.cc['src-dir']
+    if (srcDir == null) {
+      throw new Error('src-dir is required for this output')
     }
+    return srcDir
+  }
 
-    getTargetDir(): string {
-        const targetDir = this.cc['target-dir']
-        if (targetDir == null) {
-            throw new Error('target-dir is required for this output')
-        }
-        return targetDir
+  getTargetDir(): string {
+    const targetDir = this.cc['target-dir']
+    if (targetDir == null) {
+      throw new Error('target-dir is required for this output')
     }
+    return targetDir
+  }
 
-    getTargetPath(): string {
-        const targetPath = this.cc['target-path']
-        if (targetPath == null) {
-            throw new Error('target-path is required for this output')
-        }
-        return targetPath
+  getTargetPath(): string {
+    const targetPath = this.cc['target-path']
+    if (targetPath == null) {
+      throw new Error('target-path is required for this output')
     }
+    return targetPath
+  }
 
-    // for android only
-    getResDir(): string {
-        const resDir = this.cc['res-dir']
-        if (resDir == null) {
-            throw new Error('res-dir is required for this output')
-        }
-        return resDir
+  // for android only
+  getResDir(): string {
+    const resDir = this.cc['res-dir']
+    if (resDir == null) {
+      throw new Error('res-dir is required for this output')
     }
+    return resDir
+  }
 
-    getDefaultLocale(): string | undefined {
-        return this.cc['default-locale']
-    }
+  getDefaultLocale(): string | undefined {
+    return this.cc['default-locale']
+  }
 
-    useLocaleKey(): boolean {
-        return this.cc['use-locale-key'] ?? false
-    }
+  useLocaleKey(): boolean {
+    return this.cc['use-locale-key'] ?? false
+  }
 }
 
 type ValidationConf = {
-    /** If true, do not stop script on error occurs */
-    skip?: boolean,
-    /** Which locale is base text for validation (use key if not specified) */
-    'base-locale'?: string
+  /** If true, do not stop script on error occurs */
+  'skip'?: boolean,
+  /** Which locale is base text for validation (use key if not specified) */
+  'base-locale'?: string,
 }
 
 export class ValidationConfig {
-    private readonly vc: ValidationConf | undefined
-    private readonly opts: ValidationConf
-    constructor(vc: ValidationConf | undefined, opts: ValidationConf) {
-        this.vc = vc
-        this.opts = opts
-    }
+  private readonly vc: ValidationConf | undefined
+  private readonly opts: ValidationConf
+  constructor(vc: ValidationConf | undefined, opts: ValidationConf) {
+    this.vc = vc
+    this.opts = opts
+  }
 
-    getBaseLocale(): string | null {
-        return this.opts['base-locale'] ?? this.vc?.['base-locale'] ?? null
-    }
+  getBaseLocale(): string | null {
+    return this.opts['base-locale'] ?? this.vc?.['base-locale'] ?? null
+  }
 
-    getSkip(): boolean {
-        return this.opts['skip'] ?? this.vc?.['skip'] ?? false
-    }
+  getSkip(): boolean {
+    return this.opts['skip'] ?? this.vc?.['skip'] ?? false
+  }
 }
 
 type GoogleDocsConf = {
-    'doc-id'?: string
-    'doc-name'?: string
-    'sheet-name': string
-    'client-secret-path'?: string
-    'client-id'?: string
-    'client-secret'?: string
+  'doc-id'?: string,
+  'doc-name'?: string,
+  'sheet-name': string,
+  'client-secret-path'?: string,
+  'client-id'?: string,
+  'client-secret'?: string,
 }
 
 export type GoogleCredentials = {
-    clientId: string
-    clientSecret: string
+  clientId: string,
+  clientSecret: string,
 }
 
 export class GoogleDocsConfig {
-    private readonly gdc: GoogleDocsConf
-    constructor(gdc: GoogleDocsConf) {
-        this.gdc = gdc
-    }
+  private readonly gdc: GoogleDocsConf
+  constructor(gdc: GoogleDocsConf) {
+    this.gdc = gdc
+  }
 
-    getDocId(): string | undefined {
-        return this.gdc['doc-id']
-    }
+  getDocId(): string | undefined {
+    return this.gdc['doc-id']
+  }
 
-    getDocName(): string | undefined {
-        return this.gdc['doc-name']
-    }
+  getDocName(): string | undefined {
+    return this.gdc['doc-name']
+  }
 
-    getSheetName(): string {
-        return this.gdc['sheet-name']
-    }
+  getSheetName(): string {
+    return this.gdc['sheet-name']
+  }
 
-    async getCredentials(): Promise<GoogleCredentials> {
-        const clientSecretPath = this.gdc['client-secret-path']
-        if (clientSecretPath != null) {
-            const input = await fsp.readFile(clientSecretPath, {encoding: 'utf-8'})
-            return JSON.parse(input)['installed']
-        }
-        const clientId = this.gdc['client-id']
-        const clientSecret = this.gdc['client-secret']
-        if (clientId != null && clientSecret != null) {
-            return {clientId, clientSecret}
-        }
-        throw new Error('no client-secret for google-docs')
+  async getCredentials(): Promise<GoogleCredentials> {
+    const clientSecretPath = this.gdc['client-secret-path']
+    if (clientSecretPath != null) {
+      const input = await fsp.readFile(clientSecretPath, { encoding: 'utf-8' })
+      return JSON.parse(input)['installed']
     }
+    const clientId = this.gdc['client-id']
+    const clientSecret = this.gdc['client-secret']
+    if (clientId != null && clientSecret != null) {
+      return { clientId, clientSecret }
+    }
+    throw new Error('no client-secret for google-docs')
+  }
 }
 
 type LokaliseConf = {
-    token: string
-    projectId: string
-    /** fill key to specified locale */
-    'fill-key-to-locale'?: string,
-    /** key prefixes which 'fill-key-to-locale' option exclusion */
-    'pure-key-prefixes'?: string[]
-    /** Locales to use unverified translations */
-    'locales-to-use-unverified'?: string[]
-    /** Skip applying not-reviewed translations */
-    'skip-not-reviewed'?: boolean
-    /** Locale map to pass to syncer */
-    'locale-sync-map'?: {[locale: string]: string}
+  'token': string,
+  'projectId': string,
+  /** fill key to specified locale */
+  'fill-key-to-locale'?: string,
+  /** key prefixes which 'fill-key-to-locale' option exclusion */
+  'pure-key-prefixes'?: string[],
+  /** Locales to use unverified translations */
+  'locales-to-use-unverified'?: string[],
+  /** Skip applying not-reviewed translations */
+  'skip-not-reviewed'?: boolean,
+  /** Locale map to pass to syncer */
+  'locale-sync-map'?: { [locale: string]: string },
 }
 
 export class LokaliseConfig {
-    private readonly lc: LokaliseConf
-    constructor(lc: LokaliseConf) {
-        this.lc = lc
-    }
+  private readonly lc: LokaliseConf
+  constructor(lc: LokaliseConf) {
+    this.lc = lc
+  }
 
-    getToken(): string {
-        return this.lc['token']
-    }
+  getToken(): string {
+    return this.lc['token']
+  }
 
-    getProjectId(): string {
-        return this.lc['projectId']
-    }
+  getProjectId(): string {
+    return this.lc['projectId']
+  }
 
-    useUnverified(locale: string): boolean {
-        return this.lc['locales-to-use-unverified']?.includes(locale) ?? false
-    }
+  useUnverified(locale: string): boolean {
+    return this.lc['locales-to-use-unverified']?.includes(locale) ?? false
+  }
 
-    skipNotReviewed(): boolean {
-        return this.lc['skip-not-reviewed'] ?? false
-    }
+  skipNotReviewed(): boolean {
+    return this.lc['skip-not-reviewed'] ?? false
+  }
 
-    fillKeyToLocale(): string | null {
-        return this.lc['fill-key-to-locale'] ?? null
-    }
+  fillKeyToLocale(): string | null {
+    return this.lc['fill-key-to-locale'] ?? null
+  }
 
-    getPureKeyPrefixes(): string[] {
-        return this.lc['pure-key-prefixes'] ?? []
-    }
+  getPureKeyPrefixes(): string[] {
+    return this.lc['pure-key-prefixes'] ?? []
+  }
 
-    getLocaleSyncMap(inverted: boolean): {[locale: string]: string} | undefined {
-        const map = this.lc['locale-sync-map']
-        if (map == null) {
-            return undefined
-        }
-        if (inverted) {
-            return invert(map)
-        } else {
-            return map
-        }
+  getLocaleSyncMap(inverted: boolean): { [locale: string]: string } | undefined {
+    const map = this.lc['locale-sync-map']
+    if (map == null) {
+      return undefined
     }
+    if (inverted) {
+      return invert(map)
+    } else {
+      return map
+    }
+  }
 }

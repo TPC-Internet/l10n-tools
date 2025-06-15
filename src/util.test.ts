@@ -1,7 +1,7 @@
-import {describe, it} from 'node:test'
-import {faker} from '@faker-js/faker'
-import {expect} from 'expect'
-import {isPureKey} from './utils.js'
+import { describe, it } from 'node:test'
+import { faker } from '@faker-js/faker'
+import { expect } from 'expect'
+import { isPureKey } from './utils.js'
 
 describe('Util', () => {
   describe('isPureKey', () => {

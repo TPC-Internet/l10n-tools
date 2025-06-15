@@ -2,7 +2,7 @@ import type { Element } from 'domhandler'
 
 export function getElementContent(src: string, elem: Element) {
   if (elem.children.length === 0) {
-      return ''
+    return ''
   }
   const start = elem.children.at(0)!.startIndex!
   const end = elem.children.at(-1)!.endIndex!
@@ -11,7 +11,7 @@ export function getElementContent(src: string, elem: Element) {
 
 export function getElementContentIndex(elem: Element) {
   if (elem.children.length === 0) {
-      return elem.endIndex! + 1
+    return elem.endIndex! + 1
   }
   return elem.children.at(0)!.startIndex!
 }
